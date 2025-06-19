@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import DashboardStatsCard from './components/DashboardStatsCard';
 import { supabase } from '../../config/supabase';
 import './ProductListPage.css';
@@ -85,15 +85,18 @@ function ProductListPage() {
   const [productInfoProgress, setProductInfoProgress] = useState<Progress | null>(null);
   
 
-  // 통계 계산
-  const stats: Stats = {
-    total: data.length,
-    notItemPartner: data.filter(item => !item.is_item_partner).length,
-    outOfStock: data.filter(item => item.sales_status === 'OUTOFSTOCK').length,
-    rejected: data.filter(item => item.status === 'REJECT').length,
-    selling: data.filter(item => item.sales_status === 'ONSALE').length,
-    tempSave: data.filter(item => item.status === 'TEMP_SAVE').length
-  };
+  // 📊 통계 계산 최적화 - useMemo로 매 렌더링마다 재계산 방지
+  const stats: Stats = useMemo(() => {
+    console.log('🔄 통계 재계산 중...'); // 디버깅용 로그
+    return {
+      total: data.length,
+      notItemPartner: data.filter(item => !item.is_item_partner).length,
+      outOfStock: data.filter(item => item.sales_status === 'OUTOFSTOCK').length,
+      rejected: data.filter(item => item.status === 'REJECT').length,
+      selling: data.filter(item => item.sales_status === 'ONSALE').length,
+      tempSave: data.filter(item => item.status === 'TEMP_SAVE').length
+    };
+  }, [data]); // data가 변경될 때만 재계산
 
   // 로켓재고 데이터 로드 (옵션 ID와 관련 데이터)
   const loadRocketInventoryOptionIds = async () => {
@@ -822,20 +825,24 @@ function ProductListPage() {
     });
   };
 
+  // 🚀 컴포넌트 마운트 시 데이터 로드
   useEffect(() => {
+    console.log('🔄 초기 데이터 로딩 시작...');
     loadProductsFromDB();
     loadRocketInventoryOptionIds();
     loadItemViewsData();
   }, []);
 
-  // 조회수 데이터가 로드된 후 상품 데이터 재정렬
+  // 🔄 조회수 데이터가 로드된 후 상품 데이터 재정렬 (무한 루프 방지)
   useEffect(() => {
+    // itemViewsData가 처음 로드되었을 때만 정렬 실행
     if (Object.keys(itemViewsData).length > 0 && data.length > 0) {
+      console.log('🔄 조회수 데이터 기반 정렬 시작...');
       const sortedData = sortProductsByViewsData([...data]);
       setData(sortedData);
       setFilteredData(sortedData);
     }
-  }, [itemViewsData, data.length]);
+  }, [itemViewsData]); // ⚠️ data.length 제거하여 무한 루프 방지
 
   const totalPages = Math.ceil(transformDataToTableRows(filteredData).length / itemsPerPage);
   const currentData = getCurrentPageData();
