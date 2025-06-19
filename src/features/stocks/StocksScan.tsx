@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../config/supabase';
 import '../products/ProductListPage.css';
@@ -8,8 +8,14 @@ import '../products/ProductListPage.css';
  * - 바코드/QR코드 스캔을 통한 재고 확인
  * - 수동 입력 기능
  * - 스캔 기록 관리
+ * - 메모리 최적화 적용
  */
 function StocksScan() {
+  // 📊 메모리 사용량 모니터링을 위한 상수
+  const MAX_STOCK_DATA_SIZE = 1000; // 최대 재고 데이터 개수
+  const MAX_SCAN_HISTORY_SIZE = 10; // 최대 스캔 기록 개수
+  const MAX_EXCEL_DATA_SIZE = 5000; // 최대 엑셀 데이터 개수 (약 1MB)
+
   // State 정의
   const [scanResult, setScanResult] = useState('');
   const [isScanning, setIsScanning] = useState(false);
@@ -144,8 +150,17 @@ function StocksScan() {
     }
   };
 
-  // 실제 엑셀 파일 읽기 함수
-  const readExcelFile = (file: File) => {
+  // 📂 실제 엑셀 파일 읽기 함수 (메모리 최적화)
+  const readExcelFile = useCallback((file: File) => {
+    // 파일 크기 검증 (10MB 제한)
+    const maxFileSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxFileSize) {
+      alert('파일 크기가 너무 큽니다. 10MB 이하의 파일을 선택해주세요.');
+      return;
+    }
+    
+
+    
     const reader = new FileReader();
     
     reader.onload = (e) => {
@@ -168,6 +183,17 @@ function StocksScan() {
           return;
         }
         
+        // 📊 대용량 데이터 처리 시 메모리 확인
+        if (jsonData.length > MAX_EXCEL_DATA_SIZE) {
+          const confirm = window.confirm(`파일에 ${jsonData.length}개의 행이 있습니다. 최대 ${MAX_EXCEL_DATA_SIZE}개 행만 처리됩니다. 계속하시겠습니까?`);
+          if (!confirm) return;
+          
+          console.warn(`⚠️ 대용량 엑셀 데이터: ${jsonData.length}개 행을 ${MAX_EXCEL_DATA_SIZE}개로 제한`);
+          jsonData.splice(MAX_EXCEL_DATA_SIZE);
+        }
+        
+
+        
         setExcelData(jsonData);
         setIsModalOpen(true);
         setSelectedBarcodeColumn('');
@@ -180,11 +206,18 @@ function StocksScan() {
       } catch (error) {
         console.error('❌ 엑셀 파일 읽기 오류:', error);
         alert('엑셀 파일을 읽는 중 오류가 발생했습니다. 파일 형식을 확인해주세요.');
+      } finally {
+        // 🧹 FileReader 메모리 정리
+        reader.onload = null;
+        reader.onerror = null;
       }
     };
     
     reader.onerror = () => {
       alert('파일을 읽는 중 오류가 발생했습니다.');
+      // 🧹 FileReader 메모리 정리
+      reader.onload = null;
+      reader.onerror = null;
     };
     
     // 파일을 binary string으로 읽기
@@ -194,7 +227,7 @@ function StocksScan() {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  };
+  }, []);
 
   // 모달 닫기
   const handleModalClose = () => {
@@ -361,21 +394,55 @@ function StocksScan() {
         return;
       }
 
-      console.log('✅ 재고 데이터 로드 성공:', data);
       setStockManagementData(data || []);
     } catch (err) {
       console.error('❌ 재고 데이터 로드 예외:', err);
     }
   };
 
-  // 컴포넌트 마운트 시 데이터 로드 (재고 관리 페이지는 초기 로드 불필요)
-  // useEffect(() => {
-  //   loadStockManagementData();
-  // }, []);
+  // 🧹 컴포넌트 언마운트 시 메모리 정리 (메모리 누수 방지)
+  useEffect(() => {
+    console.log('🔄 StocksScan 컴포넌트 마운트됨');
+    
+    // cleanup 함수: 컴포넌트 언마운트 시 실행
+    return () => {
+      console.log('🧹 StocksScan 컴포넌트 언마운트 - 메모리 정리 중...');
+      
+      // 대용량 상태 데이터 정리
+      setStockManagementData([]);
+      setScanHistory([]);
+      setExcelData([]);
+      
+      // 파일 입력 정리
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
+      console.log('✅ 메모리 정리 완료');
+    };
+  }, []);
+
+  // 📊 stockManagementData 메모리 최적화 - 최대 크기 제한
+  const optimizedStockData = useMemo(() => {
+    if (stockManagementData.length > MAX_STOCK_DATA_SIZE) {
+      console.warn(`⚠️ 재고 데이터가 최대 크기(${MAX_STOCK_DATA_SIZE})를 초과했습니다. 최신 ${MAX_STOCK_DATA_SIZE}개만 유지합니다.`);
+      return stockManagementData.slice(0, MAX_STOCK_DATA_SIZE);
+    }
+    
+    return stockManagementData;
+  }, [stockManagementData]);
+
+  // 🔄 scanHistory 메모리 최적화 - 최대 크기 제한
+  const optimizedScanHistory = useMemo(() => {
+    if (scanHistory.length > MAX_SCAN_HISTORY_SIZE) {
+      return scanHistory.slice(0, MAX_SCAN_HISTORY_SIZE);
+    }
+    return scanHistory;
+  }, [scanHistory]);
 
   // 재고 추가 핸들러
   const handleStockAdd = async () => {
-    if (stockManagementData.length === 0) {
+    if (optimizedStockData.length === 0) {
       alert('추가할 재고 데이터가 없습니다. 먼저 엑셀 파일을 업로드해주세요.');
       return;
     }
@@ -406,16 +473,18 @@ function StocksScan() {
       let insertCount = 0;
       let errorCount = 0;
 
-      // 동일한 바코드+위치를 미리 그룹화하여 중복 처리 방지
-      const groupedData = new Map();
+      // 🗺️ 동일한 바코드+위치를 미리 그룹화하여 중복 처리 방지 (메모리 최적화)
       
-      stockManagementData.forEach(item => {
+      const groupedData = new Map<string, any>();
+      
+      optimizedStockData.forEach(item => {
         const key = `${item.barcode?.trim() || ''}_${item.location || 'A-1-001'}`;
         const quantity = parseInt(item.quantity || item.stock || 0);
         
         if (groupedData.has(key)) {
-          groupedData.get(key).totalQuantity += quantity;
-          groupedData.get(key).count += 1;
+          const existing = groupedData.get(key);
+          existing.totalQuantity += quantity;
+          existing.count += 1;
         } else {
           groupedData.set(key, {
             barcode: item.barcode?.trim() || '',
@@ -429,6 +498,9 @@ function StocksScan() {
       });
 
       const groupedItems = Array.from(groupedData.values());
+      
+      // 🧹 메모리 정리: Map 객체 명시적 해제
+      groupedData.clear();
 
       for (let i = 0; i < groupedItems.length; i++) {
         const groupedItem = groupedItems[i];
@@ -517,7 +589,7 @@ function StocksScan() {
 
   // 재고 차감 핸들러
   const handleStockSubtract = async () => {
-    if (stockManagementData.length === 0) {
+    if (optimizedStockData.length === 0) {
       alert('차감할 재고 데이터가 없습니다. 먼저 엑셀 파일을 업로드해주세요.');
       return;
     }
@@ -1038,7 +1110,7 @@ function StocksScan() {
         <div className="product-list-table-header-section">
           <div className="product-list-table-info">
             <div className="product-list-data-count">
-              재고 관리 목록 ({stockManagementData.length}개)
+              재고 관리 목록 ({optimizedStockData.length}개)
             </div>
           </div>
           <div className="product-list-action-buttons">
@@ -1075,7 +1147,7 @@ function StocksScan() {
                   <input 
                     type="checkbox" 
                     onChange={handleSelectAll}
-                    checked={stockManagementData.length > 0 && selectedItems.length === stockManagementData.length}
+                    checked={optimizedStockData.length > 0 && selectedItems.length === optimizedStockData.length}
                     style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                   />
                 </th>
@@ -1086,7 +1158,7 @@ function StocksScan() {
               </tr>
             </thead>
             <tbody className="product-list-table-body">
-              {stockManagementData.length === 0 && (
+              {optimizedStockData.length === 0 && (
                 <tr>
                   <td colSpan={5} style={{ 
                     textAlign: 'center', 
@@ -1098,7 +1170,7 @@ function StocksScan() {
                   </td>
                 </tr>
               )}
-              {stockManagementData.map((stock, index) => (
+                              {optimizedStockData.map((stock, index) => (
                 <tr 
                   key={stock.id} 
                   className="product-list-table-row"

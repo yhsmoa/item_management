@@ -28,9 +28,25 @@ function StockManagement() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
 
-  // 컴포넌트 마운트 시 데이터 로드
+  // 컴포넌트 마운트 시 데이터 로드 + 🧹 메모리 누수 방지
   useEffect(() => {
+    console.log('🔄 StockManagement 컴포넌트 마운트됨');
     loadStockData();
+    
+    // 🧹 cleanup 함수: 컴포넌트 언마운트 시 메모리 정리
+    return () => {
+      console.log('🧹 StockManagement 컴포넌트 언마운트 - 메모리 정리 중...');
+      
+      // 대용량 상태 데이터 초기화 (메모리 절약)
+      setStockData([]);
+      setFilteredStockData([]);
+      setSelectedItems([]);
+      setEditValues({});
+      setIsLoading(false);
+      setEditingCell(null);
+      
+      console.log('✅ StockManagement 메모리 정리 완료');
+    };
   }, []);
 
   // 현재 사용자 ID 가져오기

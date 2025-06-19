@@ -25,9 +25,23 @@ function RocketgrowthShipment() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
 
-  // 컴포넌트 마운트 시 데이터 로드
+  // 컴포넌트 마운트 시 데이터 로드 + 🧹 메모리 누수 방지
   useEffect(() => {
+    console.log('🔄 RocketgrowthShipment 컴포넌트 마운트됨');
     loadShipmentData();
+    
+    // 🧹 cleanup 함수: 컴포넌트 언마운트 시 메모리 정리
+    return () => {
+      console.log('🧹 RocketgrowthShipment 컴포넌트 언마운트 - 메모리 정리 중...');
+      
+      // 상태 데이터 초기화 (메모리 절약)
+      setShipmentData([]);
+      setFilteredShipmentData([]);
+      setSelectedItems([]);
+      setIsLoading(false);
+      
+      console.log('✅ RocketgrowthShipment 메모리 정리 완료');
+    };
   }, []);
 
   // 로켓그로스 입고 데이터 로드

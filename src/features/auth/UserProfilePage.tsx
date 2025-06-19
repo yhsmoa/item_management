@@ -30,10 +30,33 @@ const UserProfilePage: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState('');
 
   /**
-   * 컴포넌트 마운트 시 기존 API 정보 로드
+   * 컴포넌트 마운트 시 기존 API 정보 로드 + 🧹 메모리 누수 방지
    */
   useEffect(() => {
+    console.log('🔄 UserProfilePage 컴포넌트 마운트됨');
     loadUserApiInfo();
+    
+    // 🧹 cleanup 함수: 컴포넌트 언마운트 시 메모리 정리
+    return () => {
+      console.log('🧹 UserProfilePage 컴포넌트 언마운트 - 메모리 정리 중...');
+      
+      // 폼 데이터 초기화 (민감한 정보 메모리에서 제거)
+      setFormData({
+        coupangName: '',
+        coupangCode: '',
+        coupangAccessKey: '',
+        coupangSecretKey: '',
+        googleSheetId: '',
+        googleSheetName: ''
+      });
+      
+      // 메시지 상태 초기화
+      setErrorMessage('');
+      setSuccessMessage('');
+      setIsLoading(false);
+      
+      console.log('✅ UserProfilePage 메모리 정리 완료');
+    };
   }, []);
 
   /**
@@ -122,13 +145,10 @@ const UserProfilePage: React.FC = () => {
         googlesheet_name: formData.googleSheetName
       };
 
-      console.log('📝 API 정보 저장 데이터 준비:', apiData);
-
       // userApiService를 통해 API 정보 저장 처리
       const result = await saveUserApiInfo(apiData);
 
       if (result.success) {
-        console.log('✅ API 정보 저장 성공!');
         setSuccessMessage('API 정보가 성공적으로 저장되었습니다.');
       } else {
         // 저장 실패

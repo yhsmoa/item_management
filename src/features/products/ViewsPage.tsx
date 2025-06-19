@@ -24,7 +24,7 @@ function ViewsPage() {
 
   // 검색 핸들러
   const handleSearch = () => {
-    console.log('검색:', searchKeyword);
+    // 검색 로직 구현 예정
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {

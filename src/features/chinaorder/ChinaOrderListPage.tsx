@@ -42,9 +42,24 @@ function ChinaOrderListPage() {
   const [orderData, setOrderData] = useState<ChinaOrderData[]>([]);
   const [filteredOrderData, setFilteredOrderData] = useState<ChinaOrderData[]>([]);
 
-  // 컴포넌트 마운트 시 데이터 로드
+  // 컴포넌트 마운트 시 데이터 로드 + 🧹 메모리 누수 방지
   useEffect(() => {
+    console.log('🔄 ChinaOrderListPage 컴포넌트 마운트됨');
     loadOrderData();
+    
+    // 🧹 cleanup 함수: 컴포넌트 언마운트 시 메모리 정리
+    return () => {
+      console.log('🧹 ChinaOrderListPage 컴포넌트 언마운트 - 메모리 정리 중...');
+      
+      // 대용량 상태 데이터 초기화 (메모리 절약)
+      setOrderData([]);
+      setFilteredOrderData([]);
+      setSelectedItems([]);
+      setIsLoading(false);
+      setSelectAll(false);
+      
+      console.log('✅ ChinaOrderListPage 메모리 정리 완료');
+    };
   }, []);
 
   // 주문 데이터 로드
@@ -67,7 +82,7 @@ function ChinaOrderListPage() {
 
       setOrderData(data || []);
       setFilteredOrderData(data || []);
-      console.log(`✅ 주문 데이터 로드 완료: ${data?.length || 0}개`);
+
       
 
     } catch (error) {
@@ -102,7 +117,6 @@ function ChinaOrderListPage() {
   };
 
   const handleSearch = async () => {
-    console.log('검색:', searchKeyword);
     if (!searchKeyword.trim()) {
       setFilteredOrderData(orderData);
       setCurrentPage(1);

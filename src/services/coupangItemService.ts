@@ -2,6 +2,73 @@ import { supabase } from '../config/supabase';
 import { fetchCoupangProducts, CoupangApiResponse, CoupangProduct, fetchCoupangProductDetail, CoupangProductDetailResponse, generateHmacSignature } from '../utils/coupangApi';
 import { getCurrentUserId } from './authService';
 
+// 🛠️ 3단계 최적화: API 호출 캐싱 메커니즘
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  expiresIn: number; // 캐시 만료 시간 (ms)
+}
+
+// 🛠️ 캐시 스토리지 (메모리 기반)
+const cacheStorage = new Map<string, CacheEntry<any>>();
+
+// 🛠️ 캐시 설정
+const CACHE_CONFIG = {
+  PRODUCT_DETAIL_TTL: 5 * 60 * 1000, // 상품 상세 정보 5분 캐시
+  ITEM_IDS_TTL: 10 * 60 * 1000,      // 아이템 ID 목록 10분 캐시
+  MAX_CACHE_SIZE: 1000,              // 최대 캐시 항목 수
+  CLEANUP_INTERVAL: 30 * 60 * 1000   // 30분마다 캐시 정리
+};
+
+// 🛠️ 캐시 유틸리티 함수들
+function getCacheKey(prefix: string, key: string): string {
+  return `${prefix}:${key}`;
+}
+
+function setCache<T>(key: string, data: T, ttl: number): void {
+  // 캐시 크기 제한 체크
+  if (cacheStorage.size >= CACHE_CONFIG.MAX_CACHE_SIZE) {
+    clearExpiredCache();
+  }
+  
+  cacheStorage.set(key, {
+    data,
+    timestamp: Date.now(),
+    expiresIn: ttl
+  });
+}
+
+function getCache<T>(key: string): T | null {
+  const entry = cacheStorage.get(key);
+  if (!entry) return null;
+  
+  // 만료 체크
+  if (Date.now() - entry.timestamp > entry.expiresIn) {
+    cacheStorage.delete(key);
+    return null;
+  }
+  
+  return entry.data;
+}
+
+function clearExpiredCache(): void {
+  const now = Date.now();
+  const expiredKeys: string[] = [];
+  
+  // TypeScript 호환성을 위해 Array.from() 사용
+  Array.from(cacheStorage.entries()).forEach(([key, entry]) => {
+    if (now - entry.timestamp > entry.expiresIn) {
+      expiredKeys.push(key);
+    }
+  });
+  
+  expiredKeys.forEach(key => cacheStorage.delete(key));
+  console.log(`🧹 캐시 정리 완료: ${expiredKeys.length}개 만료된 항목 제거`);
+}
+
+// 🛠️ 주기적 캐시 정리
+setInterval(clearExpiredCache, CACHE_CONFIG.CLEANUP_INTERVAL);
+
 /**
  * 쿠팡 아이템 데이터 타입
  */
@@ -328,19 +395,28 @@ export async function importAllCoupangProducts(
 }
 
 /**
- * extract-coupang-item-id 테이블에서 모든 item_id 조회
+ * extract-coupang-item-id 테이블에서 모든 item_id 조회 (캐싱 적용)
  */
 export async function getCoupangItemIds(): Promise<string[]> {
   try {
     // 현재 로그인한 사용자 ID 가져오기
     const userId = getCurrentUserId();
     
-    console.log('🔍 extract-coupang-item-id 조회 - 사용자 ID:', userId);
-    
     if (!userId) {
       console.warn('⚠️ 로그인한 사용자 ID가 없어서 item_id를 조회하지 않습니다.');
       return [];
     }
+    
+    // 🛠️ 캐시 확인
+    const cacheKey = getCacheKey('item_ids', userId);
+    const cachedData = getCache<string[]>(cacheKey);
+    
+    if (cachedData) {
+      console.log(`📋 캐시에서 사용자 ${userId}의 item_id 로드: ${cachedData.length}개 (캐시 히트)`);
+      return cachedData;
+    }
+    
+    console.log('🔍 extract-coupang-item-id 조회 - 사용자 ID:', userId);
     
     const { data, error } = await supabase
       .from('extract-coupang-item-id')
@@ -352,12 +428,17 @@ export async function getCoupangItemIds(): Promise<string[]> {
       return [];
     }
 
-    console.log(`📦 사용자 ${userId}의 item_id 개수: ${data?.length || 0}개`);
-    if (data && data.length > 0) {
-      console.log('   - 첫 번째 item_id:', data[0].item_id);
+    const itemIds = data?.map((item: any) => String(item.item_id)) || [];
+    
+    // 🛠️ 캐시에 저장
+    setCache(cacheKey, itemIds, CACHE_CONFIG.ITEM_IDS_TTL);
+    
+    console.log(`📦 사용자 ${userId}의 item_id 개수: ${itemIds.length}개 (데이터베이스에서 로드)`);
+    if (itemIds.length > 0) {
+      console.log('   - 첫 번째 item_id:', itemIds[0]);
     }
 
-    return data?.map((item: any) => String(item.item_id)) || [];
+    return itemIds;
   } catch (error) {
     console.error('❌ 아이템 ID 조회 예외:', error);
     return [];
@@ -408,20 +489,36 @@ export async function fetchAndSaveProductInfo(
       return { success: false, itemCount: 0, error: '로그인이 필요합니다.' };
     }
     
-    // 상품 상세 정보 조회
-    let response: CoupangProductDetailResponse;
-    try {
-      response = await fetchCoupangProductDetail(sellerProductId);
-    } catch (error: any) {
-      // 404 오류 처리 (상품이 존재하지 않거나 삭제됨)
-      if (error.message?.includes('404')) {
-        console.warn(`⚠️ 상품 ${sellerProductId}: 쿠팡에서 삭제되었거나 존재하지 않는 상품입니다. (404)`);
-        return { success: true, itemCount: 0, error: '상품이 존재하지 않음 (삭제된 상품)' };
+    // 🛠️ 상품 상세 정보 조회 (캐싱 적용)
+    const productCacheKey = getCacheKey('product_detail', sellerProductId);
+    let response: CoupangProductDetailResponse | null = getCache<CoupangProductDetailResponse>(productCacheKey);
+    
+    if (!response) {
+      console.log(`🌐 API에서 상품 ${sellerProductId} 상세 정보 조회 (캐시 미스)`);
+      try {
+        response = await fetchCoupangProductDetail(sellerProductId);
+        // 🛠️ 성공한 응답만 캐시에 저장
+        if (response && response.code === 'SUCCESS') {
+          setCache(productCacheKey, response, CACHE_CONFIG.PRODUCT_DETAIL_TTL);
+        }
+      } catch (error: any) {
+        // 404 오류 처리 (상품이 존재하지 않거나 삭제됨)
+        if (error.message?.includes('404')) {
+          console.warn(`⚠️ 상품 ${sellerProductId}: 쿠팡에서 삭제되었거나 존재하지 않는 상품입니다. (404)`);
+          return { success: true, itemCount: 0, error: '상품이 존재하지 않음 (삭제된 상품)' };
+        }
+        
+        // 기타 네트워크 오류
+        console.error(`❌ 상품 ${sellerProductId}: API 호출 실패 -`, error.message);
+        throw error; // 재시도 가능한 오류는 상위로 전달
       }
-      
-      // 기타 네트워크 오류
-      console.error(`❌ 상품 ${sellerProductId}: API 호출 실패 -`, error.message);
-      throw error; // 재시도 가능한 오류는 상위로 전달
+    } else {
+      console.log(`📋 캐시에서 상품 ${sellerProductId} 상세 정보 로드 (캐시 히트)`);
+    }
+    
+    // null 체크
+    if (!response) {
+      throw new Error('API 호출 결과가 null입니다.');
     }
     
     if (response.code !== 'SUCCESS') {
@@ -587,13 +684,14 @@ export async function importAllProductInfo(
       };
     }
 
-    // 기존 사용자 데이터 삭제
-    onProgress?.(0, 0, '기존 데이터 삭제 중...');
-    console.log(`🗑️ 사용자 ${userId}의 기존 extract_coupang_item_info 데이터 삭제 중...`);
+    // 기존 데이터 삭제 (신중하게)
+    console.log('🗑️ 기존 상품 정보 삭제 중...');
+    
+    onProgress?.(0, 0, '기존 데이터 조회 중...');
     
     const { data: existingData, error: selectError } = await supabase
       .from('extract_coupang_item_info')
-      .select('option_id')
+      .select('id')
       .eq('user_id', userId);
     
     if (selectError) {
@@ -605,8 +703,6 @@ export async function importAllProductInfo(
         error: `기존 데이터 조회 실패: ${selectError.message}`
       };
     }
-    
-    console.log(`📊 삭제 대상 기존 데이터: ${existingData?.length || 0}개`);
     
     if (existingData && existingData.length > 0) {
       const { error: deleteError } = await supabase
@@ -650,8 +746,10 @@ export async function importAllProductInfo(
     
     let totalProcessed = 0;
     let totalSaved = 0;
-    const BATCH_SIZE = 8; // 한 번에 8개씩 병렬 처리
-    const BATCH_DELAY = 100; // 배치 간 100ms 딜레이
+    // 🛠️ API 호출 최적화: 배치 크기 축소 (8 → 3)
+    const BATCH_SIZE = 3; // 더 보수적인 배치 크기로 API 서버 부하 감소
+    // 🛠️ API 호출 최적화: 딜레이 증가 (100ms → 500ms)
+    const BATCH_DELAY = 500; // Rate limiting 방지를 위한 더 긴 딜레이
 
     // 배치별로 처리
     for (let i = 0; i < itemIds.length; i += BATCH_SIZE) {
@@ -662,10 +760,10 @@ export async function importAllProductInfo(
       onProgress?.(
         i + batch.length, 
         itemIds.length, 
-        `배치 ${batchNumber}/${totalBatches} 처리 중... (${batch.length}개 병렬 처리)`
+        `배치 ${batchNumber}/${totalBatches} 처리 중... (${batch.length}개 보수적 처리)`
       );
 
-      console.log(`📦 배치 ${batchNumber}/${totalBatches}: ${batch.length}개 상품 병렬 처리 시작`);
+      console.log(`📦 배치 ${batchNumber}/${totalBatches}: ${batch.length}개 상품 보수적 병렬 처리 시작 (최적화됨)`);
 
       // 현재 배치를 병렬로 처리
       const batchPromises = batch.map(async (itemId) => {
@@ -694,15 +792,16 @@ export async function importAllProductInfo(
         }
       });
 
-      console.log(`✅ 배치 ${batchNumber} 완료: ${batch.length}개 처리 (누적: ${totalProcessed}/${itemIds.length})`);
+      console.log(`✅ 배치 ${batchNumber} 완료: ${batch.length}개 처리 (누적: ${totalProcessed}/${itemIds.length}) - 최적화됨`);
 
-      // 다음 배치 전 짧은 딜레이 (마지막 배치가 아닌 경우만)
+      // 🛠️ 다음 배치 전 더 긴 딜레이 (마지막 배치가 아닌 경우만)
       if (i + BATCH_SIZE < itemIds.length) {
+        console.log(`⏳ 다음 배치 전 ${BATCH_DELAY}ms 대기 중... (API 서버 보호)`);
         await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
       }
     }
 
-    console.log(`🎉 전체 작업 완료! ${totalProcessed}개 상품 처리, ${totalSaved}개 옵션 저장`);
+    console.log(`🎉 전체 작업 완료! ${totalProcessed}개 상품 처리, ${totalSaved}개 옵션 저장 (최적화됨)`);
 
     return {
       success: true,
@@ -737,8 +836,10 @@ export async function retryFailedProducts(
   
   let totalProcessed = 0;
   let totalSaved = 0;
-  const BATCH_SIZE = 5; // 재시도는 더 보수적으로
-  const BATCH_DELAY = 200; // 더 긴 딜레이
+  // 🛠️ 재시도 최적화: 더욱 보수적인 배치 크기 (5 → 2)
+  const BATCH_SIZE = 2; // 재시도는 더욱 보수적으로 API 안정성 확보
+  // 🛠️ 재시도 최적화: 더 긴 딜레이 (200ms → 1000ms)
+  const BATCH_DELAY = 1000; // 재시도 시 더 긴 대기 시간으로 서버 부하 방지
 
   for (let i = 0; i < failedItemIds.length; i += BATCH_SIZE) {
     const batch = failedItemIds.slice(i, i + BATCH_SIZE);
@@ -973,7 +1074,8 @@ export async function importImageInfoFromItemAll(
       }
       
       if (batchData && batchData.length > 0) {
-        allItemData = allItemData.concat(batchData);
+        // 🛠️ 배열 최적화: concat 대신 push 사용으로 메모리 효율성 개선
+        allItemData.push(...batchData);
         console.log(`📦 데이터 배치 ${Math.floor(from/batchSize) + 1}: ${batchData.length}개 (누적: ${allItemData.length}개)`);
         
         // 마지막 배치인지 확인
@@ -1055,8 +1157,10 @@ export async function importImageInfoFromItemAll(
 
     let totalProcessed = 0;
     let totalSaved = 0;
-    const BATCH_SIZE = 8; // 한 번에 8개씩 병렬 처리
-    const BATCH_DELAY = 100;
+    // 🛠️ API 호출 최적화: 배치 크기 축소 (8 → 3) - importImageInfoFromItemAll
+    const BATCH_SIZE = 3; // 더 보수적인 배치 크기로 API 서버 부하 감소
+    // 🛠️ API 호출 최적화: 딜레이 증가 (100ms → 500ms)
+    const BATCH_DELAY = 500; // Rate limiting 방지를 위한 더 긴 딜레이
 
     // 배치별로 처리
     for (let i = 0; i < uniqueItemIds.length; i += BATCH_SIZE) {
@@ -1213,7 +1317,8 @@ export async function getTableRowData(): Promise<TableRowData[]> {
       }
       
       if (batchData && batchData.length > 0) {
-        allItemData = allItemData.concat(batchData);
+        // 🛠️ 배열 최적화: concat 대신 push 사용으로 메모리 효율성 개선
+        allItemData.push(...batchData);
         console.log(`📦 배치 ${Math.floor(from/batchSize) + 1}: ${batchData.length}개 (누적: ${allItemData.length}개)`);
         
         // 마지막 배치인지 확인
@@ -1751,7 +1856,8 @@ export async function importImageInfoFromItemAllRocketGrowth(
       }
       
       if (batchData && batchData.length > 0) {
-        allItemData = allItemData.concat(batchData);
+        // 🛠️ 배열 최적화: concat 대신 push 사용으로 메모리 효율성 개선
+        allItemData.push(...batchData);
         console.log(`📦 로켓그로스 API - 데이터 배치 ${Math.floor(from/batchSize) + 1}: ${batchData.length}개 (누적: ${allItemData.length}개)`);
         
         // 마지막 배치인지 확인
@@ -1833,8 +1939,10 @@ export async function importImageInfoFromItemAllRocketGrowth(
 
     let totalProcessed = 0;
     let totalSaved = 0;
-    const BATCH_SIZE = 8; // 한 번에 8개씩 병렬 처리
-    const BATCH_DELAY = 100;
+    // 🛠️ API 호출 최적화: 배치 크기 축소 (8 → 3) - RocketGrowth
+    const BATCH_SIZE = 3; // 더 보수적인 배치 크기로 API 서버 부하 감소
+    // 🛠️ API 호출 최적화: 딜레이 증가 (100ms → 500ms)
+    const BATCH_DELAY = 500; // Rate limiting 방지를 위한 더 긴 딜레이
 
     // 배치별로 처리
     for (let i = 0; i < uniqueItemIds.length; i += BATCH_SIZE) {
@@ -1963,7 +2071,8 @@ export async function importImageInfoFromItemAllNormal(
       }
       
       if (batchData && batchData.length > 0) {
-        allItemData = allItemData.concat(batchData);
+        // 🛠️ 배열 최적화: concat 대신 push 사용으로 메모리 효율성 개선
+        allItemData.push(...batchData);
         console.log(`📦 일반쿠팡 API - 데이터 배치 ${Math.floor(from/batchSize) + 1}: ${batchData.length}개 (누적: ${allItemData.length}개)`);
         
         // 마지막 배치인지 확인
@@ -2045,8 +2154,10 @@ export async function importImageInfoFromItemAllNormal(
 
     let totalProcessed = 0;
     let totalSaved = 0;
-    const BATCH_SIZE = 8; // 한 번에 8개씩 병렬 처리
-    const BATCH_DELAY = 100;
+    // 🛠️ API 호출 최적화: 배치 크기 축소 (8 → 3) - Normal API
+    const BATCH_SIZE = 3; // 더 보수적인 배치 크기로 API 서버 부하 감소
+    // 🛠️ API 호출 최적화: 딜레이 증가 (100ms → 500ms)
+    const BATCH_DELAY = 500; // Rate limiting 방지를 위한 더 긴 딜레이
 
     // 배치별로 처리
     for (let i = 0; i < uniqueItemIds.length; i += BATCH_SIZE) {

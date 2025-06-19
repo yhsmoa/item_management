@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import DashboardStatsCard from './components/DashboardStatsCard';
 import { supabase } from '../../config/supabase';
 import './ProductListPage.css';
@@ -84,10 +84,15 @@ function ProductListPage() {
   // 진행률
   const [productInfoProgress, setProductInfoProgress] = useState<Progress | null>(null);
   
+  // 입력 ref
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // 🛠️ 5단계 최적화: 타이머 추적을 위한 ref 추가 (메모리 누수 방지)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // 📊 통계 계산 최적화 - useMemo로 매 렌더링마다 재계산 방지
   const stats: Stats = useMemo(() => {
-    console.log('🔄 통계 재계산 중...'); // 디버깅용 로그
     return {
       total: data.length,
       notItemPartner: data.filter(item => !item.is_item_partner).length,
@@ -98,11 +103,52 @@ function ProductListPage() {
     };
   }, [data]); // data가 변경될 때만 재계산
 
+  // 🛠️ 4단계 최적화: 날짜 포맷팅 함수 캐싱
+  const formatDateToYYMMDD = useCallback((date: Date): string => {
+    const year = date.getFullYear().toString().slice(-2);
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}${month}${day}`;
+  }, []);
+
+  // 🛠️ 4단계 최적화: 조회수 색상 결정 함수 캐싱
+  const getViewCountColor = useCallback((current: string | undefined, previous: string | undefined): string => {
+    if (!current || current === '-' || !previous || previous === '-') {
+      return '#666';
+    }
+    
+    const currentNum = parseInt(current.replace(/,/g, ''));
+    const previousNum = parseInt(previous.replace(/,/g, ''));
+    
+    if (isNaN(currentNum) || isNaN(previousNum)) {
+      return '#666';
+    }
+    
+    // 증가율 계산
+    const changeRate = previousNum === 0 ? 0 : ((currentNum - previousNum) / previousNum) * 100;
+    
+    if (changeRate > 20) return '#22c55e';      // 초록 (20% 이상 증가)
+    if (changeRate > 0) return '#3b82f6';       // 파랑 (증가)
+    if (changeRate === 0) return '#666';        // 회색 (동일)
+    if (changeRate > -20) return '#f59e0b';     // 주황 (감소)
+    return '#ef4444';                           // 빨강 (20% 이상 감소)
+  }, []);
+
+  // 🛠️ 4단계 최적화: 상품 정렬 함수 캐싱
+  const sortProductsByViewsData = useCallback((products: any[]) => {
+    return products.sort((a, b) => {
+      const aHasViews = itemViewsData[String(a.item_id)] && itemViewsData[String(a.item_id)].length > 0;
+      const bHasViews = itemViewsData[String(b.item_id)] && itemViewsData[String(b.item_id)].length > 0;
+      
+      if (aHasViews && !bHasViews) return -1;  // a가 먼저
+      if (!aHasViews && bHasViews) return 1;   // b가 먼저
+      return 0; // 동일
+    });
+  }, [itemViewsData]);
+
   // 로켓재고 데이터 로드 (옵션 ID와 관련 데이터)
   const loadRocketInventoryOptionIds = async () => {
     try {
-      console.log('🔍 coupang_rocket_inventory 테이블에서 데이터 로딩 중...');
-      
       // 먼저 총 개수 확인
       const { count: totalCount, error: countError } = await supabase
         .from('coupang_rocket_inventory')
@@ -110,8 +156,6 @@ function ProductListPage() {
       
       if (countError) {
         console.error('❌ coupang_rocket_inventory 개수 조회 오류:', countError);
-      } else {
-        console.log('📊 coupang_rocket_inventory 총 데이터 개수:', totalCount);
       }
       
       // 모든 데이터를 배치로 로딩 (개수 제한 없이)
@@ -121,8 +165,6 @@ function ProductListPage() {
       const batchSize = 1000;
 
       while (hasMore) {
-        console.log(`🔄 로켓 인벤토리 배치 ${Math.floor(offset / batchSize) + 1} 로딩 중... (${offset}부터 ${offset + batchSize - 1}까지)`);
-        
         const { data: batchData, error: batchError } = await supabase
           .from('coupang_rocket_inventory')
           .select('option_id, pending_inbounds, orderable_quantity, sales_quantity_last_7_days, sales_quantity_last_30_days, recommanded_inboundquantity, monthly_storage_fee')
@@ -135,7 +177,6 @@ function ProductListPage() {
 
         if (batchData && batchData.length > 0) {
           allRocketData = [...allRocketData, ...batchData];
-          console.log(`✅ 로켓 인벤토리 배치 ${Math.floor(offset / batchSize) + 1} 완료: ${batchData.length}개 로드, 총 ${allRocketData.length}개`);
           
           // 다음 배치로 이동
           offset += batchSize;
@@ -169,11 +210,8 @@ function ProductListPage() {
       });
       setRocketInventoryData(dataMap);
       
-      // orderable_quantity가 0인 데이터 확인
+      // orderable_quantity가 0인 데이터 확인 (통계용 - 로그는 제거)
       const zeroOrderableCount = rocketData.filter(item => (item.orderable_quantity || 0) === 0).length;
-      console.log('📊 orderable_quantity가 0인 데이터:', zeroOrderableCount, '개');
-      
-      console.log('✅ 로켓재고 데이터 로드 완료:', rocketData?.length, '개 (고유 option_id:', optionIds.size, '개)');
     } catch (error) {
       console.error('❌ 로켓재고 데이터 로드 실패:', error);
     }
@@ -182,7 +220,6 @@ function ProductListPage() {
   // 조회수 데이터 로드
   const loadItemViewsData = async () => {
     try {
-      console.log('🔍 조회수 데이터 로딩 중...');
       
       // 먼저 테이블 구조를 확인 (user_id 컬럼 없이)
       const { data: structureCheck, error: structureError } = await supabase
@@ -271,16 +308,12 @@ function ProductListPage() {
         viewsData = data || [];
       }
 
-      console.log('✅ 조회수 데이터 로드 완료:', viewsData?.length, '개');
-
       // item_id별로 최근 5개의 날짜를 그룹화
       const viewsMap: {[key: string]: string[]} = {};
       
       // 테이블의 실제 컬럼들을 확인
       const sampleRecord = viewsData?.[0];
       const allColumns = sampleRecord ? Object.keys(sampleRecord) : [];
-      
-      console.log('🔍 사용 가능한 컬럼:', allColumns);
       
       // item_id 컬럼 확인
       const itemIdColumn = 'item_id';
@@ -291,9 +324,6 @@ function ProductListPage() {
         /^\d{6}$/.test(col) ||   // 일반적인 YYMMDD 형식
         ['yymmdd', 'YYMMDD', 'date', 'view_date'].includes(col)
       );
-      
-      console.log(`📅 발견된 날짜 컬럼들:`, dateColumns);
-      console.log(`📅 사용할 item_id 컬럼: ${itemIdColumn}`);
       
       
       
@@ -369,55 +399,15 @@ function ProductListPage() {
         mockViewsData[itemId] = viewDates;
       });
       
-      console.log('🧪 생성된 테스트 데이터:', mockViewsData);
-      
       // 실제 데이터가 없으면 테스트 데이터 사용, 있으면 실제 데이터 우선
       const finalData = Object.keys(viewsMap).length > 0 ? viewsMap : mockViewsData;
       
       setItemViewsData(finalData);
-      console.log('✅ 조회수 데이터 그룹화 완료:', Object.keys(viewsMap).length, '개 상품 (실제 데이터)');
-      console.log('🧪 최종 사용 데이터:', Object.keys(finalData).length, '개 상품');
-      console.log('🔍 최종 데이터 샘플:', Object.keys(finalData).slice(0, 3).reduce((acc, key) => {
-        acc[key] = finalData[key];
-        return acc;
-      }, {} as {[key: string]: string[]}));
       
       
       
     } catch (error) {
       console.error('❌ 조회수 데이터 로드 실패:', error);
-    }
-  };
-
-  // 날짜를 YYMMDD 형식으로 변환하는 헬퍼 함수
-  const formatDateToYYMMDD = (date: Date): string => {
-    const year = date.getFullYear().toString().slice(-2);
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
-    return `${year}${month}${day}`;
-  };
-
-  // 조회수 비교 색상 결정 함수
-  const getViewCountColor = (current: string | undefined, previous: string | undefined): string => {
-    if (!current || !previous || current === '-' || previous === '-') return '#000000'; // 기본 검은색
-    
-    // 콤마 제거 후 숫자 변환
-    const currentClean = String(current).replace(/,/g, '');
-    const previousClean = String(previous).replace(/,/g, '');
-    
-    const currentNum = parseInt(currentClean);
-    const previousNum = parseInt(previousClean);
-    
-    if (isNaN(currentNum) || isNaN(previousNum)) return '#000000';
-    
-    const diff = currentNum - previousNum;
-    
-    if (Math.abs(diff) <= 10) {
-      return '#000000'; // 오차범위 ±10 내외 - 검은색
-    } else if (diff > 0) {
-      return '#0066cc'; // 증가 - 파란색
-    } else {
-      return '#cc0000'; // 감소 - 빨간색
     }
   };
 
@@ -428,8 +418,6 @@ function ProductListPage() {
   const loadProductsFromDB = async () => {
     setIsLoadingProducts(true);
     try {
-      console.log('🔍 extract_coupang_item_all 테이블에서 데이터 로딩 중...');
-      
       // 현재 로그인한 사용자 ID 가져오기
       const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
       const userId = currentUser.id;
@@ -448,8 +436,6 @@ function ProductListPage() {
 
       if (countError) {
         console.error('❌ 개수 조회 오류:', countError);
-      } else {
-        console.log('📊 사용자별 데이터 개수:', count);
       }
 
       // 사용자 데이터만 가져오기 위해 배치로 처리
@@ -459,8 +445,6 @@ function ProductListPage() {
       const batchSize = 1000;
 
       while (hasMore) {
-        console.log(`🔄 배치 ${Math.floor(offset / batchSize) + 1} 로딩 중... (${offset}부터 ${offset + batchSize - 1}까지)`);
-        
         const { data: batchData, error: batchError } = await supabase
           .from('extract_coupang_item_all')
           .select('*')
@@ -475,7 +459,6 @@ function ProductListPage() {
 
         if (batchData && batchData.length > 0) {
           allProducts = [...allProducts, ...batchData];
-          console.log(`✅ 배치 ${Math.floor(offset / batchSize) + 1} 완료: ${batchData.length}개 로드, 총 ${allProducts.length}개`);
           
           // 다음 배치로 이동
           offset += batchSize;
@@ -497,7 +480,6 @@ function ProductListPage() {
         throw error;
       }
       
-      console.log('✅ 데이터 로드 성공:', products?.length, '개 상품');
       setData(products || []);
       setFilteredData(products || []);
       setHasShownError(false); // 성공하면 에러 플래그 리셋
@@ -513,8 +495,8 @@ function ProductListPage() {
     }
   };
 
-  // 데이터를 테이블 행으로 변환 - extract_coupang_item_all 테이블 구조에 맞게 수정
-  const transformDataToTableRows = (data: any[]): TableRow[] => {
+  // 🛠️ 4단계 최적화: 데이터 변환 함수 캐싱 - extract_coupang_item_all 테이블 구조에 맞게 수정
+  const transformDataToTableRows = useCallback((data: any[]): TableRow[] => {
     const rows: TableRow[] = [];
     let rocketGrowthCount = 0;
     let normalSaleCount = 0;
@@ -584,19 +566,11 @@ function ProductListPage() {
       });
     });
 
-    // 디버깅 로그 추가
-    if (sortFilter === '로켓그로스') {
-      console.log(`🔍 로켓그로스 필터링 결과: ${rocketGrowthCount}개 상품 (총 로켓재고 option_id: ${rocketInventoryOptionIds.size}개)`);
-    } else if (sortFilter === '일반판매') {
-      console.log(`🔍 일반판매 필터링 결과: ${normalSaleCount}개 상품`);
-    } else {
-      console.log(`🔍 전체 필터링 결과: 로켓그로스 ${rocketGrowthCount}개, 일반판매 ${normalSaleCount}개 (총 ${rows.length}개)`);
-    }
-
     return rows;
-  };
+  }, [searchKeyword, selectedCategory, selectedExposure, selectedSaleStatus, sortFilter, rocketInventoryOptionIds]);
 
-  const handleSearch = async () => {
+  // 🛠️ 4단계 최적화: 검색 함수 캐싱
+  const handleSearch = useCallback(async () => {
     if (!searchKeyword.trim()) {
       setFilteredData(data);
     } else {
@@ -607,15 +581,17 @@ function ProductListPage() {
       setFilteredData(filtered);
     }
     setCurrentPage(1); // 검색 시 항상 1페이지로 이동
-  };
+  }, [searchKeyword, data]);
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  // 🛠️ 4단계 최적화: 키 입력 핸들러 캐싱
+  const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       handleSearch();
     }
-  };
+  }, [handleSearch]);
 
-  const handleSelectAll = () => {
+  // 🛠️ 4단계 최적화: 전체 선택 핸들러 캐싱
+  const handleSelectAll = useCallback(() => {
     if (selectAll) {
       setSelectedItems([]);
     } else {
@@ -623,16 +599,17 @@ function ProductListPage() {
       setSelectedItems(itemRows.map(row => row.item_id));
     }
     setSelectAll(!selectAll);
-  };
+  }, [selectAll, transformDataToTableRows, data]);
 
-  const handleSelectItem = (uniqueId: string) => {
+  // 🛠️ 4단계 최적화: 개별 선택 핸들러 캐싱
+  const handleSelectItem = useCallback((uniqueId: string) => {
     if (selectedItems.includes(uniqueId)) {
       setSelectedItems(selectedItems.filter(id => id !== uniqueId));
       setSelectAll(false);
     } else {
       setSelectedItems([...selectedItems, uniqueId]);
     }
-  };
+  }, [selectedItems]);
 
   const handleExcelUpload = () => {
     const input = document.createElement('input');
@@ -750,28 +727,30 @@ function ProductListPage() {
     setExpanded(newExpanded);
   };
 
-  const handleImageMouseEnter = (imageUrl: string, event: React.MouseEvent) => {
+  // 🛠️ 4단계 최적화: 이미지 호버 핸들러들 캐싱
+  const handleImageMouseEnter = useCallback((imageUrl: string, event: React.MouseEvent) => {
     setHoveredImage({
       url: imageUrl,
       x: event.clientX + 10,
       y: event.clientY + 10
     });
-  };
+  }, []);
 
-  const handleImageMouseLeave = () => {
+  const handleImageMouseLeave = useCallback(() => {
     setHoveredImage(null);
-  };
+  }, []);
 
-  const handlePageChange = (page: number) => {
+  const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page);
-  };
+  }, []);
 
-  const getCurrentPageData = () => {
+  // 🛠️ 4단계 최적화: 페이지네이션 데이터 계산 캐싱
+  const getCurrentPageData = useCallback(() => {
     const tableRows = transformDataToTableRows(filteredData);
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
     return tableRows.slice(startIndex, endIndex);
-  };
+  }, [transformDataToTableRows, filteredData, currentPage, itemsPerPage]);
 
   // 입력 셀 핸들러
   const handleCellClick = (cellId: string) => {
@@ -789,20 +768,30 @@ function ProductListPage() {
     setEditingCell(null);
   };
 
-  const handleInputKeyPress = (e: React.KeyboardEvent<HTMLInputElement>, currentRowIndex: number) => {
+  // 🛠️ 5단계 최적화: 입력 키 핸들러 - 타이머 메모리 누수 방지
+  const handleInputKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>, currentRowIndex: number) => {
     if (e.key === 'Enter') {
       setEditingCell(null);
       // 다음 행의 입력 셀로 이동
       const nextRowIndex = currentRowIndex + 1;
-      if (nextRowIndex < currentData.length) {
-        const nextRow = currentData[nextRowIndex];
+      const currentPageData = getCurrentPageData();
+      if (nextRowIndex < currentPageData.length) {
+        const nextRow = currentPageData[nextRowIndex];
         const nextCellId = `input-${nextRow.item_id}-${nextRow.option_id || nextRowIndex}`;
-        setTimeout(() => {
+        
+        // 🧹 기존 타이머가 있다면 정리
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
+        
+        // 새 타이머 설정 및 추적
+        timeoutRef.current = setTimeout(() => {
           setEditingCell(nextCellId);
+          timeoutRef.current = null; // 실행 후 참조 해제
         }, 100);
       }
     }
-  };
+  }, [getCurrentPageData]);
 
   // 상품명 클릭 시 쿠팡 링크로 이동
   const handleProductNameClick = (productId: string, optionId?: string) => {
@@ -814,38 +803,55 @@ function ProductListPage() {
 
   // 컴포넌트 마운트 시 데이터 로드
   // 데이터 정렬 함수
-  const sortProductsByViewsData = (products: any[]) => {
-    return products.sort((a, b) => {
-      const aHasViews = itemViewsData[String(a.item_id)] && itemViewsData[String(a.item_id)].length > 0;
-      const bHasViews = itemViewsData[String(b.item_id)] && itemViewsData[String(b.item_id)].length > 0;
-      
-      if (aHasViews && !bHasViews) return -1;  // a가 먼저
-      if (!aHasViews && bHasViews) return 1;   // b가 먼저
-      return 0; // 동일
-    });
-  };
+  // 🛠️ sortProductsByViewsData 함수는 useCallback으로 상단에서 최적화됨
 
-  // 🚀 컴포넌트 마운트 시 데이터 로드
+  // 🚀 컴포넌트 마운트 시 데이터 로드 + 🧹 메모리 누수 방지
   useEffect(() => {
-    console.log('🔄 초기 데이터 로딩 시작...');
+    console.log('🔄 ProductListPage 컴포넌트 마운트됨 - 초기 데이터 로딩 시작...');
     loadProductsFromDB();
     loadRocketInventoryOptionIds();
     loadItemViewsData();
+    
+    // 🧹 cleanup 함수: 컴포넌트 언마운트 시 메모리 정리
+    return () => {
+      console.log('🧹 ProductListPage 컴포넌트 언마운트 - 메모리 정리 중...');
+      
+      // 타이머 정리
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      
+      // 대용량 상태 데이터 초기화 (메모리 절약)
+      setData([]);
+      setFilteredData([]);
+      setSelectedItems([]);
+      setItemViewsData({});
+      setRocketInventoryOptionIds(new Set());
+      
+      console.log('✅ ProductListPage 메모리 정리 완료');
+    };
   }, []);
 
   // 🔄 조회수 데이터가 로드된 후 상품 데이터 재정렬 (무한 루프 방지)
   useEffect(() => {
     // itemViewsData가 처음 로드되었을 때만 정렬 실행
     if (Object.keys(itemViewsData).length > 0 && data.length > 0) {
-      console.log('🔄 조회수 데이터 기반 정렬 시작...');
       const sortedData = sortProductsByViewsData([...data]);
       setData(sortedData);
       setFilteredData(sortedData);
     }
-  }, [itemViewsData]); // ⚠️ data.length 제거하여 무한 루프 방지
+  }, [itemViewsData, sortProductsByViewsData]); // ⚠️ data.length 제거하여 무한 루프 방지
 
-  const totalPages = Math.ceil(transformDataToTableRows(filteredData).length / itemsPerPage);
-  const currentData = getCurrentPageData();
+  // 🛠️ 4단계 최적화: 페이지네이션 계산 캐싱
+  const totalPages = useMemo(() => {
+    return Math.ceil(transformDataToTableRows(filteredData).length / itemsPerPage);
+  }, [transformDataToTableRows, filteredData, itemsPerPage]);
+
+  // 🛠️ 4단계 최적화: 현재 페이지 데이터 캐싱
+  const currentData = useMemo(() => {
+    return getCurrentPageData();
+  }, [getCurrentPageData]);
 
   return (
     <div className="product-list-container">
