@@ -21,6 +21,7 @@ interface TableRow {
   stock?: number;
   category?: string;
   brand?: string;
+  barcode?: string; // 🆕 바코드 필드 추가
   [key: string]: any;
 }
 
@@ -52,6 +53,8 @@ function ProductListPage() {
   const [rocketInventoryOptionIds, setRocketInventoryOptionIds] = useState<Set<string>>(new Set());
   const [rocketInventoryData, setRocketInventoryData] = useState<{[key: string]: any}>({});
   const [itemViewsData, setItemViewsData] = useState<{[key: string]: string[]}>({});
+  // 🆕 사입상태 데이터 (바코드별 주문 수량 합계)
+  const [orderQuantityData, setOrderQuantityData] = useState<{[key: string]: number}>({});
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   
   // 검색 및 필터
@@ -111,27 +114,40 @@ function ProductListPage() {
     return `${year}${month}${day}`;
   }, []);
 
-  // 🛠️ 4단계 최적화: 조회수 색상 결정 함수 캐싱
-  const getViewCountColor = useCallback((current: string | undefined, previous: string | undefined): string => {
+  // 🛠️ 수정된 조회수 색상 결정 함수: view1=검은색, view2~5는 이전값 대비 증감에 따라 색상 결정
+  const getViewCountColor = useCallback((current: string | undefined, previous: string | undefined, isFirstView: boolean = false): string => {
+    // view1인 경우 항상 검은색
+    if (isFirstView) {
+      return '#000000';
+    }
+    
+    // current나 previous가 없으면 검은색
     if (!current || current === '-' || !previous || previous === '-') {
-      return '#666';
+      return '#000000';
     }
     
     const currentNum = parseInt(current.replace(/,/g, ''));
     const previousNum = parseInt(previous.replace(/,/g, ''));
     
     if (isNaN(currentNum) || isNaN(previousNum)) {
-      return '#666';
+      return '#000000';
     }
     
-    // 증가율 계산
-    const changeRate = previousNum === 0 ? 0 : ((currentNum - previousNum) / previousNum) * 100;
+    // 차이 계산 (current - previous, 방향성 고려)
+    const difference = currentNum - previousNum;
     
-    if (changeRate > 20) return '#22c55e';      // 초록 (20% 이상 증가)
-    if (changeRate > 0) return '#3b82f6';       // 파랑 (증가)
-    if (changeRate === 0) return '#666';        // 회색 (동일)
-    if (changeRate > -20) return '#f59e0b';     // 주황 (감소)
-    return '#ef4444';                           // 빨강 (20% 이상 감소)
+    // 이전값보다 10 초과 증가하면 파란색
+    if (difference > 10) {
+      return '#0000ff';  // 파란색 (10 초과 증가)
+    } 
+    // 이전값보다 10 이상 감소하면 빨간색  
+    else if (difference <= -10) {
+      return '#ff0000';  // 빨간색 (10 이상 감소)
+    } 
+    // 그 외의 경우 (±10 미만 차이) 검은색
+    else {
+      return '#000000';  // 검은색 (±10 미만 차이)
+    }
   }, []);
 
   // 🛠️ 4단계 최적화: 상품 정렬 함수 캐싱
@@ -214,6 +230,48 @@ function ProductListPage() {
       const zeroOrderableCount = rocketData.filter(item => (item.orderable_quantity || 0) === 0).length;
     } catch (error) {
       console.error('❌ 로켓재고 데이터 로드 실패:', error);
+    }
+  };
+
+  // 🆕 사입상태 데이터 로드 (chinaorder_googlesheet에서 바코드별 주문 수량 합계)
+  const loadOrderQuantityData = async () => {
+    try {
+      // 현재 로그인한 사용자 ID 가져오기
+      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      const userId = currentUser.id;
+      
+      if (!userId) {
+        console.error('❌ 사입상태 데이터 로드: 사용자 ID를 찾을 수 없습니다.');
+        return;
+      }
+
+      // chinaorder_googlesheet 테이블에서 데이터 로드
+      const { data: orderData, error } = await supabase
+        .from('chinaorder_googlesheet')
+        .select('barcode, order_quantity')
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error('❌ 사입상태 데이터 로드 오류:', error);
+        return;
+      }
+
+      // 바코드별로 order_quantity 합계 계산
+      const quantityMap: {[key: string]: number} = {};
+      
+      orderData?.forEach((order: any) => {
+        const barcode = String(order.barcode || '').trim();
+        const quantity = parseInt(order.order_quantity) || 0;
+        
+        if (barcode && quantity > 0) {
+          quantityMap[barcode] = (quantityMap[barcode] || 0) + quantity;
+        }
+      });
+
+      setOrderQuantityData(quantityMap);
+      
+    } catch (error) {
+      console.error('❌ 사입상태 데이터 로드 실패:', error);
     }
   };
 
@@ -495,60 +553,18 @@ function ProductListPage() {
     }
   };
 
-  // 🛠️ 4단계 최적화: 데이터 변환 함수 캐싱 - extract_coupang_item_all 테이블 구조에 맞게 수정
+  // 🛠️ 4단계 최적화: 데이터 변환 함수 캐싱 - 필터링 로직 제거하고 순수 변환만 담당
   const transformDataToTableRows = useCallback((data: any[]): TableRow[] => {
     const rows: TableRow[] = [];
-    let rocketGrowthCount = 0;
-    let normalSaleCount = 0;
     
     data.forEach((item) => {
       // 상품명 생성: item_name + 줄바꿈 + option_name
       const displayName = item.item_name + (item.option_name ? '\n' + item.option_name : '');
       
-      // 필터링 적용 (item_name 기준으로 검색)
-      if (searchKeyword && !item.item_name?.toLowerCase().includes(searchKeyword.toLowerCase()) && 
-          !item.option_name?.toLowerCase().includes(searchKeyword.toLowerCase())) {
-        return;
-      }
-      
-      if (selectedCategory !== '전체' && item.category !== selectedCategory) {
-        return;
-      }
-      
-      if (selectedExposure !== '전체' && item.status !== selectedExposure) {
-        return;
-      }
-      
-      if (selectedSaleStatus !== '전체' && item.sales_status !== selectedSaleStatus) {
-        return;
-      }
-
       // 판매방식 결정
       const isRocketGrowth = rocketInventoryOptionIds.has(String(item.option_id));
       
-      // 판매방식 필터링
-      if (sortFilter === '일반판매') {
-        // option_id가 로켓재고에 없는 것만
-        if (isRocketGrowth) {
-          return;
-        }
-        normalSaleCount++;
-      } else if (sortFilter === '로켓그로스') {
-        // option_id가 로켓재고에 있는 것만
-        if (!isRocketGrowth) {
-          return;
-        }
-        rocketGrowthCount++;
-      } else {
-        // 전체 선택 시
-        if (isRocketGrowth) {
-          rocketGrowthCount++;
-        } else {
-          normalSaleCount++;
-        }
-      }
-      
-      // 테이블 행 추가
+      // 테이블 행 추가 (필터링 로직 제거)
       rows.push({
         type: 'item',
         item_id: String(item.item_id || item.id),
@@ -562,26 +578,56 @@ function ProductListPage() {
         sales_status: item.sales_status || 'UNKNOWN',
         stock: Number(item.stock) || 0,
         category: item.category || '미분류',
-        brand: item.brand || '브랜드 없음'
+        brand: item.brand || '브랜드 없음',
+        barcode: item.barcode || '' // 🆕 바코드 필드 추가 (사입상태용)
       });
     });
 
     return rows;
-  }, [searchKeyword, selectedCategory, selectedExposure, selectedSaleStatus, sortFilter, rocketInventoryOptionIds]);
+  }, [rocketInventoryOptionIds]);
 
-  // 🛠️ 4단계 최적화: 검색 함수 캐싱
-  const handleSearch = useCallback(async () => {
-    if (!searchKeyword.trim()) {
-      setFilteredData(data);
-    } else {
-      const filtered = data.filter(item => {
+  // 🛠️ 수정된 필터링 함수: 모든 필터 조건을 한 번에 적용
+  const applyAllFilters = useCallback(() => {
+    let filtered = [...data];
+    
+    // 1. 검색 키워드 필터링
+    if (searchKeyword.trim()) {
+      filtered = filtered.filter(item => {
         return item.item_name?.toLowerCase().includes(searchKeyword.toLowerCase()) ||
                item.option_name?.toLowerCase().includes(searchKeyword.toLowerCase());
       });
-      setFilteredData(filtered);
     }
-    setCurrentPage(1); // 검색 시 항상 1페이지로 이동
-  }, [searchKeyword, data]);
+    
+    // 2. 카테고리 필터링
+    if (selectedCategory !== '전체') {
+      filtered = filtered.filter(item => item.category === selectedCategory);
+    }
+    
+    // 3. 노출상태 필터링
+    if (selectedExposure !== '전체') {
+      filtered = filtered.filter(item => item.status === selectedExposure);
+    }
+    
+    // 4. 판매상태 필터링
+    if (selectedSaleStatus !== '전체') {
+      filtered = filtered.filter(item => item.sales_status === selectedSaleStatus);
+    }
+    
+    // 5. 판매방식 필터링
+    if (sortFilter === '일반판매') {
+      filtered = filtered.filter(item => !rocketInventoryOptionIds.has(String(item.option_id)));
+    } else if (sortFilter === '로켓그로스') {
+      filtered = filtered.filter(item => rocketInventoryOptionIds.has(String(item.option_id)));
+    }
+    
+    setFilteredData(filtered);
+    setCurrentPage(1); // 필터 적용 시 항상 1페이지로 이동
+  }, [data, searchKeyword, selectedCategory, selectedExposure, selectedSaleStatus, sortFilter, rocketInventoryOptionIds]);
+
+  // 🛠️ 검색 함수 - applyAllFilters 호출
+  const handleSearch = useCallback(() => {
+    applyAllFilters();
+  }, [applyAllFilters]);
 
   // 🛠️ 4단계 최적화: 키 입력 핸들러 캐싱
   const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -811,6 +857,8 @@ function ProductListPage() {
     loadProductsFromDB();
     loadRocketInventoryOptionIds();
     loadItemViewsData();
+    // 🆕 사입상태 데이터 로드 추가
+    loadOrderQuantityData();
     
     // 🧹 cleanup 함수: 컴포넌트 언마운트 시 메모리 정리
     return () => {
@@ -828,6 +876,8 @@ function ProductListPage() {
       setSelectedItems([]);
       setItemViewsData({});
       setRocketInventoryOptionIds(new Set());
+      // 🆕 사입상태 데이터 정리
+      setOrderQuantityData({});
       
       console.log('✅ ProductListPage 메모리 정리 완료');
     };
@@ -842,6 +892,13 @@ function ProductListPage() {
       setFilteredData(sortedData);
     }
   }, [itemViewsData, sortProductsByViewsData]); // ⚠️ data.length 제거하여 무한 루프 방지
+
+  // 🆕 필터 조건 변경 시 자동 필터링 적용
+  useEffect(() => {
+    if (data.length > 0) {
+      applyAllFilters();
+    }
+  }, [data, selectedCategory, selectedExposure, selectedSaleStatus, sortFilter, rocketInventoryOptionIds, applyAllFilters]);
 
   // 🛠️ 4단계 최적화: 페이지네이션 계산 캐싱
   const totalPages = useMemo(() => {
@@ -1132,7 +1189,10 @@ function ProductListPage() {
                   <td className="product-list-table-cell">
                     {row.option_id && rocketInventoryData[row.option_id]?.orderable_quantity || row.stock || 0}
                   </td>
-                  <td className="product-list-table-cell">-</td>
+                  <td className="product-list-table-cell">
+                    {/* 🆕 사입상태: 바코드별 주문 수량 합계 표시 */}
+                    {row.barcode && orderQuantityData[String(row.barcode)] ? orderQuantityData[String(row.barcode)] : '-'}
+                  </td>
                   <td className="product-list-table-cell">-</td>
                   <td className="product-list-table-cell">-</td>
                   <td className="product-list-table-cell">
@@ -1148,19 +1208,24 @@ function ProductListPage() {
                   <td className="product-list-table-cell">
                     {row.option_id && rocketInventoryData[row.option_id]?.monthly_storage_fee || '-'}
                   </td>
-                  <td className="product-list-table-cell">
+                  <td className="product-list-table-cell" style={{ color: getViewCountColor(itemViewsData[row.item_id]?.[0], undefined, true) }}>
+                    {/* 🔄 view1: 항상 검은색 */}
                     {itemViewsData[row.item_id]?.[0] || '-'}
                   </td>
-                  <td className="product-list-table-cell" style={{ color: getViewCountColor(itemViewsData[row.item_id]?.[1], itemViewsData[row.item_id]?.[0]) }}>
+                  <td className="product-list-table-cell" style={{ color: getViewCountColor(itemViewsData[row.item_id]?.[1], itemViewsData[row.item_id]?.[0], false) }}>
+                    {/* 🔄 view2: view1과 비교 */}
                     {itemViewsData[row.item_id]?.[1] || '-'}
                   </td>
-                  <td className="product-list-table-cell" style={{ color: getViewCountColor(itemViewsData[row.item_id]?.[2], itemViewsData[row.item_id]?.[1]) }}>
+                  <td className="product-list-table-cell" style={{ color: getViewCountColor(itemViewsData[row.item_id]?.[2], itemViewsData[row.item_id]?.[1], false) }}>
+                    {/* 🔄 view3: view2와 비교 */}
                     {itemViewsData[row.item_id]?.[2] || '-'}
                   </td>
-                  <td className="product-list-table-cell" style={{ color: getViewCountColor(itemViewsData[row.item_id]?.[3], itemViewsData[row.item_id]?.[2]) }}>
+                  <td className="product-list-table-cell" style={{ color: getViewCountColor(itemViewsData[row.item_id]?.[3], itemViewsData[row.item_id]?.[2], false) }}>
+                    {/* 🔄 view4: view3과 비교 */}
                     {itemViewsData[row.item_id]?.[3] || '-'}
                   </td>
-                  <td className="product-list-table-cell" style={{ color: getViewCountColor(itemViewsData[row.item_id]?.[4], itemViewsData[row.item_id]?.[3]) }}>
+                  <td className="product-list-table-cell" style={{ color: getViewCountColor(itemViewsData[row.item_id]?.[4], itemViewsData[row.item_id]?.[3], false) }}>
+                    {/* 🔄 view5: view4와 비교 */}
                     {itemViewsData[row.item_id]?.[4] || '-'}
                   </td>
                   <td className="product-list-table-cell">-</td>
