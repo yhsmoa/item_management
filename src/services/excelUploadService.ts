@@ -243,26 +243,7 @@ async function saveProductDataToSupabase(
   try {
     console.log(`🚀 데이터베이스 저장 시작: ${data.length}개 행`);
     
-    // 1. 기존 사용자 데이터 삭제
-    onProgress?.(0, data.length);
-    console.log(`🗑️ 기존 데이터 삭제 중... (user_id: ${userId})`);
-    
-    const { error: deleteError } = await supabase
-      .from('extract_coupang_item_all')
-      .delete()
-      .eq('user_id', userId);
-    
-    if (deleteError) {
-      console.error('❌ 기존 데이터 삭제 오류:', deleteError);
-      throw deleteError;
-    }
-    
-    console.log('✅ 기존 데이터 삭제 완료');
-    
-    // 삭제 후 잠시 대기
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // 2. 새 데이터에 user_id 추가 및 중복 제거
+    // 1. 데이터에 user_id 추가 및 중복 제거
     const dataWithUserId = data.map(item => ({
       ...item,
       user_id: userId
@@ -282,7 +263,7 @@ async function saveProductDataToSupabase(
     const duplicateCount = dataWithUserId.length - uniqueData.length;
     console.log(`🔄 데이터 정리 완료: 원본 ${dataWithUserId.length}개 → 유효 ${uniqueData.length}개 (제외: ${duplicateCount}개)`);
     
-    // 3. 배치 단위로 데이터 저장 (50개씩 처리)
+    // 2. 배치 단위로 데이터 Upsert (50개씩 처리) - option_id 기준으로 업데이트
     const BATCH_SIZE = 50;
     let savedCount = 0;
     
@@ -291,7 +272,7 @@ async function saveProductDataToSupabase(
       const batchNum = Math.floor(i / BATCH_SIZE) + 1;
       const totalBatches = Math.ceil(uniqueData.length / BATCH_SIZE);
       
-      console.log(`💾 배치 ${batchNum}/${totalBatches} 저장 중... (${batch.length}개)`);
+      console.log(`💾 배치 ${batchNum}/${totalBatches} Upsert 중... (${batch.length}개)`);
       
       const { error } = await supabase
         .from('extract_coupang_item_all')
@@ -301,8 +282,8 @@ async function saveProductDataToSupabase(
         });
       
       if (error) {
-        console.error(`❌ 배치 ${batchNum} 저장 오류:`, error);
-        throw new Error(`배치 ${batchNum} 저장 실패: ${error.message}`);
+        console.error(`❌ 배치 ${batchNum} Upsert 오류:`, error);
+        throw new Error(`배치 ${batchNum} Upsert 실패: ${error.message}`);
       }
       
       savedCount += batch.length;
@@ -310,7 +291,7 @@ async function saveProductDataToSupabase(
       console.log(`✅ 배치 ${batchNum}/${totalBatches} 완료: ${batch.length}개 (누적: ${savedCount}/${uniqueData.length})`);
     }
     
-    console.log(`✅ 데이터베이스 저장 완료: ${savedCount}개`);
+    console.log(`✅ 데이터베이스 Upsert 완료: ${savedCount}개`);
     
     return {
       success: true,

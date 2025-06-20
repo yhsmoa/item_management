@@ -107,7 +107,7 @@ const LeftSideBar: React.FC<LeftSideBarProps> = ({ isVisible }) => {
       path: '/orders',
       children: [
         { id: 'china-order-list', title: '주문 목록', icon: '📄', path: '/chinaorder/list' },
-        { id: 'order-delivery', title: '배송 관리', icon: '🚚', path: '/orders/delivery' },
+        { id: 'order-delivery', title: '요청 목록', icon: '🚚', path: '/orders/order-cart' },
         { id: 'order-return', title: '반품/교환', icon: '↩️', path: '/orders/return' }
       ]
     },

@@ -304,6 +304,15 @@
   margin-top: 8px;
 }
 
+.product-list-table-container {
+  overflow-x: auto;
+  overflow-y: auto;
+  width: 100%;
+  max-width: 100%;
+  max-height: 70vh; /* 뷰포트 높이의 70%로 제한하여 스크롤 가능하게 */
+  position: relative;
+}
+
 .product-list-table-wrapper {
   overflow-x: auto;
   overflow-y: auto;
@@ -316,8 +325,8 @@
 .product-list-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 1600px; /* 타이트한 컬럼으로 조정 */
-  table-layout: fixed; /* 고정 테이블 레이아웃으로 열 정렬 */
+  min-width: 1400px; /* 컬럼 너비에 맞게 조정 */
+  table-layout: auto; /* 자동 테이블 레이아웃으로 변경 */
 }
 
 .product-list-table-header {
@@ -328,12 +337,13 @@
 }
 
 .product-list-table-header-cell {
-  padding: 8px 4px;
+  padding: 8px;
   text-align: left;
   font-size: 11px;
   font-weight: 600;
   color: #374151;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: none; /* border 제거 */
+  border-right: none; /* border 제거 */
   white-space: nowrap;
   line-height: 1.1;
   background-color: #f9fafb;
@@ -420,10 +430,11 @@
 }
 
 .product-list-table-cell {
-  padding: 4px 2px; /* 타이트한 패딩으로 변경 */
-  font-size: 12px; /* 폰트 크기 줄임 */
+  padding: 4px 8px; /* 패딩 조정 */
+  font-size: 12px;
   color: #111827;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: none; /* border 제거 */
+  border-right: none; /* border 제거 */
   vertical-align: middle;
   text-align: center;
   overflow: hidden;

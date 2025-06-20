@@ -9,6 +9,7 @@ import ViewsPage from '../features/products/ViewsPage';
 import ChinaOrderListPage from '../features/chinaorder/ChinaOrderListPage';
 import StockManagement from '../features/stocks/StockManagement';
 import StocksScan from '../features/stocks/StocksScan';
+import ChinaorderCart from '../features/chinaorder/ChinaorderCart';
 import MainLayout from '../layouts/MainLayout';
 
 /**
@@ -126,6 +127,16 @@ const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <ChinaOrderListPage />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* 중국 주문 요청 목록 페이지 - 로그인 필요 */}
+        <Route 
+          path="/orders/order-cart" 
+          element={
+            <ProtectedRoute>
+              <ChinaorderCart />
             </ProtectedRoute>
           } 
         />
