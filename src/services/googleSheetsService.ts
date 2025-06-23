@@ -2,10 +2,31 @@ import { supabase } from '../config/supabase';
 import { getUserApiInfo } from './userApiService';
 
 /**
- * Google Sheets API 환경 변수
+ * Google Sheets API 환경 변수 로드 및 검증
  */
-const GOOGLE_SHEETS_API_KEY = 'AIzaSyDTLkXb-kxoG2_uKrpHHATTrTJW1ldNzf8';
-const GOOGLE_OAUTH_CLIENT_ID = '497107979859-hb5jkh4e017t0jup2sa792crvta2auuq.apps.googleusercontent.com';
+const googleSheetsApiKey = process.env.REACT_APP_GOOGLE_SHEETS_API_KEY;
+const googleOAuthClientId = process.env.REACT_APP_GOOGLE_OAUTH_CLIENT_ID;
+
+// 🔍 Google API 환경변수 확인
+console.log('🔍 Google API 환경변수 확인:');
+console.log('- API_KEY:', googleSheetsApiKey ? '✅ 로드됨' : '❌ 없음');
+console.log('- CLIENT_ID:', googleOAuthClientId ? '✅ 로드됨' : '❌ 없음');
+
+// 환경변수 필수 검사
+if (!googleSheetsApiKey || !googleOAuthClientId) {
+  console.error(`
+🚨 Google API 환경변수 누락!
+- API_KEY: ${googleSheetsApiKey ? '✅' : '❌ 누락'}
+- CLIENT_ID: ${googleOAuthClientId ? '✅' : '❌ 누락'}
+
+.env 파일을 확인하세요.
+`);
+  throw new Error('Google API 환경변수가 설정되지 않았습니다.');
+}
+
+// Google API 설정 (환경변수 검증 후 타입 안전한 상수 생성)
+const GOOGLE_SHEETS_API_KEY = googleSheetsApiKey;
+const GOOGLE_OAUTH_CLIENT_ID = googleOAuthClientId;
 
 /**
  * 중국 주문 데이터 타입 정의 (chinaorder_googlesheet 테이블 구조에 맞춤)

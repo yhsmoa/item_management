@@ -121,7 +121,7 @@ function ProductListPage() {
     return `${month}${day}`;
   }, []);
 
-  // 🆕 chinaorder_cart 테이블에 데이터 저장
+  // 🚀 UPSERT 방식 saveToCart 함수 (효율적인 INSERT/UPDATE 통합)
   const saveToCart = useCallback(async (row: TableRow, quantity: number) => {
     try {
       // 현재 로그인한 사용자 ID 가져오기
@@ -149,28 +149,90 @@ function ProductListPage() {
         quantity: quantity
       };
 
-      console.log('💾 장바구니에 저장할 데이터:', cartData);
+      console.log('🚀 UPSERT 저장할 데이터:', cartData);
 
-      // Supabase에 데이터 삽입
-      const { data, error } = await supabase
+      // 🚀 Supabase UPSERT: 기존 데이터가 있으면 UPDATE, 없으면 INSERT
+      // Manual UPSERT 방식 사용 (더 안정적)
+      
+      // 1단계: 기존 데이터 확인
+      const { data: existingData, error: checkError } = await supabase
         .from('chinaorder_cart')
-        .insert([cartData])
-        .select();
+        .select('*')
+        .eq('user_id', userId)
+        .eq('option_id', row.option_id)
+        .eq('date', dateMMDD)
+        .maybeSingle();
 
-      if (error) {
-        console.error('❌ 장바구니 저장 오류:', error);
-        alert(`장바구니 저장 실패: ${error.message}`);
+      if (checkError) {
+        console.error('❌ 기존 데이터 확인 오류:', checkError);
+        alert(`기존 데이터 확인 실패: ${checkError.message}`);
         return;
       }
 
-      console.log('✅ 장바구니 저장 성공:', data);
+      let result;
+      let operation: 'INSERT' | 'UPDATE' = 'INSERT';
+
+      if (existingData) {
+        // 2-A단계: 기존 데이터가 있으면 UPDATE (quantity만 수정)
+        operation = 'UPDATE';
+        console.log(`🔄 기존 데이터 발견 - 수량만 업데이트: ${existingData.quantity} → ${quantity}`);
+        
+        const { data: updateResult, error: updateError } = await supabase
+          .from('chinaorder_cart')
+          .update({ 
+            quantity: quantity,
+            // 다른 필드들도 최신 정보로 업데이트
+            item_name: cartData.item_name,
+            option_name: cartData.option_name,
+            barcode: cartData.barcode
+          })
+          .eq('user_id', userId)
+          .eq('option_id', row.option_id)
+          .eq('date', dateMMDD)
+          .select();
+
+        if (updateError) {
+          console.error('❌ 데이터 업데이트 오류:', updateError);
+          alert(`데이터 업데이트 실패: ${updateError.message}`);
+          return;
+        }
+
+        result = updateResult;
+      } else {
+        // 2-B단계: 기존 데이터가 없으면 INSERT (새로 추가)
+        operation = 'INSERT';
+        console.log('➕ 새로운 데이터 INSERT');
+        
+        const { data: insertResult, error: insertError } = await supabase
+          .from('chinaorder_cart')
+          .insert([cartData])
+          .select();
+
+        if (insertError) {
+          console.error('❌ 데이터 INSERT 오류:', insertError);
+          alert(`데이터 INSERT 실패: ${insertError.message}`);
+          return;
+        }
+
+        result = insertResult;
+      }
+
+      console.log(`✅ ${operation} 성공:`, result);
       
-      // 성공 피드백 (조용한 알림)
-      console.log(`✅ ${cartData.item_name} (${cartData.option_name}) ${quantity}개 장바구니에 추가됨`);
+      // 성공 피드백
+      const actionText = operation === 'UPDATE' ? '수량 수정됨' : '새로 추가됨';
+      console.log(`✅ ${cartData.item_name} (${cartData.option_name}) ${quantity}개 ${actionText}`);
+      
+      // 🔄 입력 필드 데이터 새로고침 (저장 후 즉시 반영)
+      try {
+        await loadInputFieldData();
+      } catch (error) {
+        console.error('❌ 입력 필드 데이터 새로고침 실패:', error);
+      }
       
     } catch (error) {
-      console.error('❌ 장바구니 저장 실패:', error);
-      alert('장바구니 저장 중 오류가 발생했습니다.');
+      console.error('❌ UPSERT 저장 실패:', error);
+      alert('데이터 저장 중 오류가 발생했습니다.');
     }
   }, [formatDateToMMDD]);
 
@@ -250,38 +312,45 @@ function ProductListPage() {
 
   const renderPendingInbounds = useCallback((row: TableRow) => {
     const value = row.option_id && rocketInventoryData[row.option_id]?.pending_inbounds;
-    return renderValueWithHighlight(value, 'value-highlight-gray');
-  }, [rocketInventoryData, renderValueWithHighlight]);
+    const numValue = typeof value === 'number' ? value : (typeof value === 'string' ? parseFloat(value) : 0);
+    return value && numValue > 0 ? <span className="value-highlight-gray">{value}</span> : '-';
+  }, [rocketInventoryData]);
 
   const renderOrderableQuantity = useCallback((row: TableRow) => {
     const value = row.option_id && rocketInventoryData[row.option_id]?.orderable_quantity || row.stock || 0;
-    return value > 0 ? <span className="value-highlight-light-gray">{value}</span> : value;
+    const numValue = typeof value === 'number' ? value : (typeof value === 'string' ? parseFloat(value) : 0);
+    return numValue > 0 ? <span className="value-highlight-light-gray">{numValue}</span> : '-';
   }, [rocketInventoryData]);
 
   const renderOrderQuantity = useCallback((row: TableRow) => {
     const value = row.barcode && orderQuantityData[String(row.barcode)];
-    return renderValueWithHighlight(value, 'value-highlight-orange');
-  }, [orderQuantityData, renderValueWithHighlight]);
+    const numValue = typeof value === 'number' ? value : (typeof value === 'string' ? parseFloat(value) : 0);
+    return value && numValue > 0 ? <span className="value-highlight-orange">{value}</span> : '-';
+  }, [orderQuantityData]);
 
   const renderRecommendedQuantity = useCallback((row: TableRow) => {
     const value = row.option_id && rocketInventoryData[row.option_id]?.recommanded_inboundquantity;
-    return renderValueWithHighlight(value, 'value-highlight-blue');
-  }, [rocketInventoryData, renderValueWithHighlight]);
+    const numValue = typeof value === 'number' ? value : (typeof value === 'string' ? parseFloat(value) : 0);
+    return value && numValue > 0 ? <span className="coupang-recommendation-text">{value}</span> : '-';
+  }, [rocketInventoryData]);
 
   const renderStorageFee = useCallback((row: TableRow) => {
     const value = row.option_id && rocketInventoryData[row.option_id]?.monthly_storage_fee;
-    return renderValueWithHighlight(value, 'value-highlight-red');
-  }, [rocketInventoryData, renderValueWithHighlight]);
+    const numValue = typeof value === 'number' ? value : (typeof value === 'string' ? parseFloat(value) : 0);
+    return value && numValue > 0 ? <span className="value-highlight-red">{value}</span> : '-';
+  }, [rocketInventoryData]);
 
   // 🆕 새로운 렌더링 함수들 (기간, 7일, 30일, 개인주문)
   const render7DaysSales = useCallback((row: TableRow) => {
     const value = row.option_id && rocketInventoryData[row.option_id]?.sales_quantity_last_7_days;
-    return value || '-';
+    const numValue = typeof value === 'number' ? value : (typeof value === 'string' ? parseFloat(value) : 0);
+    return value && numValue > 0 ? <span className="value-highlight-blue">{value}</span> : '-';
   }, [rocketInventoryData]);
 
   const render30DaysSales = useCallback((row: TableRow) => {
     const value = row.option_id && rocketInventoryData[row.option_id]?.sales_quantity_last_30_days;
-    return value || '-';
+    const numValue = typeof value === 'number' ? value : (typeof value === 'string' ? parseFloat(value) : 0);
+    return value && numValue > 0 ? <span className="value-highlight-blue">{value}</span> : '-';
   }, [rocketInventoryData]);
 
   // 🆕 행 배경색 결정 함수
@@ -405,6 +474,64 @@ function ProductListPage() {
       console.error('❌ 사입상태 데이터 로드 실패:', error);
     }
   };
+
+  // 🔄 입력 필드 데이터 로드 (DB에서 기존 저장된 입력값들 불러오기)
+  const loadInputFieldData = useCallback(async () => {
+    try {
+      // 현재 로그인한 사용자 ID 가져오기
+      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      const userId = currentUser.id;
+      
+      if (!userId) {
+        console.error('❌ 입력 필드 데이터 로드: 사용자 ID를 찾을 수 없습니다.');
+        return;
+      }
+
+      // 오늘 날짜를 MMDD 형태로 변환
+      const today = new Date();
+      const dateMMDD = formatDateToMMDD(today);
+
+      // chinaorder_cart 테이블에서 오늘 날짜의 주문 데이터 조회
+      const { data: inputData, error } = await supabase
+        .from('chinaorder_cart')
+        .select('option_id, quantity')
+        .eq('user_id', userId)
+        .eq('date', dateMMDD);
+
+      if (error) {
+        console.error('❌ 입력 필드 데이터 로드 오류:', error);
+        return;
+      }
+
+      // option_id별로 input field key 생성하여 inputValues 상태에 설정
+      const loadedInputValues: {[key: string]: string} = {};
+      
+      inputData?.forEach((item: any) => {
+        if (item.option_id && item.quantity) {
+          const optionId = String(item.option_id);
+          const quantity = String(item.quantity);
+          
+          // data에서 해당 option_id를 가진 아이템 찾기
+          const matchingRow = data.find(row => String(row.option_id) === optionId);
+          if (matchingRow) {
+            const cellId = `input-${matchingRow.item_id}-${optionId}`;
+            loadedInputValues[cellId] = quantity;
+          }
+        }
+      });
+
+      console.log('📝 입력 필드 데이터 로드 완료:', Object.keys(loadedInputValues).length + '개');
+      
+      // 기존 inputValues와 병합 (기존 입력 중인 값 보존)
+      setInputValues(prev => ({
+        ...loadedInputValues, // DB에서 불러온 값 먼저
+        ...prev // 현재 입력 중인 값이 우선
+      }));
+      
+    } catch (error) {
+      console.error('❌ 입력 필드 데이터 로드 실패:', error);
+    }
+  }, [data, formatDateToMMDD]);
 
   // 조회수 데이터 로드
   const loadItemViewsData = async () => {
@@ -1159,6 +1286,14 @@ function ProductListPage() {
       console.log('✅ ProductListPage 메모리 정리 완료');
     };
   }, []);
+
+  // 🔄 데이터 로드 후 입력 필드 데이터 로드 (data가 로드되면 실행)
+  useEffect(() => {
+    if (data && data.length > 0) {
+      console.log('📝 상품 데이터 로드 완료 - 입력 필드 데이터 로딩 시작...');
+      loadInputFieldData();
+    }
+  }, [data, loadInputFieldData]);
 
   // 🔍 디버깅용: Supabase에서 '리브디' 데이터 직접 조회
   const debugSearchRivedi = async () => {

@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS chinaorder_cart (
     user_id TEXT NOT NULL,
     
     -- 주문 정보 (요청된 매핑 필드)
+    option_id TEXT,                           -- 옵션ID
     china_order_number TEXT,                   -- 주문번호
     date TEXT,                                 -- 날짜
     item_name TEXT,                           -- 등록상품명
@@ -29,17 +30,12 @@ CREATE TABLE IF NOT EXISTS chinaorder_cart (
     -- 기타
     remark TEXT,                              -- 비고
     confirm_order_id TEXT,                    -- 확인 주문번호
-    confirm_shipment_id TEXT,                 -- 출고번호
-    
-    -- 시스템 필드
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    confirm_shipment_id TEXT                  -- 출고번호
 );
 
 -- 인덱스 생성
 CREATE INDEX IF NOT EXISTS idx_chinaorder_cart_user_id ON chinaorder_cart(user_id);
 CREATE INDEX IF NOT EXISTS idx_chinaorder_cart_china_order_number ON chinaorder_cart(china_order_number);
-CREATE INDEX IF NOT EXISTS idx_chinaorder_cart_created_at ON chinaorder_cart(created_at);
 CREATE INDEX IF NOT EXISTS idx_chinaorder_cart_item_name ON chinaorder_cart(item_name);
 CREATE INDEX IF NOT EXISTS idx_chinaorder_cart_barcode ON chinaorder_cart(barcode);
 
@@ -59,20 +55,7 @@ CREATE POLICY "사용자는 자신의 주문 카트만 수정 가능" ON chinaor
 CREATE POLICY "사용자는 자신의 주문 카트만 삭제 가능" ON chinaorder_cart
     FOR DELETE USING (auth.uid()::text = user_id);
 
--- updated_at 자동 업데이트 트리거 함수 생성
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
 
--- updated_at 트리거 생성
-CREATE TRIGGER update_chinaorder_cart_updated_at
-    BEFORE UPDATE ON chinaorder_cart
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
 
 -- 테스트 데이터 삽입 (선택사항)
 -- INSERT INTO chinaorder_cart (

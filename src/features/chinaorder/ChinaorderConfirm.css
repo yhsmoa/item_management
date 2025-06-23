@@ -432,122 +432,19 @@
   white-space: nowrap;
 }
 
-/* ⚠️ ChinaorderCart 전용 테이블 스타일 - 다른 페이지 절대 영향 없음 ⚠️ */
-.chinaorder-cart-container .chinaorder-cart-table .product-list-table-cell {
+/* 상품명 셀만 왼쪽 정렬 및 줄바꿈 허용 - 타입 컬럼 추가로 인해 2번째 셀로 유지 */
+.product-list-table-cell:nth-child(2) {
+  text-align: left;
+  white-space: pre-line;
+  word-wrap: break-word;
+}
+
+/* 타입 컬럼 스타일 - 3번째 셀 */
+.product-list-table-cell:nth-child(3) {
   text-align: center;
   vertical-align: middle;
-  padding: 1px;
-  font-size: 12px;
-}
-
-/* ⚠️ ChinaorderCart 전용 - 각 컬럼 너비 강제 설정 ⚠️ */
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(1),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(1) {
-  width: 40px !important;
-  min-width: 40px !important;
-  max-width: 40px !important;
-}
-
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(2),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(2) {
-  width: 50px !important;
-  min-width: 50px !important;
-  max-width: 50px !important;
-}
-
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(3),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(3) {
-  width: 60px !important;
-  min-width: 60px !important;
-  max-width: 60px !important;
-}
-
-/* 등록상품명 - 280px로 설정 */
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(4),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(4) {
-  width: 280px !important;
-  min-width: 280px !important;
-  max-width: 280px !important;
-}
-
-/* 옵션명 - 240px로 설정 (2배로 증가) */
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(5),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(5) {
-  width: 240px !important;
-  min-width: 240px !important;
-  max-width: 240px !important;
-}
-
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(6),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(6) {
-  width: 80px !important;
-  min-width: 80px !important;
-  max-width: 80px !important;
-}
-
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(7),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(7) {
-  width: 50px !important;
-  min-width: 50px !important;
-  max-width: 50px !important;
-}
-
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(8),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(8) {
-  width: 60px !important;
-  min-width: 60px !important;
-  max-width: 60px !important;
-}
-
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(9),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(9) {
-  width: 80px !important;
-  min-width: 80px !important;
-  max-width: 80px !important;
-}
-
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(10),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(10) {
-  width: 80px !important;
-  min-width: 80px !important;
-  max-width: 80px !important;
-}
-
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(11),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(11) {
-  width: 50px !important;
-  min-width: 50px !important;
-  max-width: 50px !important;
-}
-
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(12),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(12) {
-  width: 60px !important;
-  min-width: 60px !important;
-  max-width: 60px !important;
-}
-
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(13),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(13) {
-  width: 80px !important;
-  min-width: 80px !important;
-  max-width: 80px !important;
-}
-
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(14),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(14) {
-  width: 100px !important;
-  min-width: 100px !important;
-  max-width: 100px !important;
-}
-
-/* ⚠️ ChinaorderCart 전용 - 등록상품명과 옵션명 컬럼 줄바꿈 허용 ⚠️ */
-.chinaorder-cart-container .chinaorder-cart-table .product-list-table-cell:nth-child(4),
-.chinaorder-cart-container .chinaorder-cart-table .product-list-table-cell:nth-child(5),
-.chinaorder-cart-container .chinaorder-cart-table .product-list-table-cell:nth-child(9),
-.chinaorder-cart-container .chinaorder-cart-table .product-list-table-cell:nth-child(10) {
-  white-space: pre-wrap;
-  word-break: break-all;
+  padding: 0;
+  width: 50px;
 }
 
 /* 편집 가능한 셀 스타일 */

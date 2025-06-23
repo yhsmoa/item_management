@@ -10,6 +10,11 @@ import ChinaOrderListPage from '../features/chinaorder/ChinaOrderListPage';
 import StockManagement from '../features/stocks/StockManagement';
 import StocksScan from '../features/stocks/StocksScan';
 import ChinaorderCart from '../features/chinaorder/ChinaorderCart';
+import ChinaorderConfirm from '../features/chinaorder/ChinaorderConfirm';
+import ChinaorderDelivery from '../features/chinaorder/ChinaorderDelivery';
+import ChinaorderRecords from '../features/chinaorder/ChinaorderRecords';
+import CoupangOrders from '../features/orders/CoupangOrders';
+import SmartstoreOrders from '../features/orders/SmartstoreOrders';
 import MainLayout from '../layouts/MainLayout';
 
 /**
@@ -133,10 +138,60 @@ const AppRouter: React.FC = () => {
         
         {/* 중국 주문 요청 목록 페이지 - 로그인 필요 */}
         <Route 
-          path="/orders/order-cart" 
+          path="/chinaorder/chinaorder-cart" 
           element={
             <ProtectedRoute>
               <ChinaorderCart />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* 중국 주문 확정 페이지 - 로그인 필요 */}
+        <Route 
+          path="/chinaorder/chinaorder-confirm" 
+          element={
+            <ProtectedRoute>
+              <ChinaorderConfirm />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* 중국 주문 출고중 페이지 - 로그인 필요 */}
+        <Route 
+          path="/chinaorder/chinaorder-delivery" 
+          element={
+            <ProtectedRoute>
+              <ChinaorderDelivery />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* 중국 주문 과거 주문 페이지 - 로그인 필요 */}
+        <Route 
+          path="/chinaorder/chinaorder-records" 
+          element={
+            <ProtectedRoute>
+              <ChinaorderRecords />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* 쿠팡 주문 관리 페이지 - 로그인 필요 */}
+        <Route 
+          path="/order-management/coupang" 
+          element={
+            <ProtectedRoute>
+              <CoupangOrders />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* 스마트스토어 주문 관리 페이지 - 로그인 필요 */}
+        <Route 
+          path="/order-management/smartstore" 
+          element={
+            <ProtectedRoute>
+              <SmartstoreOrders />
             </ProtectedRoute>
           } 
         />

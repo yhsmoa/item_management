@@ -51,6 +51,15 @@ const LeftSideBar: React.FC<LeftSideBarProps> = ({ isVisible }) => {
     if (currentPath.includes('/products')) {
       setSelectedMenu('product-list');
       setExpandedMenus(['products']);
+    } else if (currentPath.includes('/order-management/coupang')) {
+      setSelectedMenu('coupang-orders');
+      setExpandedMenus(['order-management']);
+    } else if (currentPath.includes('/order-management/smartstore')) {
+      setSelectedMenu('smartstore-orders');
+      setExpandedMenus(['order-management']);
+    } else if (currentPath.includes('/order-management')) {
+      setSelectedMenu('order-management');
+      setExpandedMenus(['order-management']);
     } else if (currentPath.includes('/chinaorder')) {
       setSelectedMenu('china-order-list');
       setExpandedMenus(['orders']);
@@ -90,6 +99,16 @@ const LeftSideBar: React.FC<LeftSideBarProps> = ({ isVisible }) => {
       path: '/dashboard'
     },
     {
+      id: 'order-management',
+      title: '주문 관리',
+      icon: '📋',
+      path: '/order-management',
+      children: [
+        { id: 'coupang-orders', title: '쿠팡 주문', icon: '🛒', path: '/order-management/coupang' },
+        { id: 'smartstore-orders', title: '스마트스토어 주문', icon: '🏪', path: '/order-management/smartstore' }
+      ]
+    },
+    {
       id: 'products',
       title: '상품관리',
       icon: '📦',
@@ -102,13 +121,15 @@ const LeftSideBar: React.FC<LeftSideBarProps> = ({ isVisible }) => {
     },
     {
       id: 'orders',
-      title: '주문관리',
+      title: '구매대행',
       icon: '🛒',
       path: '/orders',
       children: [
-        { id: 'china-order-list', title: '주문 목록', icon: '📄', path: '/chinaorder/list' },
-        { id: 'order-delivery', title: '요청 목록', icon: '🚚', path: '/orders/order-cart' },
-        { id: 'order-return', title: '반품/교환', icon: '↩️', path: '/orders/return' }
+        { id: 'china-order-list', title: '전체 주문', icon: '📄', path: '/chinaorder/list' },
+        { id: 'order-delivery-status', title: '출고중', icon: '🚚', path: '/chinaorder/chinaorder-delivery' },
+        { id: 'order-return', title: '주문 확정', icon: '↩️', path: '/chinaorder/chinaorder-confirm' },
+        { id: 'order-delivery', title: '요청 목록', icon: '📋', path: '/chinaorder/chinaorder-cart' },
+        { id: 'order-records', title: '과거 주문', icon: '📚', path: '/chinaorder/chinaorder-records' }
       ]
     },
     {

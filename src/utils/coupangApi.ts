@@ -1,9 +1,33 @@
-// 쿠팡 API 설정
+// 환경변수 로드 및 검증
+const accessKey = process.env.REACT_APP_COUPANG_ACCESS_KEY;
+const secretKey = process.env.REACT_APP_COUPANG_SECRET_KEY;
+const vendorId = process.env.REACT_APP_COUPANG_VENDOR_ID;
+
+// 🔍 쿠팡 API 환경변수 확인
+console.log('🔍 쿠팡 API 환경변수 확인:');
+console.log('- ACCESS_KEY:', accessKey ? '✅ 로드됨' : '❌ 없음');
+console.log('- SECRET_KEY:', secretKey ? '✅ 로드됨' : '❌ 없음');
+console.log('- VENDOR_ID:', vendorId ? '✅ 로드됨' : '❌ 없음');
+
+// 환경변수 필수 검사
+if (!accessKey || !secretKey || !vendorId) {
+  console.error(`
+🚨 쿠팡 API 환경변수 누락!
+- ACCESS_KEY: ${accessKey ? '✅' : '❌ 누락'}
+- SECRET_KEY: ${secretKey ? '✅' : '❌ 누락'}
+- VENDOR_ID: ${vendorId ? '✅' : '❌ 누락'}
+
+.env 파일을 확인하세요.
+`);
+  throw new Error('쿠팡 API 환경변수가 설정되지 않았습니다.');
+}
+
+// 쿠팡 API 설정 (환경변수 검증 후 타입 안전한 객체 생성)
 const COUPANG_CONFIG = {
   HOST: 'api-gateway.coupang.com',
-  ACCESS_KEY: '6a9d9ee7-f252-4086-9a9c-306a38c70223',
-  SECRET_KEY: 'c21e858a7d60e2c895b1534edf8801729634f18e',
-  VENDOR_ID: 'A00312592'
+  ACCESS_KEY: accessKey,
+  SECRET_KEY: secretKey,
+  VENDOR_ID: vendorId
 };
 
 /**
