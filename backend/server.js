@@ -27,27 +27,33 @@ app.use(express.urlencoded({ extended: true }));
 // 암호화/복호화 함수
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32);
 const IV_LENGTH = 16; // AES의 IV는 16바이트
+const ALGORITHM = 'aes-256-cbc'; // 암호화 알고리즘
 
 /**
- * AES 암호화
+ * AES 암호화 (최신 보안 표준)
  * @param {string} text - 암호화할 텍스트
  * @returns {string} - 암호화된 데이터 (IV + 암호화된 텍스트)
  */
 function encrypt(text) {
   if (!text) return null;
   
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipher('aes-256-cbc', ENCRYPTION_KEY);
-  
-  let encrypted = cipher.update(text, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  
-  // IV와 암호화된 데이터를 합쳐서 반환
-  return iv.toString('hex') + ':' + encrypted;
+  try {
+    const iv = crypto.randomBytes(IV_LENGTH);
+    const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY), iv);
+    
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    
+    // IV와 암호화된 데이터를 합쳐서 반환
+    return iv.toString('hex') + ':' + encrypted;
+  } catch (error) {
+    console.error('❌ 암호화 에러:', error);
+    return null;
+  }
 }
 
 /**
- * AES 복호화
+ * AES 복호화 (최신 보안 표준)
  * @param {string} encryptedData - 암호화된 데이터
  * @returns {string} - 복호화된 텍스트
  */
@@ -56,10 +62,15 @@ function decrypt(encryptedData) {
   
   try {
     const parts = encryptedData.split(':');
+    if (parts.length !== 2) {
+      console.error('❌ 잘못된 암호화 데이터 형식');
+      return null;
+    }
+    
     const iv = Buffer.from(parts[0], 'hex');
     const encrypted = parts[1];
     
-    const decipher = crypto.createDecipher('aes-256-cbc', ENCRYPTION_KEY);
+    const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY), iv);
     
     let decrypted = decipher.update(encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
