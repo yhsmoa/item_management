@@ -18,7 +18,11 @@ const supabase = createClient(
 // 미들웨어 설정
 app.use(helmet()); // 보안 헤더
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: [
+    'http://localhost:3000',
+    'http://13.125.220.142:3000',
+    process.env.FRONTEND_URL
+  ],
   credentials: true
 }));
 app.use(express.json());
