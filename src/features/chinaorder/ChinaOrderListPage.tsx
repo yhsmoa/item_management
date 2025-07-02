@@ -399,7 +399,7 @@ function ChinaOrderListPage() {
             <tbody className="product-list-table-body">
               {currentTableRows.length === 0 && (
                 <tr>
-                  <td colSpan={16} className="chinaorder-empty-data">
+                  <td colSpan={15} className="chinaorder-empty-data">
                     {isLoading ? '데이터를 불러오는 중...' : '데이터가 없습니다.'}
                   </td>
                 </tr>

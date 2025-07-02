@@ -1,5 +1,5 @@
 import { supabase } from '../config/supabase';
-import { getUserApiInfo } from './userApiService';
+import { getUserApiInfoEncrypted } from '../services/encryptedApiService';
 
 /**
  * Google Sheets API 환경 변수 로드 및 검증
@@ -124,8 +124,8 @@ export async function importGoogleSheetsData(userId: string): Promise<{success: 
   try {
     console.log('🚀 구글 시트 데이터 가져오기 시작...');
 
-    // 1. 사용자 API 정보에서 구글 시트 정보 가져오기
-    const userApiResult = await getUserApiInfo(userId);
+    // 1. 암호화된 사용자 API 정보에서 구글 시트 정보 가져오기
+    const userApiResult = await getUserApiInfoEncrypted(userId);
     if (!userApiResult.success || !userApiResult.data) {
       return {
         success: false,
@@ -143,7 +143,7 @@ export async function importGoogleSheetsData(userId: string): Promise<{success: 
       };
     }
 
-    console.log('📋 구글 시트 정보:', { googlesheet_id, googlesheet_name });
+    console.log('📋 구글 시트 정보 (복호화 완료):', { googlesheet_id: googlesheet_id.substring(0, 10) + '...', googlesheet_name });
 
     // 2. Google Sheets API를 통해 데이터 가져오기 (API 키 사용)
     // D열부터 AC열까지 3행부터 1000행까지 (모든 필요한 데이터 범위)
@@ -174,6 +174,17 @@ export async function importGoogleSheetsData(userId: string): Promise<{success: 
       };
     }
 
+    // 🔍 첫 번째 데이터 행의 모든 열 값을 콤마로 구분해서 출력
+    if (data.values && data.values.length > 0) {
+      const firstRow = data.values[0];
+      console.log('🔍 첫 번째 데이터 행 (콤마 구분):');
+      console.log(firstRow.map((cell: any, index: number) => `[${index}]${cell || '빈값'}`).join(', '));
+      console.log('📊 열 매핑 참고:');
+      console.log('D열=0, E열=1, F열=2, G열=3, H열=4, I열=5, J열=6, K열=7, L열=8, M열=9');
+      console.log('N열=10, O열=11, P열=12, Q열=13, R열=14, S열=15, T열=16, U열=17, V열=18, W열=19');
+      console.log('X열=20, Y열=21, Z열=22, AA열=23, AB열=24, AC열=25');
+    }
+
     // 3. 데이터 변환 (열 인덱스는 D열부터 시작하므로 0-based)
     const chinaOrderData: ChinaOrderData[] = data.values.map((row: any[], index: number) => {
       // D열=0, E열=1, F열=2, G열=3, H열=4, I열=5, J열=6, K열=7, L열=8, M열=9, 
@@ -182,28 +193,29 @@ export async function importGoogleSheetsData(userId: string): Promise<{success: 
       
       return {
         user_id: userId,
-        option_id: row[0] || null,                    // D열 (인덱스 0)
-        order_number: row[1] || null,                 // E열 (인덱스 1)
-        china_order_number: row[3] || null,           // G열 (인덱스 3)
-        date: row[4] || null,                         // H열 (인덱스 4)
-        item_name: row[5] || null,                    // I열 (인덱스 5)
-        option_name: row[6] || null,                  // J열 (인덱스 6)
-        barcode: row[7] || null,                      // K열 (인덱스 7)
-        composition: row[8] || null,                  // L열 (인덱스 8)
-        order_quantity: row[9] || null,               // M열 (인덱스 9)
-        china_option1: row[10] || null,               // N열 (인덱스 10)
-        china_option2: row[11] || null,               // O열 (인덱스 11)
-        china_price: row[12] || null,                 // P열 (인덱스 12)
-        china_total_price: row[13] || null,           // Q열 (인덱스 13)
-        image_url: row[14] || null,                   // R열 (인덱스 14)
-        china_link: row[15] || null,                  // S열 (인덱스 15)
+        option_id: row[0] || '',                    // D열 (인덱스 0)
+        order_number: row[1] || '',                 // E열 (인덱스 1)
+        // F열 (인덱스 2) - 실제 데이터가 있다면 매핑 필요
+        china_order_number: row[3] || '',           // G열 (인덱스 3)
+        date: row[4] || '',                         // H열 (인덱스 4)
+        item_name: row[5] || '',                    // I열 (인덱스 5)
+        option_name: row[6] || '',                  // J열 (인덱스 6)
+        barcode: row[7] || '',                      // K열 (인덱스 7)
+        composition: row[8] || '',                  // L열 (인덱스 8)
+        order_quantity: row[9] ? parseInt(row[9]) || null : null,               // M열 (인덱스 9) - 숫자 변환
+        china_option1: row[10] || '',               // N열 (인덱스 10)
+        china_option2: row[11] || '',               // O열 (인덱스 11)
+        china_price: row[12] ? parseFloat(row[12]) || null : null,                 // P열 (인덱스 12) - 숫자 변환
+        china_total_price: row[13] ? parseFloat(row[13]) || null : null,           // Q열 (인덱스 13) - 숫자 변환
+        image_url: row[14] || '',                   // R열 (인덱스 14) - 이제 올바른 위치
+        china_link: row[15] || '',                  // S열 (인덱스 15)
         order_status_ordering: row[16] || null,       // T열 (인덱스 16)
         order_status_check: row[17] || null,          // U열 (인덱스 17)
         order_status_cancel: row[18] || null,         // V열 (인덱스 18)
         order_status_shipment: row[19] || null,       // W열 (인덱스 19)
-        remark: row[21] || null,                      // Y열 (인덱스 21, X열 건너뜀)
-        confirm_order_id: row[24] || null,            // AB열 (인덱스 24)
-        confirm_shipment_id: row[25] || null          // AC열 (인덱스 25)
+        remark: row[21] || '',                      // Y열 (인덱스 21, X열 건너뜀)
+        confirm_order_id: row[24] || '',            // AB열 (인덱스 24)
+        confirm_shipment_id: row[25] || ''          // AC열 (인덱스 25)
       };
     }).filter((item: ChinaOrderData) => item.china_order_number || item.option_id); // 빈 값 제외 (G열 또는 D열 중 하나라도 있으면 유지)
 
@@ -244,10 +256,48 @@ export async function importGoogleSheetsData(userId: string): Promise<{success: 
 
     if (insertError) {
       console.error('❌ 데이터 저장 오류:', insertError);
+      
+      // 🔍 상세 오류 분석 및 문제 데이터 찾기
+      let errorDetails = `데이터 저장 실패: ${insertError.message}\n\n`;
+      
+      // 오류 메시지에서 문제가 되는 필드 추출
+      if (insertError.message.includes('invalid input syntax for type integer')) {
+        errorDetails += `⚠️ 정수형 컬럼에 잘못된 값이 입력되었습니다.\n\n`;
+        
+        // 첫 번째 데이터 샘플의 모든 필드 값 표시
+        const sampleData = chinaOrderData[0];
+        if (sampleData) {
+          errorDetails += `📋 첫 번째 데이터 샘플:\n`;
+          Object.entries(sampleData).forEach(([key, value]) => {
+            errorDetails += `• ${key}: "${value}" (타입: ${typeof value})\n`;
+          });
+          
+          errorDetails += `\n❓ 가능한 문제:\n`;
+          errorDetails += `• order_quantity (M열): "${sampleData.order_quantity}" - 숫자여야 함\n`;
+          errorDetails += `• china_price (P열): "${sampleData.china_price}" - 숫자일 수 있음\n`;
+          errorDetails += `• china_total_price (Q열): "${sampleData.china_total_price}" - 숫자일 수 있음\n`;
+        }
+      } else {
+        // 다른 종류의 오류인 경우
+        errorDetails += `🔍 오류 코드: ${insertError.code}\n`;
+        errorDetails += `📋 오류 세부사항: ${insertError.details}\n`;
+        errorDetails += `💡 힌트: ${insertError.hint}\n\n`;
+        
+        // 첫 번째 데이터 샘플 표시
+        if (chinaOrderData[0]) {
+          errorDetails += `📋 첫 번째 저장 시도 데이터:\n`;
+          const sampleEntries = Object.entries(chinaOrderData[0]).slice(0, 5); // 처음 5개만
+          sampleEntries.forEach(([key, value]) => {
+            errorDetails += `• ${key}: "${value}"\n`;
+          });
+          errorDetails += `... (총 ${Object.keys(chinaOrderData[0]).length}개 필드)\n`;
+        }
+      }
+      
       return {
         success: false,
         savedCount: 0,
-        error: `데이터 저장 실패: ${insertError.message}`
+        error: errorDetails
       };
     }
 

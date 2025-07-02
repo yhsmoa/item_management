@@ -1,131 +1,138 @@
 /* ChinaOrderListPage 전용 스타일 */
 
-/* 테이블 헤더 셀 스타일 */
-.chinaorder-table-header-checkbox {
-  width: 40px;
-  padding: 1px;
-  text-align: center;
+/* 테이블 컨테이너 높이 설정 */
+body .product-list-table-container {
+  max-height: 700px !important;
+  min-height: 700px !important;
+  overflow-y: auto !important;
 }
 
-.chinaorder-table-header-image {
+/* 테이블 헤더 셀 스타일 - 더 구체적인 선택자 사용 */
+.product-list-table .chinaorder-table-header-checkbox {
+  width: 40px;
+  padding: 1px;
+  text-align: center !important;
+}
+
+.product-list-table .chinaorder-table-header-image {
   width: 50px;
   padding: 1px;
-  text-align: center;
+  text-align: center !important;
 }
 
-.chinaorder-table-header-order-number {
+.product-list-table .chinaorder-table-header-order-number {
   width: 40px;
   padding: 1px;
-  text-align: center;
+  text-align: center !important;
 }
 
-.chinaorder-table-header-date {
+.product-list-table .chinaorder-table-header-date {
   width: 35px;
   padding: 1px;
-  text-align: center;
+  text-align: center !important;
 }
 
-.chinaorder-table-header-item-name {
+.product-list-table .chinaorder-table-header-item-name {
   width: 200px;
   padding: 1px;
-  text-align: left;
+  text-align: center !important;
 }
 
-.chinaorder-table-header-china-option {
+.product-list-table .chinaorder-table-header-china-option {
   width: 100px;
   padding: 1px;
-  text-align: left;
+  text-align: center !important;
 }
 
-.chinaorder-table-header-quantity {
+.product-list-table .chinaorder-table-header-quantity {
   width: 40px;
   padding: 1px;
-  text-align: center;
+  text-align: center !important;
 }
 
-.chinaorder-table-header-price {
+.product-list-table .chinaorder-table-header-price {
   width: 50px;
   padding: 1px;
-  text-align: center;
+  text-align: center !important;
 }
 
-.chinaorder-table-header-status {
+.product-list-table .chinaorder-table-header-status {
   width: 30px;
   padding: 1px;
-  text-align: center;
+  text-align: center !important;
 }
 
-.chinaorder-table-header-remark {
+.product-list-table .chinaorder-table-header-remark {
   width: 80px;
   padding: 1px;
-  text-align: left;
+  text-align: center !important;
 }
 
-.chinaorder-table-header-confirm {
+.product-list-table .chinaorder-table-header-confirm {
   width: 70px;
   padding: 1px;
-  text-align: center;
+  text-align: center !important;
 }
 
-/* 테이블 바디 셀 스타일 */
-.chinaorder-table-cell-checkbox {
-  text-align: center;
+/* 테이블 바디 셀 스타일 - 더 구체적인 선택자 사용 */
+.product-list-table .chinaorder-table-cell-checkbox {
+  text-align: center !important;
   padding: 1px;
 }
 
-.chinaorder-table-cell-image {
+.product-list-table .chinaorder-table-cell-image {
   padding: 1px;
-  text-align: center;
+  text-align: center !important;
 }
 
-.chinaorder-table-cell-order-number {
-  padding: 1px;
-  font-size: 11px;
-  text-align: center;
-}
-
-.chinaorder-table-cell-date {
+.product-list-table .chinaorder-table-cell-order-number {
   padding: 1px;
   font-size: 11px;
-  text-align: center;
+  text-align: center !important;
 }
 
-.chinaorder-table-cell-item-name {
+.product-list-table .chinaorder-table-cell-date {
   padding: 1px;
-  text-align: left;
+  font-size: 11px;
+  text-align: center !important;
 }
 
-.chinaorder-table-cell-china-option {
+.product-list-table .chinaorder-table-cell-item-name {
   padding: 1px;
-  text-align: left;
+  text-align: left !important;
 }
 
-.chinaorder-table-cell-quantity {
+.product-list-table .chinaorder-table-cell-china-option {
+  padding: 1px;
+  text-align: center !important;
+}
+
+.product-list-table .chinaorder-table-cell-quantity {
   padding: 1px;
   font-size: 12px;
-  text-align: center;
+  text-align: center !important;
 }
 
-.chinaorder-table-cell-price {
+.product-list-table .chinaorder-table-cell-price {
   padding: 1px;
-  text-align: center;
+  text-align: center !important;
 }
 
-.chinaorder-table-cell-status {
-  text-align: center;
+.product-list-table .chinaorder-table-cell-status {
+  text-align: center !important;
   padding: 1px;
 }
 
-.chinaorder-table-cell-remark {
+.product-list-table .chinaorder-table-cell-remark {
   padding: 1px;
   font-size: 12px;
-  text-align: left;
+  text-align: left !important;
 }
 
-.chinaorder-table-cell-confirm {
+.product-list-table .chinaorder-table-cell-confirm {
   padding: 1px;
   font-size: 11px;
-  text-align: center;
+  text-align: center !important;
 }
 
 /* 상품 이미지 스타일 */
