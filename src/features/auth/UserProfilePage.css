@@ -1,0 +1,214 @@
+/* UserProfilePage.css */
+/* UserProfilePage.tsx의 styled-components를 CSS 클래스로 변환 */
+
+/* Container - 전체 컨테이너 */
+.user-profile-container {
+  min-height: calc(100vh - 64px);
+  background: #FAFAFA;
+  padding: 15px 20px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  box-sizing: border-box;
+  /* 사이드바 호버 시 확장을 위한 여백 추가 */
+  margin-left: 0;
+  transition: margin-left 0.3s ease-in-out;
+}
+
+/* Content - 콘텐츠 영역 */
+.user-profile-content {
+  width: 100%;
+  max-width: 600px;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Title - 페이지 제목 */
+.user-profile-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #2D3748;
+  text-align: center;
+  margin: 0 0 20px 0; /* 위쪽 여백을 0으로, 아래쪽 여백을 20px로 줄임 */
+  letter-spacing: -0.5px;
+  padding-top: 10px; /* 상단 패딩 추가 */
+}
+
+/* FormContainer - 폼 컨테이너 */
+.user-profile-form-container {
+  background: white;
+  border-radius: 16px;
+  padding: 30px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  border: 1px solid #F0F0F0;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 auto;
+}
+
+/* SectionTitle - 섹션 제목 */
+.user-profile-section-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #2D3748;
+  margin-bottom: 20px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+/* FormSection - 폼 섹션 */
+.user-profile-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-bottom: 25px;
+}
+
+/* InputGroup - 입력 그룹 */
+.user-profile-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* InputLabel - 입력 라벨 */
+.user-profile-input-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #4A5568;
+  margin-bottom: 4px;
+}
+
+/* Input - 입력 필드 */
+.user-profile-input {
+  padding: 14px 16px;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  font-size: 14px;
+  width: 100%;
+  transition: all 0.2s;
+  background: #FAFAFA;
+  box-sizing: border-box;
+}
+
+.user-profile-input:focus {
+  outline: none;
+  border-color: #4A5568;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(74, 85, 104, 0.1);
+}
+
+.user-profile-input::placeholder {
+  color: #A0AEC0;
+}
+
+/* Divider - 구분선 */
+.user-profile-divider {
+  border: none;
+  height: 1px;
+  background: linear-gradient(to right, transparent, #E2E8F0, transparent);
+  margin: 25px 0;
+}
+
+/* ErrorMessage - 에러 메시지 */
+.user-profile-error-message {
+  color: #e53e3e;
+  font-size: 14px;
+  margin-bottom: 16px;
+  text-align: center;
+  padding: 8px;
+  background: #fed7d7;
+  border-radius: 6px;
+  border: 1px solid #feb2b2;
+}
+
+/* SuccessMessage - 성공 메시지 */
+.user-profile-success-message {
+  color: #38a169;
+  font-size: 14px;
+  margin-bottom: 16px;
+  text-align: center;
+  padding: 8px;
+  background: #c6f6d5;
+  border-radius: 6px;
+  border: 1px solid #9ae6b4;
+}
+
+/* ButtonContainer - 버튼 컨테이너 */
+.user-profile-button-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 25px;
+  padding-top: 15px;
+}
+
+/* SubmitButton - 저장 버튼 */
+.user-profile-submit-button {
+  background: #2D3748;
+  color: white;
+  border: none;
+  padding: 16px 35px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 120px;
+}
+
+.user-profile-submit-button:disabled {
+  background: #A0AEC0;
+  cursor: not-allowed;
+}
+
+.user-profile-submit-button:hover:not(:disabled) {
+  background: #1A202C;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(45, 55, 72, 0.3);
+}
+
+.user-profile-submit-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .user-profile-container {
+    padding: 10px 15px;
+  }
+  
+  .user-profile-content {
+    padding: 10px 0;
+  }
+  
+  .user-profile-form-container {
+    padding: 20px;
+  }
+  
+  .user-profile-title {
+    font-size: 24px;
+    margin-bottom: 15px;
+    padding-top: 5px;
+  }
+  
+  .user-profile-submit-button {
+    padding: 14px 30px;
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  .user-profile-container {
+    padding: 8px 10px;
+  }
+  
+  .user-profile-form-container {
+    padding: 15px;
+  }
+  
+  .user-profile-title {
+    font-size: 22px;
+    margin-bottom: 12px;
+    padding-top: 3px;
+  }
+} 

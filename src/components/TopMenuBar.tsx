@@ -172,6 +172,7 @@ const TopMenuBar: React.FC<TopMenuBarProps> = ({ onToggleSidebar, isSidebarVisib
  * - 화면 상단에 고정되는 네비게이션 바
  * - 흰색 배경에 그림자 효과
  * - 좌우 패딩과 정렬 설정
+ * - 스크롤 시에도 항상 최상위 유지
  */
 const TopBarContainer = styled.div`
   width: 100%;
@@ -186,10 +187,14 @@ const TopBarContainer = styled.div`
   top: 0;
   left: 0;
   right: 0;
-  z-index: 1000;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  z-index: 1100; /* 사이드바보다 높은 z-index로 설정 */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   max-width: 100vw;
   box-sizing: border-box;
+  
+  /* 백드롭 블러 효과 추가 */
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 `;
 
 /**
@@ -464,6 +469,7 @@ const UserAvatar = styled.div`
  * 사용자 드롭다운 메뉴
  * - 판매자 정보, 로그아웃 메뉴 포함
  * - 아바타 클릭 시 표시
+ * - 최상위 레이어에 표시
  */
 const UserDropdownMenu = styled.div`
   position: absolute;
@@ -473,9 +479,13 @@ const UserDropdownMenu = styled.div`
   background: white;
   border: 1px solid #E5E7EB;
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
   min-width: 160px;
-  z-index: 1001;
+  z-index: 1200; /* TopBar보다 높은 z-index */
+  
+  /* 백드롭 블러 효과 */
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 `;
 
 /**

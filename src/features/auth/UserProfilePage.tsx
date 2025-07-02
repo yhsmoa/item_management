@@ -1,27 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
-import MainLayout from '../../layouts/MainLayout';
+import './UserProfilePage.css';
 import { saveUserApiInfo, getUserApiInfo, UserApiData } from '../../services/userApiService';
+import { getUserApiInfoEncrypted, saveUserApiInfoEncrypted, checkBackendHealth } from '../../services/encryptedApiService';
 
 /**
  * 개인정보 수정 페이지 컴포넌트
  * - 사용자가 쿠팡 API 정보를 등록/수정할 수 있는 페이지
  * - 업체명, 업체코드, Access Key, Secret Key 입력 기능 제공
  * - 구글 시트 API 정보 입력 기능 추가
- * - Supabase를 통한 데이터 저장
+ * - 🔐 암호화된 백엔드 서버를 통한 보안 저장 (기존 users_api 테이블 사용)
  */
 const UserProfilePage: React.FC = () => {
   // 현재 로그인한 사용자 정보 가져오기
   const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
   
   // API 정보 폼 데이터 상태 관리
-  const [formData, setFormData] = useState({
-    coupangName: '',           // 쿠팡 업체명
-    coupangCode: '',           // 쿠팡 업체코드  
-    coupangAccessKey: '',      // 쿠팡 Access Key
-    coupangSecretKey: '',      // 쿠팡 Secret Key
-    googleSheetId: '',         // 구글 시트 id
-    googleSheetName: ''        // 구글 시트명
+  const [apiData, setApiData] = useState({
+    coupang_name: '',           // 쿠팡 업체명
+    coupang_code: '',           // 쿠팡 업체코드  
+    coupang_access_key: '',      // 쿠팡 Access Key
+    coupang_secret_key: '',      // 쿠팡 Secret Key
+    googlesheet_id: '',         // 구글 시트 id
+    googlesheet_name: ''        // 구글 시트명
   });
 
   // 로딩 상태 및 에러 메시지 관리
@@ -41,13 +41,13 @@ const UserProfilePage: React.FC = () => {
       console.log('🧹 UserProfilePage 컴포넌트 언마운트 - 메모리 정리 중...');
       
       // 폼 데이터 초기화 (민감한 정보 메모리에서 제거)
-      setFormData({
-        coupangName: '',
-        coupangCode: '',
-        coupangAccessKey: '',
-        coupangSecretKey: '',
-        googleSheetId: '',
-        googleSheetName: ''
+      setApiData({
+        coupang_name: '',
+        coupang_code: '',
+        coupang_access_key: '',
+        coupang_secret_key: '',
+        googlesheet_id: '',
+        googlesheet_name: ''
       });
       
       // 메시지 상태 초기화
@@ -60,25 +60,55 @@ const UserProfilePage: React.FC = () => {
   }, []);
 
   /**
-   * 기존 사용자 API 정보 로드
+   * 기존 사용자 API 정보 로드 (암호화된 데이터 우선, 없으면 기존 평문 데이터)
    */
   const loadUserApiInfo = async () => {
     if (!currentUser.id) return;
 
     try {
-      const result = await getUserApiInfo(currentUser.id);
-      if (result.success && result.data) {
-        setFormData({
-          coupangName: result.data.coupang_name || '',
-          coupangCode: result.data.coupang_code || '',
-          coupangAccessKey: result.data.coupang_access_key || '',
-          coupangSecretKey: result.data.coupang_secret_key || '',
-          googleSheetId: result.data.googlesheet_id || '',
-          googleSheetName: result.data.googlesheet_name || ''
+      console.log('🔍 사용자 API 정보 조회 시도...');
+      
+      // 1. 먼저 암호화된 데이터 조회 (백엔드를 통해)
+      const encryptedResult = await getUserApiInfoEncrypted(currentUser.id);
+      
+      if (encryptedResult.success && encryptedResult.data) {
+        console.log('✅ 암호화된 데이터 발견, 로드 완료');
+        setApiData({
+          coupang_name: encryptedResult.data.coupang_name || '',
+          coupang_code: encryptedResult.data.coupang_code || '',
+          coupang_access_key: encryptedResult.data.coupang_access_key || '',
+          coupang_secret_key: encryptedResult.data.coupang_secret_key || '',
+          googlesheet_id: encryptedResult.data.googlesheet_id || '',
+          googlesheet_name: encryptedResult.data.googlesheet_name || ''
         });
+        return;
       }
+
+      console.log('📋 암호화된 데이터가 없음, 기존 평문 데이터 확인...');
+      
+      // 2. 암호화된 데이터가 없으면 기존 평문 데이터 조회
+      const legacyResult = await getUserApiInfo(currentUser.id);
+      
+      if (legacyResult.success && legacyResult.data) {
+        console.log('🔄 기존 평문 데이터 발견');
+        
+        // 기존 데이터를 폼에 로드
+        setApiData({
+          coupang_name: legacyResult.data.coupang_name || '',
+          coupang_code: legacyResult.data.coupang_code || '',
+          coupang_access_key: legacyResult.data.coupang_access_key || '',
+          coupang_secret_key: legacyResult.data.coupang_secret_key || '',
+          googlesheet_id: legacyResult.data.googlesheet_id || '',
+          googlesheet_name: legacyResult.data.googlesheet_name || ''
+        });
+        
+        // 업그레이드 안내 메시지
+        setSuccessMessage('📋 기존 데이터를 불러왔습니다. "저장" 버튼을 클릭하면 보안이 강화된 암호화 방식으로 업그레이드됩니다!');
+      }
+
     } catch (error: any) {
       console.error('❌ API 정보 로드 에러:', error);
+      setErrorMessage('API 정보를 불러오는 중 오류가 발생했습니다.');
     }
   };
 
@@ -88,7 +118,7 @@ const UserProfilePage: React.FC = () => {
    */
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setApiData(prev => ({
       ...prev,
       [name]: value
     }));
@@ -103,9 +133,9 @@ const UserProfilePage: React.FC = () => {
    */
   const validateForm = (): boolean => {
     // 쿠팡 필수 필드 검사
-    const requiredFields = ['coupangName', 'coupangCode', 'coupangAccessKey', 'coupangSecretKey'];
+    const requiredFields = ['coupang_name', 'coupang_code', 'coupang_access_key', 'coupang_secret_key'];
     for (const field of requiredFields) {
-      if (!formData[field as keyof typeof formData].trim()) {
+      if (!apiData[field as keyof typeof apiData].trim()) {
         setErrorMessage('쿠팡 API 정보를 모두 입력해주세요.');
         return false;
       }
@@ -116,359 +146,181 @@ const UserProfilePage: React.FC = () => {
 
   /**
    * API 정보 저장 핸들러
-   * - 폼 유효성 검사 후 Supabase users_api 테이블에 데이터 저장
+   * - 폼 유효성 검사 후 암호화된 백엔드를 통해 저장
    */
-  const handleSubmit = async () => {
-    // 유효성 검사
-    if (!validateForm()) {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!currentUser?.id) {
+      setErrorMessage('사용자 정보가 없습니다.');
       return;
     }
 
-    if (!currentUser.id) {
-      setErrorMessage('로그인 정보를 찾을 수 없습니다.');
+    // 필수 필드 검증
+    if (!apiData.coupang_name.trim() || !apiData.coupang_code.trim() || 
+        !apiData.coupang_access_key.trim() || !apiData.coupang_secret_key.trim()) {
+      setErrorMessage('모든 쿠팡 API 정보를 입력해주세요.');
       return;
     }
 
     setIsLoading(true);
     setErrorMessage('');
     setSuccessMessage('');
-
+    
     try {
-      // Supabase users_api 테이블에 저장할 데이터 준비
-      const apiData: UserApiData = {
+      const saveData: UserApiData = {
         user_id: currentUser.id,
-        coupang_name: formData.coupangName,
-        coupang_code: formData.coupangCode,
-        coupang_access_key: formData.coupangAccessKey,
-        coupang_secret_key: formData.coupangSecretKey,
-        googlesheet_id: formData.googleSheetId,
-        googlesheet_name: formData.googleSheetName
+        coupang_name: apiData.coupang_name.trim(),
+        coupang_code: apiData.coupang_code.trim(),
+        coupang_access_key: apiData.coupang_access_key.trim(),
+        coupang_secret_key: apiData.coupang_secret_key.trim(),
+        googlesheet_id: apiData.googlesheet_id.trim(),
+        googlesheet_name: apiData.googlesheet_name.trim()
       };
 
-      // userApiService를 통해 API 정보 저장 처리
-      const result = await saveUserApiInfo(apiData);
-
+      console.log('🔐 암호화된 API 정보 저장 중...', { user_id: saveData.user_id });
+      
+      // 🔐 암호화된 백엔드 서비스 사용
+      const result = await saveUserApiInfoEncrypted(saveData);
+      
       if (result.success) {
-        setSuccessMessage('API 정보가 성공적으로 저장되었습니다.');
+        console.log('✅ 암호화된 API 정보 저장 성공');
+        setSuccessMessage('🔐 API 정보가 안전하게 암호화되어 저장되었습니다.');
+        setErrorMessage('');
       } else {
-        // 저장 실패
+        console.error('❌ 암호화된 API 정보 저장 실패:', result.error);
         setErrorMessage(result.error || 'API 정보 저장에 실패했습니다.');
+        setSuccessMessage('');
       }
-
     } catch (error: any) {
-      console.error('❌ API 정보 저장 에러:', error);
-      setErrorMessage(`API 정보 저장 중 오류가 발생했습니다: ${error.message}`);
+      console.error('❌ 저장 중 예외 발생:', error);
+      setErrorMessage('저장 중 오류가 발생했습니다.');
+      setSuccessMessage('');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <MainLayout>
-      <Container>
-        <Content>
-          {/* 페이지 메인 제목 */}
-          <Title>개인정보 입력</Title>
+    <div className="user-profile-container">
+      <div className="user-profile-content">
+        {/* 페이지 메인 제목 */}
+        <h1 className="user-profile-title">개인정보 입력</h1>
+        
+        <div className="user-profile-form-container">
+          {/* 쿠팡 API 정보 입력 섹션 */}
+          <h2 className="user-profile-section-title">쿠팡 API 정보</h2>
+          <div className="user-profile-form-section">
+            {/* 쿠팡 업체명 입력 필드 */}
+            <div className="user-profile-input-group">
+              <label className="user-profile-input-label">쿠팡 업체명</label>
+              <input
+                type="text"
+                name="coupang_name"
+                placeholder="쿠팡 업체명을 입력하세요"
+                value={apiData.coupang_name}
+                onChange={handleInputChange}
+                className="user-profile-input"
+              />
+            </div>
+            
+            {/* 쿠팡 업체코드 입력 필드 */}
+            <div className="user-profile-input-group">
+              <label className="user-profile-input-label">쿠팡 업체코드</label>
+              <input
+                type="text"
+                name="coupang_code"
+                placeholder="쿠팡 업체코드를 입력하세요"
+                value={apiData.coupang_code}
+                onChange={handleInputChange}
+                className="user-profile-input"
+              />
+            </div>
+            
+            {/* 쿠팡 Access Key 입력 필드 */}
+            <div className="user-profile-input-group">
+              <label className="user-profile-input-label">쿠팡 Access Key</label>
+              <input
+                type="text"
+                name="coupang_access_key"
+                placeholder="쿠팡 Access Key를 입력하세요"
+                value={apiData.coupang_access_key}
+                onChange={handleInputChange}
+                className="user-profile-input"
+              />
+            </div>
+            
+            {/* 쿠팡 Secret Key 입력 필드 */}
+            <div className="user-profile-input-group">
+              <label className="user-profile-input-label">쿠팡 Secret Key</label>
+              <input
+                type="password"
+                name="coupang_secret_key"
+                placeholder="쿠팡 Secret Key를 입력하세요"
+                value={apiData.coupang_secret_key}
+                onChange={handleInputChange}
+                className="user-profile-input"
+              />
+            </div>
+          </div>
+
+          {/* 구분선 */}
+          <hr className="user-profile-divider" />
+
+          {/* 구글 시트 API 정보 입력 섹션 */}
+          <h2 className="user-profile-section-title">구글 시트 API 정보</h2>
+          <div className="user-profile-form-section">
+            {/* 구글 시트 id 입력 필드 */}
+            <div className="user-profile-input-group">
+              <label className="user-profile-input-label">구글 시트 id</label>
+              <input
+                type="text"
+                name="googlesheet_id"
+                placeholder="구글 시트 id를 입력하세요"
+                value={apiData.googlesheet_id}
+                onChange={handleInputChange}
+                className="user-profile-input"
+              />
+            </div>
+            
+            {/* 구글 시트명 입력 필드 */}
+            <div className="user-profile-input-group">
+              <label className="user-profile-input-label">구글 시트명</label>
+              <input
+                type="text"
+                name="googlesheet_name"
+                placeholder="구글 시트명을 입력하세요"
+                value={apiData.googlesheet_name}
+                onChange={handleInputChange}
+                className="user-profile-input"
+              />
+            </div>
+          </div>
           
-          <FormContainer>
-            {/* 쿠팡 API 정보 입력 섹션 */}
-            <SectionTitle>쿠팡 API 정보</SectionTitle>
-            <FormSection>
-              {/* 쿠팡 업체명 입력 필드 */}
-              <InputGroup>
-                <InputLabel>쿠팡 업체명</InputLabel>
-                <Input
-                  type="text"
-                  name="coupangName"
-                  placeholder="쿠팡 업체명을 입력하세요"
-                  value={formData.coupangName}
-                  onChange={handleInputChange}
-                />
-              </InputGroup>
-              
-              {/* 쿠팡 업체코드 입력 필드 */}
-              <InputGroup>
-                <InputLabel>쿠팡 업체코드</InputLabel>
-                <Input
-                  type="text"
-                  name="coupangCode"
-                  placeholder="쿠팡 업체코드를 입력하세요"
-                  value={formData.coupangCode}
-                  onChange={handleInputChange}
-                />
-              </InputGroup>
-              
-              {/* 쿠팡 Access Key 입력 필드 */}
-              <InputGroup>
-                <InputLabel>쿠팡 Access Key</InputLabel>
-                <Input
-                  type="text"
-                  name="coupangAccessKey"
-                  placeholder="쿠팡 Access Key를 입력하세요"
-                  value={formData.coupangAccessKey}
-                  onChange={handleInputChange}
-                />
-              </InputGroup>
-              
-              {/* 쿠팡 Secret Key 입력 필드 */}
-              <InputGroup>
-                <InputLabel>쿠팡 Secret Key</InputLabel>
-                <Input
-                  type="password"
-                  name="coupangSecretKey"
-                  placeholder="쿠팡 Secret Key를 입력하세요"
-                  value={formData.coupangSecretKey}
-                  onChange={handleInputChange}
-                />
-              </InputGroup>
-            </FormSection>
-
-            {/* 구분선 */}
-            <Divider />
-
-            {/* 구글 시트 API 정보 입력 섹션 */}
-            <SectionTitle>구글 시트 API 정보</SectionTitle>
-            <FormSection>
-              {/* 구글 시트 id 입력 필드 */}
-              <InputGroup>
-                <InputLabel>구글 시트 id</InputLabel>
-                <Input
-                  type="text"
-                  name="googleSheetId"
-                  placeholder="구글 시트 id를 입력하세요"
-                  value={formData.googleSheetId}
-                  onChange={handleInputChange}
-                />
-              </InputGroup>
-              
-              {/* 구글 시트명 입력 필드 */}
-              <InputGroup>
-                <InputLabel>구글 시트명</InputLabel>
-                <Input
-                  type="text"
-                  name="googleSheetName"
-                  placeholder="구글 시트명을 입력하세요"
-                  value={formData.googleSheetName}
-                  onChange={handleInputChange}
-                />
-              </InputGroup>
-            </FormSection>
-            
-            {/* 에러 메시지 표시 */}
-            {errorMessage && (
-              <ErrorMessage>{errorMessage}</ErrorMessage>
-            )}
-            
-            {/* 성공 메시지 표시 */}
-            {successMessage && (
-              <SuccessMessage>{successMessage}</SuccessMessage>
-            )}
-            
-            {/* 저장 버튼 */}
-            <ButtonContainer>
-              <SubmitButton 
-                onClick={handleSubmit}
-                disabled={isLoading}
-              >
-                {isLoading ? '저장 중...' : '저장'}
-              </SubmitButton>
-            </ButtonContainer>
-          </FormContainer>
-        </Content>
-      </Container>
-    </MainLayout>
+          {/* 에러 메시지 표시 */}
+          {errorMessage && (
+            <div className="user-profile-error-message">{errorMessage}</div>
+          )}
+          
+          {/* 성공 메시지 표시 */}
+          {successMessage && (
+            <div className="user-profile-success-message">{successMessage}</div>
+          )}
+          
+          {/* 저장 버튼 */}
+          <div className="user-profile-button-container">
+            <button 
+              onClick={handleSubmit}
+              disabled={isLoading}
+              className="user-profile-submit-button"
+            >
+              {isLoading ? '저장 중...' : '저장'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
-
-/* ===================== 스타일드 컴포넌트 영역 ===================== */
-
-/**
- * 전체 컨테이너 - 페이지 전체를 감싸는 최상위 컨테이너
- * - MainLayout 내부에서 사용되므로 사이드바와 탑바 고려
- * - 사이드바가 있는 경우 화면의 남은 공간에서 중앙 정렬
- * - 오프화이트 배경색
- */
-const Container = styled.div`
-  min-height: calc(100vh - 64px);
-  background: #FAFAFA;
-  padding: 40px 20px;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-`;
-
-/**
- * 콘텐츠 영역 - 실제 내용이 들어가는 영역
- * - 최대 너비 제한 및 중앙 정렬
- * - 완전한 중앙 정렬을 위한 수정
- */
-const Content = styled.div`
-  width: 100%;
-  max-width: 500px;
-  padding: 40px 0;
-`;
-
-/**
- * 페이지 제목 스타일 - 메인 헤딩 (RegisterPage와 동일)
- * - 큰 폰트 크기와 굵은 글씨
- * - 중앙 정렬
- */
-const Title = styled.h1`
-  font-size: 28px;
-  font-weight: 700;
-  color: #2D3748;
-  text-align: center;
-  margin-bottom: 40px;
-  letter-spacing: -0.5px;
-`;
-
-/**
- * 폼 컨테이너 - 실제 폼을 감싸는 흰색 카드 (RegisterPage와 동일)
- * - 둥근 모서리와 그림자 효과
- * - 충분한 내부 패딩
- * - 전체 너비 사용으로 완전한 중앙 정렬
- */
-const FormContainer = styled.div`
-  background: white;
-  border-radius: 16px;
-  padding: 40px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
-  border: 1px solid #F0F0F0;
-  width: 100%;
-`;
-
-/**
- * 섹션 제목 스타일
- */
-const SectionTitle = styled.h2`
-  font-size: 20px;
-  font-weight: 600;
-  color: #2D3748;
-  margin-bottom: 24px;
-  padding-bottom: 8px;
-`;
-
-/**
- * 폼 섹션 - API 정보 입력 필드들을 감싸는 영역
- * - 입력 필드들을 세로로 배치
- */
-const FormSection = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  margin-bottom: 32px;
-`;
-
-/**
- * 입력 그룹 - 라벨과 입력필드를 함께 감싸는 컨테이너
- */
-const InputGroup = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`;
-
-/**
- * 입력 라벨 스타일
- */
-const InputLabel = styled.label`
-  font-size: 14px;
-  font-weight: 500;
-  color: #4A5568;
-  margin-bottom: 4px;
-`;
-
-/**
- * 입력 필드 공통 스타일 - 모든 텍스트 입력란에 적용
- * - 포커스 시 테두리 색상 변경 및 그림자 효과
- * - 부드러운 전환 애니메이션
- */
-const Input = styled.input`
-  padding: 16px;
-  border: 1px solid #E2E8F0;
-  border-radius: 8px;
-  font-size: 14px;
-  width: 100%;
-  transition: all 0.2s;
-  background: #FAFAFA;
-  
-  &:focus {
-    outline: none;
-    border-color: #4A5568;
-    background: white;
-    box-shadow: 0 0 0 3px rgba(74, 85, 104, 0.1);
-  }
-  
-  &::placeholder {
-    color: #A0AEC0;
-  }
-`;
-
-/**
- * 구분선 스타일
- */
-const Divider = styled.hr`
-  border: none;
-  height: 1px;
-  background: linear-gradient(to right, transparent, #E2E8F0, transparent);
-  margin: 32px 0;
-`;
-
-/**
- * 에러 메시지 스타일
- */
-const ErrorMessage = styled.div`
-  color: #e53e3e;
-  font-size: 14px;
-  margin-bottom: 16px;
-  text-align: center;
-`;
-
-/**
- * 성공 메시지 스타일
- */
-const SuccessMessage = styled.div`
-  color: #38a169;
-  font-size: 14px;
-  margin-bottom: 16px;
-  text-align: center;
-`;
-
-/**
- * 버튼 컨테이너 - 저장 버튼을 가운데 정렬
- */
-const ButtonContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  margin-top: 32px;
-`;
-
-/**
- * 저장 버튼 스타일 - 메인 액션 버튼 (RegisterPage와 동일한 색상)
- * - 어두운 배경색과 흰색 텍스트
- * - 로딩 상태일 때 비활성화
- * - 호버 효과 및 애니메이션
- */
-const SubmitButton = styled.button<{ disabled?: boolean }>`
-  background: ${props => props.disabled ? '#A0AEC0' : '#2D3748'};
-  color: white;
-  border: none;
-  padding: 18px 40px;
-  border-radius: 12px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: ${props => props.disabled ? 'not-allowed' : 'pointer'};
-  transition: all 0.2s;
-  min-width: 120px;
-  
-  &:hover {
-    background: ${props => props.disabled ? '#A0AEC0' : '#1A202C'};
-    transform: ${props => props.disabled ? 'none' : 'translateY(-1px)'};
-  }
-  
-  &:active {
-    transform: ${props => props.disabled ? 'none' : 'translateY(0)'};
-  }
-`;
 
 export default UserProfilePage; 
