@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import './UserProfilePage.css';
 import { saveUserApiInfo, getUserApiInfo, UserApiData } from '../../services/userApiService';
-import { getUserApiInfoEncrypted, saveUserApiInfoEncrypted, checkBackendHealth } from '../../services/encryptedApiService';
+// import { getUserApiInfoEncrypted, saveUserApiInfoEncrypted, checkBackendHealth } from '../../services/encryptedApiService';
 
 /**
  * 개인정보 수정 페이지 컴포넌트
  * - 사용자가 쿠팡 API 정보를 등록/수정할 수 있는 페이지
  * - 업체명, 업체코드, Access Key, Secret Key 입력 기능 제공
  * - 구글 시트 API 정보 입력 기능 추가
- * - 🔐 암호화된 백엔드 서버를 통한 보안 저장 (기존 users_api 테이블 사용)
+ * - Supabase users_api 테이블에 직접 저장 (RLS 보안)
  */
 const UserProfilePage: React.FC = () => {
   // 현재 로그인한 사용자 정보 가져오기
@@ -60,7 +60,7 @@ const UserProfilePage: React.FC = () => {
   }, []);
 
   /**
-   * 기존 사용자 API 정보 로드 (암호화된 데이터 우선, 없으면 기존 평문 데이터)
+   * 기존 사용자 API 정보 로드 (Supabase 직접 연결)
    */
   const loadUserApiInfo = async () => {
     if (!currentUser.id) return;
@@ -68,42 +68,25 @@ const UserProfilePage: React.FC = () => {
     try {
       console.log('🔍 사용자 API 정보 조회 시도...');
       
-      // 1. 먼저 암호화된 데이터 조회 (백엔드를 통해)
-      const encryptedResult = await getUserApiInfoEncrypted(currentUser.id);
+      // Supabase users_api 테이블에서 직접 조회
+      const result = await getUserApiInfo(currentUser.id);
       
-      if (encryptedResult.success && encryptedResult.data) {
-        console.log('✅ 암호화된 데이터 발견, 로드 완료');
-        setApiData({
-          coupang_name: encryptedResult.data.coupang_name || '',
-          coupang_code: encryptedResult.data.coupang_code || '',
-          coupang_access_key: encryptedResult.data.coupang_access_key || '',
-          coupang_secret_key: encryptedResult.data.coupang_secret_key || '',
-          googlesheet_id: encryptedResult.data.googlesheet_id || '',
-          googlesheet_name: encryptedResult.data.googlesheet_name || ''
-        });
-        return;
-      }
-
-      console.log('📋 암호화된 데이터가 없음, 기존 평문 데이터 확인...');
-      
-      // 2. 암호화된 데이터가 없으면 기존 평문 데이터 조회
-      const legacyResult = await getUserApiInfo(currentUser.id);
-      
-      if (legacyResult.success && legacyResult.data) {
-        console.log('🔄 기존 평문 데이터 발견');
+      if (result.success && result.data) {
+        console.log('✅ 기존 데이터 발견, 로드 완료');
         
         // 기존 데이터를 폼에 로드
         setApiData({
-          coupang_name: legacyResult.data.coupang_name || '',
-          coupang_code: legacyResult.data.coupang_code || '',
-          coupang_access_key: legacyResult.data.coupang_access_key || '',
-          coupang_secret_key: legacyResult.data.coupang_secret_key || '',
-          googlesheet_id: legacyResult.data.googlesheet_id || '',
-          googlesheet_name: legacyResult.data.googlesheet_name || ''
+          coupang_name: result.data.coupang_name || '',
+          coupang_code: result.data.coupang_code || '',
+          coupang_access_key: result.data.coupang_access_key || '',
+          coupang_secret_key: result.data.coupang_secret_key || '',
+          googlesheet_id: result.data.googlesheet_id || '',
+          googlesheet_name: result.data.googlesheet_name || ''
         });
         
-        // 업그레이드 안내 메시지
-        setSuccessMessage('📋 기존 데이터를 불러왔습니다. "저장" 버튼을 클릭하면 보안이 강화된 암호화 방식으로 업그레이드됩니다!');
+        setSuccessMessage('📋 기존 데이터를 불러왔습니다.');
+      } else {
+        console.log('📄 저장된 API 정보가 없습니다.');
       }
 
     } catch (error: any) {
@@ -146,7 +129,7 @@ const UserProfilePage: React.FC = () => {
 
   /**
    * API 정보 저장 핸들러
-   * - 폼 유효성 검사 후 암호화된 백엔드를 통해 저장
+   * - 폼 유효성 검사 후 Supabase users_api 테이블에 직접 저장
    */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,17 +161,17 @@ const UserProfilePage: React.FC = () => {
         googlesheet_name: apiData.googlesheet_name.trim()
       };
 
-      console.log('🔐 암호화된 API 정보 저장 중...', { user_id: saveData.user_id });
+      console.log('💾 API 정보 저장 중...', { user_id: saveData.user_id });
       
-      // 🔐 암호화된 백엔드 서비스 사용
-      const result = await saveUserApiInfoEncrypted(saveData);
+      // Supabase users_api 테이블에 직접 저장
+      const result = await saveUserApiInfo(saveData);
       
       if (result.success) {
-        console.log('✅ 암호화된 API 정보 저장 성공');
-        setSuccessMessage('🔐 API 정보가 안전하게 암호화되어 저장되었습니다.');
+        console.log('✅ API 정보 저장 성공');
+        setSuccessMessage('✅ API 정보가 성공적으로 저장되었습니다.');
         setErrorMessage('');
       } else {
-        console.error('❌ 암호화된 API 정보 저장 실패:', result.error);
+        console.error('❌ API 정보 저장 실패:', result.error);
         setErrorMessage(result.error || 'API 정보 저장에 실패했습니다.');
         setSuccessMessage('');
       }
