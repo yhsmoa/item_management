@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './UserProfilePage.css';
 import { saveUserApiInfo, getUserApiInfo, UserApiData } from '../../services/userApiService';
-// import { getUserApiInfoEncrypted, saveUserApiInfoEncrypted, checkBackendHealth } from '../../services/encryptedApiService';
 
 /**
  * 개인정보 수정 페이지 컴포넌트

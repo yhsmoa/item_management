@@ -1,5 +1,5 @@
 import { supabase } from '../config/supabase';
-import { getUserApiInfoEncrypted } from '../services/encryptedApiService';
+import { getUserApiInfo } from '../services/userApiService';
 
 /**
  * Google Sheets API 환경 변수 로드 및 검증
@@ -124,8 +124,8 @@ export async function importGoogleSheetsData(userId: string): Promise<{success: 
   try {
     console.log('🚀 구글 시트 데이터 가져오기 시작...');
 
-    // 1. 암호화된 사용자 API 정보에서 구글 시트 정보 가져오기
-    const userApiResult = await getUserApiInfoEncrypted(userId);
+    // 1. 사용자 API 정보에서 구글 시트 정보 가져오기 (Supabase 직접 연결)
+    const userApiResult = await getUserApiInfo(userId);
     if (!userApiResult.success || !userApiResult.data) {
       return {
         success: false,
