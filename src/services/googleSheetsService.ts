@@ -143,23 +143,42 @@ export async function importGoogleSheetsData(userId: string): Promise<{success: 
       };
     }
 
-    console.log('📋 구글 시트 정보 (복호화 완료):', { googlesheet_id: googlesheet_id.substring(0, 10) + '...', googlesheet_name });
+    console.log('📋 구글 시트 정보:', { googlesheet_id: googlesheet_id.substring(0, 10) + '...', googlesheet_name });
 
-    // 2. Google Sheets API를 통해 데이터 가져오기 (API 키 사용)
+    // 2. Google OAuth 인증 토큰 가져오기
+    console.log('🔐 Google OAuth 인증 시작...');
+    const accessToken = await getGoogleAuthToken();
+    if (!accessToken) {
+      return {
+        success: false,
+        savedCount: 0,
+        error: 'Google OAuth 인증에 실패했습니다. 다시 시도해주세요.'
+      };
+    }
+
+    console.log('✅ OAuth 토큰 획득 완료');
+
+    // 3. Google Sheets API를 통해 데이터 가져오기 (OAuth 토큰 사용)
     // D열부터 AC열까지 3행부터 1000행까지 (모든 필요한 데이터 범위)
     const range = `${googlesheet_name}!D3:AC1000`;
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${googlesheet_id}/values/${encodeURIComponent(range)}?key=${GOOGLE_SHEETS_API_KEY}`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${googlesheet_id}/values/${encodeURIComponent(range)}`;
     
-    console.log('🌐 Google Sheets API 호출:', url);
+    console.log('🌐 Google Sheets API 호출 (OAuth):', url);
 
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error('❌ Google Sheets API 에러:', response.status, errorText);
       return {
         success: false,
         savedCount: 0,
-        error: `구글 시트 API 호출 실패: ${response.status} ${response.statusText}`
+        error: `구글 시트 API 호출 실패: ${response.status} ${response.statusText}\n\n${errorText}`
       };
     }
 
