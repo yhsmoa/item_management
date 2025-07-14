@@ -422,7 +422,10 @@ function ChinaOrderListPage() {
                             src={row.image_url} 
                             alt="상품 이미지" 
                             className="chinaorder-product-image"
+                            referrerPolicy="no-referrer"
+                            onLoad={() => console.log(`✅ SUCCESS [${index}]:`, row.image_url)}
                             onError={(e) => {
+                              console.log(`❌ FAILED [${index}]:`, row.image_url);
                               // 에러 시 이미지 숨기고 대체 텍스트 표시
                               e.currentTarget.style.display = 'none';
                               const parent = e.currentTarget.parentElement?.parentElement;
@@ -440,7 +443,10 @@ function ChinaOrderListPage() {
                           src={row.image_url} 
                           alt="상품 이미지" 
                           className="chinaorder-product-image"
+                          referrerPolicy="no-referrer"
+                          onLoad={() => console.log(`✅ SUCCESS [${index}]:`, row.image_url)}
                           onError={(e) => {
+                            console.log(`❌ FAILED [${index}]:`, row.image_url);
                             // 에러 시 이미지 숨기고 대체 텍스트 표시
                             e.currentTarget.style.display = 'none';
                             const parent = e.currentTarget.parentElement;
