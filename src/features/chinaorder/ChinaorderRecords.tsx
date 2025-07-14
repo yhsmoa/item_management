@@ -390,57 +390,17 @@ function ChinaorderRecords() {
                     />
                   </td>
                   <td className="product-list-table-cell" style={{ padding: '1px', textAlign: 'center' }}>
-                    {(() => {
-                      // 🔍 디버깅: 이미지 데이터 로깅
-                      console.log(`🖼️ Records 이미지 체크 [${index}]:`, {
-                        image_url: row.image_url,
-                        china_link: row.china_link,
-                        hasImageUrl: !!row.image_url,
-                        isNotEmpty: row.image_url && row.image_url.trim(),
-                        isNotPlaceholder: row.image_url && !row.image_url.includes('placeholder'),
-                        urlEqualsLink: row.image_url === row.china_link
-                      });
-                      
-                      // 📝 완화된 조건: image_url이 있고, 비어있지 않고, placeholder가 아니면 표시
-                      const shouldShowImage = row.image_url && 
-                                            row.image_url.trim() && 
-                                            !row.image_url.includes('placeholder');
-                      
-                      return shouldShowImage ? (
-                        row.china_link ? (
-                          <a href={row.china_link} target="_blank" rel="noopener noreferrer">
-                            <img 
-                              src={row.image_url} 
-                              alt="상품 이미지" 
-                              style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '4px' }}
-                              onError={(e) => {
-                                console.log(`❌ Records 이미지 로드 실패:`, row.image_url);
-                                // 에러 시 이미지 숨기고 대체 텍스트 표시
-                                e.currentTarget.style.display = 'none';
-                                const parent = e.currentTarget.parentElement?.parentElement;
-                                if (parent && !parent.querySelector('.error-placeholder')) {
-                                  const errorDiv = document.createElement('div');
-                                  errorDiv.className = 'error-placeholder';
-                                  errorDiv.style.cssText = 'width: 60px; height: 60px; backgroundColor: #f5f5f5; borderRadius: 4px; display: flex; alignItems: center; justifyContent: center; fontSize: 10px; color: #999; border: 1px solid #e0e0e0; margin: 0 auto; boxSizing: border-box;';
-                                  errorDiv.textContent = '이미지 없음';
-                                  parent.appendChild(errorDiv);
-                                }
-                              }}
-                              onLoad={() => {
-                                console.log(`✅ Records 이미지 로드 성공:`, row.image_url);
-                              }}
-                            />
-                          </a>
-                        ) : (
+                    {row.image_url && row.image_url !== row.china_link && !row.image_url.includes('placeholder') ? (
+                      row.china_link ? (
+                        <a href={row.china_link} target="_blank" rel="noopener noreferrer">
                           <img 
                             src={row.image_url} 
                             alt="상품 이미지" 
                             style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '4px' }}
                             onError={(e) => {
-                              console.log(`❌ Records 이미지 로드 실패:`, row.image_url);
                               // 에러 시 이미지 숨기고 대체 텍스트 표시
                               e.currentTarget.style.display = 'none';
-                              const parent = e.currentTarget.parentElement;
+                              const parent = e.currentTarget.parentElement?.parentElement;
                               if (parent && !parent.querySelector('.error-placeholder')) {
                                 const errorDiv = document.createElement('div');
                                 errorDiv.className = 'error-placeholder';
@@ -449,30 +409,45 @@ function ChinaorderRecords() {
                                 parent.appendChild(errorDiv);
                               }
                             }}
-                            onLoad={() => {
-                              console.log(`✅ Records 이미지 로드 성공:`, row.image_url);
-                            }}
                           />
-                        )
+                        </a>
                       ) : (
-                        <div style={{ 
-                          width: '60px', 
-                          height: '60px', 
-                          backgroundColor: '#f5f5f5', 
-                          borderRadius: '4px', 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'center', 
-                          fontSize: '10px', 
-                          color: '#999', 
-                          border: '1px solid #e0e0e0',
-                          margin: '0 auto',
-                          boxSizing: 'border-box'
-                        }}>
-                          이미지 없음
-                        </div>
-                      );
-                    })()}
+                        <img 
+                          src={row.image_url} 
+                          alt="상품 이미지" 
+                          style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '4px' }}
+                          onError={(e) => {
+                            // 에러 시 이미지 숨기고 대체 텍스트 표시
+                            e.currentTarget.style.display = 'none';
+                            const parent = e.currentTarget.parentElement;
+                            if (parent && !parent.querySelector('.error-placeholder')) {
+                              const errorDiv = document.createElement('div');
+                              errorDiv.className = 'error-placeholder';
+                              errorDiv.style.cssText = 'width: 60px; height: 60px; backgroundColor: #f5f5f5; borderRadius: 4px; display: flex; alignItems: center; justifyContent: center; fontSize: 10px; color: #999; border: 1px solid #e0e0e0; margin: 0 auto; boxSizing: border-box;';
+                              errorDiv.textContent = '이미지 없음';
+                              parent.appendChild(errorDiv);
+                            }
+                          }}
+                        />
+                      )
+                    ) : (
+                      <div style={{ 
+                        width: '60px', 
+                        height: '60px', 
+                        backgroundColor: '#f5f5f5', 
+                        borderRadius: '4px', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        fontSize: '10px', 
+                        color: '#999', 
+                        border: '1px solid #e0e0e0',
+                        margin: '0 auto',
+                        boxSizing: 'border-box'
+                      }}>
+                        이미지 없음
+                      </div>
+                    )}
                   </td>
                   <td className="product-list-table-cell" style={{ padding: '1px', fontSize: '11px', textAlign: 'center' }}>{row.china_order_number || '-'}</td>
                   <td className="product-list-table-cell" style={{ padding: '1px', fontSize: '11px', textAlign: 'center' }}>{row.date || '-'}</td>

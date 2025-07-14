@@ -48,6 +48,7 @@ export interface ChinaOrderData {
   china_total_price?: string;         // Q열
   image_url?: string;                 // R열
   china_link?: string;                // S열
+  china_offer_id?: string;            // S열에서 추출한 offer ID
   order_status_ordering?: string;     // T열
   order_status_check?: string;        // U열
   order_status_cancel?: string;       // V열
@@ -209,6 +210,7 @@ export async function importGoogleSheetsData(userId: string): Promise<{success: 
         china_total_price: row[13] ? parseFloat(row[13]) || null : null,           // Q열 (인덱스 13) - 숫자 변환
         image_url: row[14] || '',                   // R열 (인덱스 14) - 이제 올바른 위치
         china_link: row[15] || '',                  // S열 (인덱스 15)
+        china_offer_id: extractOfferIdFromUrl(row[15] || ''),  // S열에서 추출한 offer ID
         order_status_ordering: row[16] || null,       // T열 (인덱스 16)
         order_status_check: row[17] || null,          // U열 (인덱스 17)
         order_status_cancel: row[18] || null,         // V열 (인덱스 18)
@@ -316,5 +318,36 @@ export async function importGoogleSheetsData(userId: string): Promise<{success: 
       savedCount: 0,
       error: `예기치 못한 오류: ${error.message}`
     };
+  }
+}
+
+/**
+ * 1688.com URL에서 offer ID 추출하는 함수
+ * @param url 1688.com 상품 URL
+ * @returns offer ID 또는 빈 문자열
+ */
+function extractOfferIdFromUrl(url: string): string {
+  if (!url) return '';
+  
+  try {
+    // offer/숫자.html 패턴에서 숫자 부분 추출
+    const match = url.match(/offer\/(\d+)\.html/);
+    if (match && match[1]) {
+      console.log(`🔍 URL에서 offer ID 추출 성공: ${url} → ${match[1]}`);
+      return match[1];
+    }
+    
+    // 다른 패턴도 시도해보기 (혹시 URL 형식이 다를 경우)
+    const altMatch = url.match(/\/(\d+)\.html/);
+    if (altMatch && altMatch[1]) {
+      console.log(`🔍 대체 패턴으로 offer ID 추출: ${url} → ${altMatch[1]}`);
+      return altMatch[1];
+    }
+    
+    console.log(`⚠️ offer ID를 찾을 수 없음: ${url}`);
+    return '';
+  } catch (error) {
+    console.error('❌ offer ID 추출 중 오류:', error);
+    return '';
   }
 } 
