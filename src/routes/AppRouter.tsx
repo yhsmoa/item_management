@@ -15,6 +15,7 @@ import ChinaorderDelivery from '../features/chinaorder/ChinaorderDelivery';
 import ChinaorderRecords from '../features/chinaorder/ChinaorderRecords';
 import CoupangOrders from '../features/orders/CoupangOrders';
 import SmartstoreOrders from '../features/orders/SmartstoreOrders';
+import ReturnItems from '../features/service/ReturnItems';
 import MainLayout from '../layouts/MainLayout';
 
 /**
@@ -212,6 +213,16 @@ const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <StocksScan />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* 반출 관리 페이지 - 로그인 필요 */}
+        <Route 
+          path="/service/return-items" 
+          element={
+            <ProtectedRoute>
+              <ReturnItems />
             </ProtectedRoute>
           } 
         />

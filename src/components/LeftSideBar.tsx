@@ -69,6 +69,9 @@ const LeftSideBar: React.FC<LeftSideBarProps> = ({ isVisible }) => {
     } else if (currentPath.includes('/analytics')) {
       setSelectedMenu('analytics');
       setExpandedMenus([]);
+    } else if (currentPath.includes('/service/return-items')) {
+      setSelectedMenu('return-items');
+      setExpandedMenus(['marketing']);
     } else if (currentPath.includes('/marketing')) {
       setSelectedMenu('marketing');
       setExpandedMenus(['marketing']);
@@ -149,7 +152,8 @@ const LeftSideBar: React.FC<LeftSideBarProps> = ({ isVisible }) => {
       path: '/marketing',
       children: [
         { id: 'promotion', title: '로켓그로스 입고', icon: '🎯', path: '/marketing/promotion' },
-        { id: 'coupon', title: '쿠폰 관리', icon: '🎫', path: '/marketing/coupon' }
+        { id: 'coupon', title: '쿠폰 관리', icon: '🎫', path: '/marketing/coupon' },
+        { id: 'return-items', title: '반출 관리', icon: '📤', path: '/service/return-items' }
       ]
     },
     {

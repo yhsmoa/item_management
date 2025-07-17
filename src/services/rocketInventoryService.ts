@@ -81,9 +81,11 @@ const parseRocketInventoryExcelFile = async (file: File): Promise<RocketInventor
         });
         
         console.log('📋 로켓 인벤토리 엑셀 원본 데이터 총 행 수:', jsonData.length);
-        console.log('📋 원본 데이터 첫 5행:', jsonData.slice(0, 5));
+        console.log('📋 원본 데이터 첫 10행:', jsonData.slice(0, 10));
         console.log('📋 헤더 행 (1행):', jsonData[0]);
         console.log('📋 첫 번째 데이터 행 (2행):', jsonData[1]);
+        console.log('📋 두 번째 데이터 행 (3행):', jsonData[2]);
+        console.log('📋 세 번째 데이터 행 (4행):', jsonData[3]);
         
         const processedData: RocketInventoryData[] = [];
         const userId = getCurrentUserId();

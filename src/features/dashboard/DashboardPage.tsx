@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
+import { supabase } from '../../config/supabase';
 
 /**
  * 대시보드 메인 페이지 컴포넌트
@@ -8,6 +9,58 @@ import styled from 'styled-components';
  * - 상단 보드 영역과 하단 영역으로 구분
  */
 const DashboardPage: React.FC = () => {
+  // 월 보관료 상태
+  const [totalStorageFee, setTotalStorageFee] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
+
+  // 현재 로그인한 사용자 ID 가져오기
+  const getCurrentUserId = (): string | null => {
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      return currentUser.id || currentUser.user_id || null;
+    } catch (error) {
+      console.error('❌ 사용자 정보 읽기 오류:', error);
+      return null;
+    }
+  };
+
+  // 월 보관료 합계 가져오기
+  const fetchTotalStorageFee = async () => {
+    try {
+      setLoading(true);
+      const userId = getCurrentUserId();
+      
+      if (!userId) {
+        console.error('❌ 로그인한 사용자 정보를 찾을 수 없습니다.');
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('coupang_rocket_inventory')
+        .select('monthly_storage_fee')
+        .eq('user_id', userId)
+        .gt('monthly_storage_fee', 0);
+
+      if (error) {
+        console.error('❌ 보관료 데이터 조회 오류:', error);
+        return;
+      }
+
+      const total = data?.reduce((sum, item) => sum + (item.monthly_storage_fee || 0), 0) || 0;
+      setTotalStorageFee(total);
+
+    } catch (error) {
+      console.error('❌ 보관료 데이터 가져오기 실패:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 컴포넌트 마운트 시 데이터 가져오기
+  useEffect(() => {
+    fetchTotalStorageFee();
+  }, []);
+
   // 더미 데이터 - 실제 환경에서는 API에서 가져올 데이터
   const salesData = {
     todaySales: 352219,
@@ -31,15 +84,17 @@ const DashboardPage: React.FC = () => {
 
         {/* 메인 통계 카드들 */}
         <StatsGrid>
-          {/* 매출 현황 카드 */}
+          {/* 쿠팡 창고료 카드 */}
           <StatsCard>
             <CardHeader>
-              <CardTitle>정산</CardTitle>
-              <CardDate>최근 12:51</CardDate>
+              <CardTitle>쿠팡 창고료</CardTitle>
+              <CardDate>보관료 합계</CardDate>
             </CardHeader>
             <CardContent>
-              <MainValue>{salesData.todaySales.toLocaleString()}원</MainValue>
-              <SubText>6월 10일 오늘 매출 현황</SubText>
+              <MainValue>
+                {loading ? '로딩 중...' : `${totalStorageFee.toLocaleString()}원`}
+              </MainValue>
+              <SubText>월 보관료 전체 합계</SubText>
             </CardContent>
           </StatsCard>
 
