@@ -31,26 +31,45 @@ const DashboardPage: React.FC = () => {
       const userId = getCurrentUserId();
       
       if (!userId) {
-        console.error('❌ 로그인한 사용자 정보를 찾을 수 없습니다.');
         return;
       }
 
-      const { data, error } = await supabase
-        .from('coupang_rocket_inventory')
-        .select('monthly_storage_fee')
-        .eq('user_id', userId)
-        .gt('monthly_storage_fee', 0);
+      // 1000개씩 나눠서 모든 데이터 가져오기
+      let allData: any[] = [];
+      let from = 0;
+      const rangeSize = 1000;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data: batchData, error: batchError } = await supabase
+          .from('coupang_rocket_inventory')
+          .select('monthly_storage_fee')
+          .eq('user_id', userId)
+          .gt('monthly_storage_fee', 0)
+          .range(from, from + rangeSize - 1);
 
-      if (error) {
-        console.error('❌ 보관료 데이터 조회 오류:', error);
-        return;
+        if (batchError) {
+          break;
+        }
+
+        if (batchData && batchData.length > 0) {
+          allData = [...allData, ...batchData];
+          
+          if (batchData.length < rangeSize) {
+            hasMore = false;
+          } else {
+            from += rangeSize;
+          }
+        } else {
+          hasMore = false;
+        }
       }
 
-      const total = data?.reduce((sum, item) => sum + (item.monthly_storage_fee || 0), 0) || 0;
+      const total = allData.reduce((sum, item) => sum + (item.monthly_storage_fee || 0), 0);
       setTotalStorageFee(total);
 
     } catch (error) {
-      console.error('❌ 보관료 데이터 가져오기 실패:', error);
+      setTotalStorageFee(0);
     } finally {
       setLoading(false);
     }
