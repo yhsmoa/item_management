@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Title from '../../components/Title';
 import { supabase } from '../../config/supabase';
+import * as XLSX from 'xlsx';
 import './ReturnItems.css';
 
 /**
@@ -201,6 +202,43 @@ const ReturnItems: React.FC = () => {
   };
 
   /**
+   * 중고제품 옵션ID 엑셀 다운로드
+   */
+  const downloadUsedProductsExcel = () => {
+    // 조건: NEW가 아닌 상품 + 보관료 > 0 + 재고 > 0
+    const usedProducts = inventoryItems.filter(item => 
+      item.offer_condition !== 'NEW' && 
+      item.monthly_storage_fee > 0 && 
+      item.orderable_quantity > 0
+    );
+    
+    // 옵션ID 추출
+    const optionIds = usedProducts.map(item => item.option_id);
+    
+    // 10개씩 그룹화하여 콤마로 구분
+    const groupedIds: string[] = [];
+    for (let i = 0; i < optionIds.length; i += 10) {
+      const group = optionIds.slice(i, i + 10);
+      groupedIds.push(group.join(','));
+    }
+    
+    // 엑셀 데이터 구성
+    const excelData = [
+      ['옵션id'], // A1 헤더
+      ...groupedIds.map(group => [group]) // A2부터 그룹화된 데이터
+    ];
+    
+    // 워크시트 생성
+    const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, '중고제품 옵션ID');
+    
+    // 파일 다운로드
+    const fileName = `중고제품_옵션ID_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+  };
+
+  /**
    * 상태별 색상 클래스 반환
    */
   const getStatusClass = (status: string) => {
@@ -288,6 +326,17 @@ const ReturnItems: React.FC = () => {
         <div className="table-header">
           <div className="table-info">
             총 {filteredItems.length}개 항목 (페이지 {currentPage} / {totalPages})
+          </div>
+          <div className="table-filter-buttons">
+            <button className="filter-btn filter-btn-new">
+              새제품
+            </button>
+            <button 
+              className="filter-btn filter-btn-used"
+              onClick={downloadUsedProductsExcel}
+            >
+              중고제품
+            </button>
           </div>
         </div>
 
