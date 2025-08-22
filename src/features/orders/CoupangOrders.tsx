@@ -94,9 +94,11 @@ const CoupangOrders: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ stage: '', current: 0, total: 100 });
+  const [multiFileProgress, setMultiFileProgress] = useState({ currentFile: 0, totalFiles: 0, fileName: '' });
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showRecipientModal, setShowRecipientModal] = useState(false);
   const [selectedRecipient, setSelectedRecipient] = useState<CoupangOrderData | null>(null);
+  const [clearDataBeforeUpload, setClearDataBeforeUpload] = useState(true);
   
   // File input ref
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -346,39 +348,82 @@ const CoupangOrders: React.FC = () => {
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
 
     // 파일 확장자 검증
     const allowedExtensions = ['.xlsx', '.xls'];
-    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+    const fileArray = Array.from(files);
     
-    if (!allowedExtensions.includes(fileExtension)) {
-      alert('Excel 파일(.xlsx, .xls)만 업로드 가능합니다.');
-      return;
+    for (const file of fileArray) {
+      const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+      if (!allowedExtensions.includes(fileExtension)) {
+        alert(`${file.name}은(는) Excel 파일(.xlsx, .xls)이 아닙니다. 업로드를 중단합니다.`);
+        return;
+      }
     }
 
     setIsUploading(true);
+    setMultiFileProgress({ currentFile: 0, totalFiles: fileArray.length, fileName: '' });
     setUploadProgress({ stage: '업로드 시작...', current: 0, total: 100 });
 
-    try {
-      const result = await processPersonalOrderExcelUpload(file, (stage, current, total) => {
-        setUploadProgress({ stage, current: current || 0, total: total || 100 });
-      });
+    let totalProcessedCount = 0;
+    const failedFiles: string[] = [];
 
-      if (result.success) {
-        alert(`업로드 완료! ${result.processedCount}개의 주문 데이터가 저장되었습니다.`);
-        setShowUploadModal(false);
-        // 주문 데이터를 다시 로드
-        await loadOrderData();
-      } else {
-        alert(`업로드 실패: ${result.error}`);
+    try {
+      // 데이터 초기화 (전체 업로드 시작 전에 한 번만)
+      if (clearDataBeforeUpload) {
+        setUploadProgress({ stage: '기존 데이터 초기화 중...', current: 5, total: 100 });
+        
+        const userId = getCurrentUserId();
+        if (userId) {
+          const { error: deleteError } = await supabase
+            .from('coupang_personal_order')
+            .delete()
+            .eq('user_id', userId);
+
+          if (deleteError) {
+            throw new Error(`기존 데이터 삭제 실패: ${deleteError.message}`);
+          }
+        }
       }
+
+      for (let i = 0; i < fileArray.length; i++) {
+        const file = fileArray[i];
+        setMultiFileProgress({ currentFile: i + 1, totalFiles: fileArray.length, fileName: file.name });
+        setUploadProgress({ stage: `${file.name} 처리 중...`, current: 0, total: 100 });
+
+        try {
+          const result = await processPersonalOrderExcelUpload(file, (stage, current, total) => {
+            setUploadProgress({ stage: `${file.name} - ${stage}`, current: current || 0, total: total || 100 });
+          }); // clearDataFirst 매개변수 제거
+
+          if (result.success) {
+            totalProcessedCount += result.processedCount || 0;
+          } else {
+            failedFiles.push(`${file.name}: ${result.error}`);
+          }
+        } catch (error) {
+          failedFiles.push(`${file.name}: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+        }
+      }
+
+      // 결과 메시지 표시
+      let message = `업로드 완료!\n총 ${totalProcessedCount}개의 주문 데이터가 저장되었습니다.`;
+      if (failedFiles.length > 0) {
+        message += `\n\n실패한 파일 (${failedFiles.length}개):\n${failedFiles.join('\n')}`;
+      }
+      alert(message);
+      
+      setShowUploadModal(false);
+      // 주문 데이터를 다시 로드
+      await loadOrderData();
     } catch (error) {
       alert(`업로드 중 오류 발생: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
     } finally {
       setIsUploading(false);
       setUploadProgress({ stage: '', current: 0, total: 100 });
+      setMultiFileProgress({ currentFile: 0, totalFiles: 0, fileName: '' });
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -568,9 +613,24 @@ const CoupangOrders: React.FC = () => {
             <div className="coupang-orders-modal-content">
               {!isUploading ? (
                 <>
+                  <div className="coupang-orders-upload-options">
+                    <label className="coupang-orders-checkbox-container">
+                      <input
+                        type="checkbox"
+                        checked={clearDataBeforeUpload}
+                        onChange={(e) => setClearDataBeforeUpload(e.target.checked)}
+                      />
+                      <span className="coupang-orders-checkbox-label">
+                        업로드 전 기존 데이터 삭제 (권장)
+                      </span>
+                    </label>
+                    <p className="coupang-orders-upload-option-hint">
+                      체크 해제 시 기존 데이터와 병합되며, 동일한 주문번호-옵션ID는 덮어씌워집니다.
+                    </p>
+                  </div>
                   <div className="coupang-orders-upload-area" onClick={handleFileSelect}>
                     <div className="coupang-orders-upload-icon">📁</div>
-                    <p>Excel 파일을 선택하세요</p>
+                    <p>Excel 파일을 선택하세요 (여러 파일 선택 가능)</p>
                     <p className="coupang-orders-upload-hint">
                       .xlsx, .xls 파일만 지원됩니다
                     </p>
@@ -580,12 +640,19 @@ const CoupangOrders: React.FC = () => {
                     ref={fileInputRef}
                     accept=".xlsx,.xls"
                     onChange={handleFileChange}
+                    multiple
                     style={{ display: 'none' }}
                   />
                 </>
               ) : (
                 <div className="coupang-orders-upload-progress">
                   <div className="coupang-orders-progress-info">
+                    {multiFileProgress.totalFiles > 1 && (
+                      <div className="coupang-orders-multi-file-progress">
+                        <p>파일 {multiFileProgress.currentFile} / {multiFileProgress.totalFiles}</p>
+                        <p className="coupang-orders-current-file">현재: {multiFileProgress.fileName}</p>
+                      </div>
+                    )}
                     <p>{uploadProgress.stage}</p>
                     <div className="coupang-orders-progress-bar">
                       <div 

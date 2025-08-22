@@ -469,7 +469,7 @@ export const processPersonalOrderExcelUpload = async (
     progressCallback('데이터베이스에 저장 중...', 50, 100);
     
     // 3. 데이터베이스에 저장
-    const saveResult = await savePersonalOrderDataToSupabase(data, userId, (current, total) => {
+    const saveResult = await savePersonalOrderDataToSupabase(data, userId, (current: number, total: number) => {
       const percentage = Math.floor(50 + (current / total) * 50);
       progressCallback(`데이터 저장 중... (${current}/${total})`, percentage, 100);
     });
@@ -611,24 +611,14 @@ async function savePersonalOrderDataToSupabase(
   onProgress?: (current: number, total: number) => void
 ): Promise<{ success: boolean; savedCount: number; error?: string }> {
   try {
-    // 1. 기존 데이터 삭제 (같은 user_id)
-    const { error: deleteError } = await supabase
-      .from('coupang_personal_order')
-      .delete()
-      .eq('user_id', userId);
-
-    if (deleteError) {
-      throw new Error(`기존 데이터 삭제 실패: ${deleteError.message}`);
-    }
-
-    // 2. 데이터에 user_id와 ID 설정
+    // 1. 데이터에 user_id와 ID 설정
     const dataWithMetadata = data.map((item) => ({
       ...item,
       user_id: userId, // 현재 로그인한 사용자 ID 사용
       id: item.order_number && item.option_id ? `${item.order_number}-${item.option_id}` : '' // order_number + "-" + option_id
     }));
     
-    // 3. 배치 단위로 데이터 Insert (50개씩 처리)
+    // 2. 배치 단위로 데이터 Upsert (50개씩 처리) - id 기준으로 중복 처리
     const BATCH_SIZE = 50;
     let savedCount = 0;
     
@@ -638,10 +628,13 @@ async function savePersonalOrderDataToSupabase(
       
       const { error } = await supabase
         .from('coupang_personal_order')
-        .insert(batch);
+        .upsert(batch, { 
+          onConflict: 'id',
+          ignoreDuplicates: false 
+        });
       
       if (error) {
-        throw new Error(`배치 ${batchNum} Insert 실패: ${error.message}`);
+        throw new Error(`배치 ${batchNum} Upsert 실패: ${error.message}`);
       }
       
       savedCount += batch.length;

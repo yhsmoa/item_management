@@ -390,3 +390,62 @@
   padding-top: 16px;
   border-top: 1px solid #e5e7eb;
 }
+
+/* 다중 파일 업로드 진행률 스타일 */
+.coupang-orders-multi-file-progress {
+  margin-bottom: 16px;
+  padding: 12px;
+  background-color: #f3f4f6;
+  border-radius: 6px;
+  border-left: 4px solid #3b82f6;
+}
+
+.coupang-orders-multi-file-progress p {
+  margin: 0;
+  font-size: 14px;
+  color: #374151;
+}
+
+.coupang-orders-current-file {
+  font-weight: 600;
+  color: #1f2937;
+  margin-top: 4px;
+  word-break: break-all;
+}
+
+/* 업로드 옵션 스타일 */
+.coupang-orders-upload-options {
+  margin-bottom: 20px;
+  padding: 16px;
+  background-color: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.coupang-orders-checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.coupang-orders-checkbox-container input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.coupang-orders-checkbox-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+}
+
+.coupang-orders-upload-option-hint {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.4;
+}
