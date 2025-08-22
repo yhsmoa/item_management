@@ -272,6 +272,10 @@ app.post('/api/test-encryption', (req, res) => {
   }
 });
 
+// 조회수 관리 라우터
+const viewsRouter = require('./routes/views');
+app.use('/api/views', viewsRouter);
+
 // 404 에러 핸들러
 app.use('*', (req, res) => {
   res.status(404).json({

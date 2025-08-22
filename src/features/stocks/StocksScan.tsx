@@ -12,9 +12,9 @@ import '../products/ProductListPage.css';
  */
 function StocksScan() {
   // 📊 메모리 사용량 모니터링을 위한 상수
-  const MAX_STOCK_DATA_SIZE = 1000; // 최대 재고 데이터 개수
+  const MAX_STOCK_DATA_SIZE = 10000; // 최대 재고 데이터 개수 (1000 -> 10000으로 증가)
   const MAX_SCAN_HISTORY_SIZE = 10; // 최대 스캔 기록 개수
-  const MAX_EXCEL_DATA_SIZE = 5000; // 최대 엑셀 데이터 개수 (약 1MB)
+  const MAX_EXCEL_DATA_SIZE = 10000; // 최대 엑셀 데이터 개수 (5000 -> 10000으로 증가)
 
   // State 정의
   const [scanResult, setScanResult] = useState('');
@@ -29,8 +29,14 @@ function StocksScan() {
   const [selectedBarcodeColumn, setSelectedBarcodeColumn] = useState<string>('');
   const [selectedQuantityColumn, setSelectedQuantityColumn] = useState<string>('');
   const [selectedLocationColumn, setSelectedLocationColumn] = useState<string>('');
+  const [selectedProductNameColumn, setSelectedProductNameColumn] = useState<string>('');
+  const [selectedOptionNameColumn, setSelectedOptionNameColumn] = useState<string>('');
+  const [selectedNoteColumn, setSelectedNoteColumn] = useState<string>('');
   const [isSelectingBarcode, setIsSelectingBarcode] = useState(true);
   const [isSelectingLocation, setIsSelectingLocation] = useState(false);
+  const [isSelectingProductName, setIsSelectingProductName] = useState(false);
+  const [isSelectingOptionName, setIsSelectingOptionName] = useState(false);
+  const [isSelectingNote, setIsSelectingNote] = useState(false);
   const [dataStartRow, setDataStartRow] = useState<number>(2);
   
   // 재고 관리 테이블 데이터
@@ -47,6 +53,15 @@ function StocksScan() {
   const [inputBarcode, setInputBarcode] = useState<string>('');
   const [inputQuantity, setInputQuantity] = useState<string>('1');
   const [inputLocation, setInputLocation] = useState<string>('');
+  const [inputNote, setInputNote] = useState<string>('');
+  
+  // 재고 추가 로딩 상태
+  const [isStockAddLoading, setIsStockAddLoading] = useState(false);
+  const [stockAddProgress, setStockAddProgress] = useState({ current: 0, total: 0 });
+  
+  // 재고 차감 로딩 상태
+  const [isStockSubtractLoading, setIsStockSubtractLoading] = useState(false);
+  const [stockSubtractProgress, setStockSubtractProgress] = useState({ current: 0, total: 0 });
   
   // 입력 ref
   const barcodeInputRef = useRef<HTMLInputElement>(null);
@@ -199,8 +214,14 @@ function StocksScan() {
         setSelectedBarcodeColumn('');
         setSelectedQuantityColumn('');
         setSelectedLocationColumn('');
+        setSelectedProductNameColumn('');
+        setSelectedOptionNameColumn('');
+        setSelectedNoteColumn('');
         setIsSelectingBarcode(true);
         setIsSelectingLocation(false);
+        setIsSelectingProductName(false);
+        setIsSelectingOptionName(false);
+        setIsSelectingNote(false);
         setDataStartRow(2);
         
       } catch (error) {
@@ -236,8 +257,14 @@ function StocksScan() {
     setSelectedBarcodeColumn('');
     setSelectedQuantityColumn('');
     setSelectedLocationColumn('');
+    setSelectedProductNameColumn('');
+    setSelectedOptionNameColumn('');
+    setSelectedNoteColumn('');
     setIsSelectingBarcode(true);
     setIsSelectingLocation(false);
+    setIsSelectingProductName(false);
+    setIsSelectingOptionName(false);
+    setIsSelectingNote(false);
     setDataStartRow(2);
   };
 
@@ -256,12 +283,27 @@ function StocksScan() {
     if (isSelectingBarcode) {
       setSelectedBarcodeColumn(columnName);
       setIsSelectingBarcode(false);
-      // 바코드 선택 후 자동으로 개수 선택 모드로 전환 (기존 동작 유지)
+      // 바코드 선택 후 개수 선택 모드로 전환
     } else if (isSelectingLocation) {
       setSelectedLocationColumn(columnName);
       setIsSelectingLocation(false);
+      // 위치 선택 후 비고 선택 모드로 전환
+      setIsSelectingNote(true);
+    } else if (isSelectingNote) {
+      setSelectedNoteColumn(columnName);
+      setIsSelectingNote(false);
+      // 비고 선택 후 상품명 선택 모드로 전환
+      setIsSelectingProductName(true);
+    } else if (isSelectingProductName) {
+      setSelectedProductNameColumn(columnName);
+      setIsSelectingProductName(false);
+      // 상품명 선택 후 옵션명 선택 모드로 전환
+      setIsSelectingOptionName(true);
+    } else if (isSelectingOptionName) {
+      setSelectedOptionNameColumn(columnName);
+      setIsSelectingOptionName(false);
     } else {
-      // 개수 선택 후 자동으로 위치 선택 모드로 전환
+      // 개수 선택 후 위치 선택 모드로 전환
       setSelectedQuantityColumn(columnName);
       setIsSelectingLocation(true);
     }
@@ -271,18 +313,54 @@ function StocksScan() {
   const handleBarcodeMode = () => {
     setIsSelectingBarcode(true);
     setIsSelectingLocation(false);
+    setIsSelectingProductName(false);
+    setIsSelectingOptionName(false);
+    setIsSelectingNote(false);
   };
 
   // 개수 선택 모드로 변경
   const handleQuantityMode = () => {
     setIsSelectingBarcode(false);
     setIsSelectingLocation(false);
+    setIsSelectingProductName(false);
+    setIsSelectingOptionName(false);
+    setIsSelectingNote(false);
   };
 
   // 위치 선택 모드로 변경
   const handleLocationMode = () => {
     setIsSelectingBarcode(false);
     setIsSelectingLocation(true);
+    setIsSelectingProductName(false);
+    setIsSelectingOptionName(false);
+    setIsSelectingNote(false);
+  };
+
+  // 비고 선택 모드로 변경
+  const handleNoteMode = () => {
+    setIsSelectingBarcode(false);
+    setIsSelectingLocation(false);
+    setIsSelectingProductName(false);
+    setIsSelectingOptionName(false);
+    setIsSelectingNote(true);
+  };
+
+  // 상품명 선택 모드로 변경
+  const handleProductNameMode = () => {
+    setIsSelectingBarcode(false);
+    setIsSelectingLocation(false);
+    setIsSelectingProductName(true);
+    setIsSelectingOptionName(false);
+    setIsSelectingNote(false);
+  };
+
+  // 옵션명 선택 모드로 변경
+  const handleOptionNameMode = () => {
+    setIsSelectingBarcode(false);
+    setIsSelectingLocation(false);
+    setIsSelectingProductName(false);
+    setIsSelectingOptionName(true);
+    setIsSelectingNote(false);
   };
 
   // 엑셀 데이터 추가 확인
@@ -299,6 +377,9 @@ function StocksScan() {
     const barcodeIndex = selectedBarcodeColumn.charCodeAt(0) - 65; // A=0, B=1, C=2...
     const quantityIndex = selectedQuantityColumn.charCodeAt(0) - 65;
     const locationIndex = selectedLocationColumn ? selectedLocationColumn.charCodeAt(0) - 65 : -1;
+    const noteIndex = selectedNoteColumn ? selectedNoteColumn.charCodeAt(0) - 65 : -1;
+    const productNameIndex = selectedProductNameColumn ? selectedProductNameColumn.charCodeAt(0) - 65 : -1;
+    const optionNameIndex = selectedOptionNameColumn ? selectedOptionNameColumn.charCodeAt(0) - 65 : -1;
 
     // 각 바코드별로 상품명을 조회해서 설정
     const newStockData: any[] = [];
@@ -308,39 +389,91 @@ function StocksScan() {
       const barcode = row[barcodeIndex] || '';
       const quantity = parseInt(row[quantityIndex]) || 0;
       const location = locationIndex >= 0 ? (row[locationIndex] || '') : '';
+      const note = noteIndex >= 0 ? (row[noteIndex] || '') : '';
       
       if (!barcode.trim()) continue; // 빈 바코드 제거
       
-      // Supabase에서 상품명 조회
-      let productName = `상품 ${barcode}`; // 기본값
-      try {
-        const { data: productData, error } = await supabase
-          .from('extract_coupang_item_all')
-          .select('item_name, option_name')
-          .eq('barcode', barcode.trim())
-          .maybeSingle();
+      // 상품명 처리 로직
+      let productName = '';
+      
+      // 엑셀에서 상품명/옵션명이 선택된 경우
+      if (productNameIndex >= 0) {
+        const excelProductName = row[productNameIndex] || '';
+        const excelOptionName = optionNameIndex >= 0 ? (row[optionNameIndex] || '') : '';
         
-        if (!error && productData) {
-          const itemName = productData.item_name || '';
-          const optionName = productData.option_name || '';
-          productName = `${itemName} ${optionName}`.trim();
+        if (excelProductName) {
+          // 상품명과 옵션명 조합
+          if (excelOptionName) {
+            productName = `${excelProductName}, ${excelOptionName}`;
+          } else {
+            productName = excelProductName;
+          }
         }
-      } catch (err) {
-        // 오류 시 기본값 사용
       }
       
-      newStockData.push({
-        id: Date.now() + i,
-        barcode: barcode,
-        productName: productName,
-        quantity: quantity,
-        location: location, // 엑셀에서 선택한 위치 데이터 또는 빈 문자열
-        timestamp: new Date().toLocaleString()
-      });
+      // 엑셀에서 상품명을 가져오지 못한 경우 Supabase에서 조회
+      if (!productName) {
+        try {
+          const { data: productData, error } = await supabase
+            .from('extract_coupang_item_all')
+            .select('item_name, option_name')
+            .eq('barcode', barcode.trim())
+            .maybeSingle();
+          
+          if (!error && productData) {
+            const itemName = productData.item_name || '';
+            const optionName = productData.option_name || '';
+            productName = `${itemName} ${optionName}`.trim();
+          }
+        } catch (err) {
+          // 오류 시 기본값 사용
+        }
+      }
+      
+      // 최종적으로 상품명이 없으면 기본값 설정
+      if (!productName) {
+        productName = `상품 ${barcode}`;
+      }
+      
+      const itemId = `${location || 'A-1-001'}=${barcode}`;
+      
+      // 동일한 ID가 이미 있는지 확인
+      const existingItemIndex = newStockData.findIndex(item => item.id === itemId);
+      
+      if (existingItemIndex >= 0) {
+        // 기존 항목이 있으면 수량만 합산
+        newStockData[existingItemIndex].quantity += quantity;
+      } else {
+        // 새 항목 추가
+        newStockData.push({
+          id: itemId,
+          barcode: barcode,
+          productName: productName,
+          quantity: quantity,
+          location: location || 'A-1-001',
+          note: note,
+          timestamp: new Date().toLocaleString()
+        });
+      }
     }
 
-    // 재고 관리 테이블에 데이터 추가
-    setStockManagementData(prev => [...newStockData, ...prev]);
+    // 재고 관리 테이블에 데이터 추가 (기존 데이터와 중복 체크)
+    setStockManagementData(prev => {
+      const updated = [...prev];
+      
+      newStockData.forEach(newItem => {
+        const existingIndex = updated.findIndex(item => item.id === newItem.id);
+        if (existingIndex >= 0) {
+          // 기존 항목이 있으면 수량 합산
+          updated[existingIndex].quantity += newItem.quantity;
+        } else {
+          // 새 항목 추가
+          updated.unshift(newItem);
+        }
+      });
+      
+      return updated;
+    });
     
     // 모달 닫기
     handleModalClose();
@@ -442,7 +575,7 @@ function StocksScan() {
 
   // 재고 추가 핸들러
   const handleStockAdd = async () => {
-    if (optimizedStockData.length === 0) {
+    if (stockManagementData.length === 0) {
       alert('추가할 재고 데이터가 없습니다. 먼저 엑셀 파일을 업로드해주세요.');
       return;
     }
@@ -452,6 +585,10 @@ function StocksScan() {
       alert('로그인이 필요합니다.');
       return;
     }
+
+    // 로딩 상태 시작
+    setIsStockAddLoading(true);
+    setStockAddProgress({ current: 0, total: stockManagementData.length });
 
     try {
       // 테이블 존재 여부 먼저 확인
@@ -472,13 +609,15 @@ function StocksScan() {
       let updateCount = 0;
       let insertCount = 0;
       let errorCount = 0;
+      let errorDetails: string[] = []; // 오류 상세 정보
 
-      // 🗺️ 동일한 바코드+위치를 미리 그룹화하여 중복 처리 방지 (메모리 최적화)
-      
+      // 🗺️ 동일한 바코드+위치를 미리 그룹화하여 중복 처리 방지
       const groupedData = new Map<string, any>();
       
-      optimizedStockData.forEach(item => {
-        const key = `${item.barcode?.trim() || ''}_${item.location || 'A-1-001'}`;
+      stockManagementData.forEach(item => {
+        const location = item.location || 'A-1-001';
+        const barcode = item.barcode?.trim() || '';
+        const key = `${location}=${barcode}`;
         const quantity = parseInt(item.quantity || item.stock || 0);
         
         if (groupedData.has(key)) {
@@ -487,9 +626,11 @@ function StocksScan() {
           existing.count += 1;
         } else {
           groupedData.set(key, {
-            barcode: item.barcode?.trim() || '',
-            location: item.location || 'A-1-001',
-            itemName: item.productName || item.item_name || `상품-${item.barcode}`,
+            id: key, // location=barcode 형태로 ID 설정
+            barcode: barcode,
+            location: location,
+            itemName: item.productName || item.item_name || `상품-${barcode}`,
+            note: item.note || '',
             totalQuantity: quantity,
             count: 1,
             originalItem: item
@@ -502,80 +643,125 @@ function StocksScan() {
       // 🧹 메모리 정리: Map 객체 명시적 해제
       groupedData.clear();
 
-      for (let i = 0; i < groupedItems.length; i++) {
-        const groupedItem = groupedItems[i];
-        const { barcode, location, itemName, totalQuantity, count } = groupedItem;
+      // 🚀 배치 처리: 기존 데이터를 청크 단위로 조회 (URL 길이 제한 방지)
+      setStockAddProgress({ current: 1, total: 4 });
+      
+      const CHUNK_SIZE = 50; // 한번에 50개씩 처리
+      const allIds = groupedItems.map(item => item.id);
+      const existingMap = new Map();
+      
+      // ID 배열을 청크로 나누어 처리
+      for (let i = 0; i < allIds.length; i += CHUNK_SIZE) {
+        const chunk = allIds.slice(i, i + CHUNK_SIZE);
+        
+        const { data: existingRecords, error: batchSelectError } = await supabase
+          .from('stocks_management')
+          .select('id, stock')
+          .eq('user_id', userId)
+          .in('id', chunk);
 
+        if (batchSelectError) {
+          console.error('배치 조회 오류:', batchSelectError);
+          continue; // 이 청크는 건너뛰고 계속 진행
+        }
+
+        // 조회된 데이터를 Map에 추가
+        existingRecords?.forEach(record => {
+          existingMap.set(record.id, record);
+        });
+      }
+
+      // 📝 업데이트와 삽입할 데이터 분리
+      const toUpdate: any[] = [];
+      const toInsert: any[] = [];
+
+      groupedItems.forEach((item, index) => {
+        const { id, barcode, location, itemName, note, totalQuantity } = item;
+        
         // 바코드나 수량이 없는 경우 건너뛰기
-        if (!barcode || !barcode.trim()) {
+        if (!barcode || isNaN(totalQuantity) || totalQuantity <= 0) {
           errorCount++;
-          continue;
+          const errorMsg = `바코드: ${barcode || '비어있음'}, 위치: ${location}, 수량: ${totalQuantity} (오류: 잘못된 데이터)`;
+          errorDetails.push(errorMsg);
+          return;
         }
 
-        if (isNaN(totalQuantity) || totalQuantity <= 0) {
-          errorCount++;
-          continue;
+        const existing = existingMap.get(id);
+        if (existing) {
+          // 기존 데이터가 있으면 재고 수량 합산
+          const currentStock = parseInt(existing.stock) || 0;
+          const newStock = currentStock + totalQuantity;
+          toUpdate.push({
+            id: id,
+            stock: newStock
+          });
+          updateCount++;
+        } else {
+          // 기존 데이터가 없으면 새로 추가
+          toInsert.push({
+            id: id,
+            user_id: userId,
+            item_name: itemName,
+            barcode: barcode,
+            stock: totalQuantity,
+            location: location,
+            note: note
+          });
+          insertCount++;
         }
+      });
 
-        try {
-          // 1. 먼저 기존 데이터가 있는지 확인
-          const { data: existingData, error: selectError } = await supabase
+      // 🚀 배치 업데이트 실행 (청크 단위)
+      setStockAddProgress({ current: 2, total: 4 });
+      
+      if (toUpdate.length > 0) {
+        for (let i = 0; i < toUpdate.length; i += CHUNK_SIZE) {
+          const chunk = toUpdate.slice(i, i + CHUNK_SIZE);
+          
+          const { error: updateError } = await supabase
             .from('stocks_management')
-            .select('id, stock')
-            .eq('user_id', userId)
-            .eq('barcode', barcode)
-            .eq('location', location)
-            .maybeSingle();
+            .upsert(chunk, { onConflict: 'id' });
 
-          if (selectError) {
-            errorCount++;
-            continue;
+          if (updateError) {
+            console.error('배치 업데이트 오류:', updateError);
+            chunk.forEach(item => {
+              errorDetails.push(`ID: ${item.id} (오류: 데이터베이스 업데이트 실패)`);
+            });
+            errorCount += chunk.length;
+            updateCount -= chunk.length;
           }
-
-          if (existingData) {
-            // 2. 기존 데이터가 있으면 재고 수량 합산
-            const currentStock = parseInt(existingData.stock) || 0;
-            const newStock = currentStock + totalQuantity;
-            
-            const { error: updateError } = await supabase
-              .from('stocks_management')
-              .update({ 
-                stock: newStock
-              })
-              .eq('id', existingData.id);
-
-            if (updateError) {
-              errorCount++;
-            } else {
-              updateCount++;
-              successCount++;
-            }
-          } else {
-            // 3. 기존 데이터가 없으면 새로 추가
-            const { error: insertError } = await supabase
-              .from('stocks_management')
-              .insert({
-                user_id: userId,
-                item_name: itemName,
-                barcode: barcode,
-                stock: totalQuantity,
-                location: location
-              });
-
-            if (insertError) {
-              errorCount++;
-            } else {
-              insertCount++;
-              successCount++;
-            }
-          }
-        } catch (itemError) {
-          errorCount++;
         }
       }
 
+      // 🚀 배치 삽입 실행 (청크 단위)
+      setStockAddProgress({ current: 3, total: 4 });
+      
+      if (toInsert.length > 0) {
+        for (let i = 0; i < toInsert.length; i += CHUNK_SIZE) {
+          const chunk = toInsert.slice(i, i + CHUNK_SIZE);
+          
+          const { error: insertError } = await supabase
+            .from('stocks_management')
+            .insert(chunk);
+
+          if (insertError) {
+            console.error('배치 삽입 오류:', insertError);
+            chunk.forEach(item => {
+              errorDetails.push(`바코드: ${item.barcode}, 위치: ${item.location} (오류: 데이터베이스 삽입 실패)`);
+            });
+            errorCount += chunk.length;
+            insertCount -= chunk.length;
+          }
+        }
+      }
+
+      setStockAddProgress({ current: 4, total: 4 });
+
+      successCount = updateCount + insertCount;
+
       if (errorCount > 0) {
-        alert(`처리 완료!\n성공: ${successCount}개\n오류: ${errorCount}개`);
+        const errorMessage = `처리 완료!\n성공: ${successCount}개\n오류: ${errorCount}개\n\n오류 상세 (최대 10개만 표시):\n${errorDetails.slice(0, 10).join('\n')}${errorDetails.length > 10 ? '\n\n... 및 기타 ' + (errorDetails.length - 10) + '개 오류' : ''}`;
+        alert(errorMessage);
       } else {
         alert(`${successCount}개 항목의 재고가 성공적으로 추가되었습니다!\n업데이트: ${updateCount}개\n신규추가: ${insertCount}개`);
       }
@@ -584,12 +770,16 @@ function StocksScan() {
       setStockManagementData([]);
     } catch (err) {
       alert('재고 추가 중 오류가 발생했습니다.');
+    } finally {
+      // 로딩 상태 해제
+      setIsStockAddLoading(false);
+      setStockAddProgress({ current: 0, total: 0 });
     }
   };
 
   // 재고 차감 핸들러
   const handleStockSubtract = async () => {
-    if (optimizedStockData.length === 0) {
+    if (stockManagementData.length === 0) {
       alert('차감할 재고 데이터가 없습니다. 먼저 엑셀 파일을 업로드해주세요.');
       return;
     }
@@ -599,6 +789,10 @@ function StocksScan() {
       alert('로그인이 필요합니다.');
       return;
     }
+
+    // 로딩 상태 시작
+    setIsStockSubtractLoading(true);
+    setStockSubtractProgress({ current: 0, total: stockManagementData.length });
 
     try {
       // 테이블 존재 여부 먼저 확인
@@ -617,64 +811,121 @@ function StocksScan() {
       let successCount = 0;
       let notFoundCount = 0;
       let errorCount = 0;
+      let errorDetails: string[] = []; // 오류 상세 정보
 
-      for (let i = 0; i < stockManagementData.length; i++) {
-        const item = stockManagementData[i];
+      // 🗺️ 동일한 바코드+위치를 미리 그룹화하여 중복 처리 방지
+      const groupedData = new Map<string, any>();
+      
+      stockManagementData.forEach(item => {
+        const location = item.location || 'A-1-001';
+        const barcode = item.barcode?.trim() || '';
+        const key = `${location}=${barcode}`;
+        const quantity = parseInt(item.quantity || item.stock || 0);
+        
+        if (groupedData.has(key)) {
+          const existing = groupedData.get(key);
+          existing.totalQuantity += quantity;
+        } else {
+          groupedData.set(key, {
+            id: key, // location=barcode 형태로 ID 설정
+            barcode: barcode,
+            location: location,
+            note: item.note || '',
+            totalQuantity: quantity
+          });
+        }
+      });
 
+      const groupedItems = Array.from(groupedData.values());
+      
+      // 🧹 메모리 정리: Map 객체 명시적 해제
+      groupedData.clear();
+
+      // 🚀 배치 처리: 기존 데이터를 청크 단위로 조회 (URL 길이 제한 방지)
+      setStockSubtractProgress({ current: 1, total: 3 });
+      
+      const CHUNK_SIZE = 50; // 한번에 50개씩 처리
+      const allIds = groupedItems.map(item => item.id);
+      const existingMap = new Map();
+      
+      // ID 배열을 청크로 나누어 처리
+      for (let i = 0; i < allIds.length; i += CHUNK_SIZE) {
+        const chunk = allIds.slice(i, i + CHUNK_SIZE);
+        
+        const { data: existingRecords, error: batchSelectError } = await supabase
+          .from('stocks_management')
+          .select('id, stock')
+          .eq('user_id', userId)
+          .in('id', chunk);
+
+        if (batchSelectError) {
+          console.error('배치 조회 오류:', batchSelectError);
+          continue; // 이 청크는 건너뛰고 계속 진행
+        }
+
+        // 조회된 데이터를 Map에 추가
+        existingRecords?.forEach(record => {
+          existingMap.set(record.id, record);
+        });
+      }
+
+      // 📝 업데이트할 데이터 준비
+      const toUpdate: any[] = [];
+
+      setStockSubtractProgress({ current: 2, total: 3 });
+
+      groupedItems.forEach((item, index) => {
+        const { id, barcode, totalQuantity } = item;
+        
         // 바코드나 수량이 없는 경우 건너뛰기
-        if (!item.barcode || !item.barcode.trim()) {
+        if (!barcode || isNaN(totalQuantity) || totalQuantity <= 0) {
           errorCount++;
-          continue;
+          const errorMsg = `바코드: ${barcode || '비어있음'}, 수량: ${totalQuantity} (오류: 잘못된 데이터)`;
+          errorDetails.push(errorMsg);
+          return;
         }
 
-        const quantityToSubtract = parseInt(item.quantity || item.stock || 0);
-        if (isNaN(quantityToSubtract) || quantityToSubtract <= 0) {
-          errorCount++;
-          continue;
+        const existing = existingMap.get(id);
+        if (existing) {
+          // 기존 데이터가 있으면 재고 수량 차감
+          const currentStock = parseInt(existing.stock) || 0;
+          const newStock = Math.max(0, currentStock - totalQuantity);
+          toUpdate.push({
+            id: id,
+            stock: newStock
+          });
+          successCount++;
+        } else {
+          notFoundCount++;
+          errorDetails.push(`바코드: ${barcode}, ID: ${id} (오류: 기존 재고 데이터 없음)`);
         }
+      });
 
-        try {
-          // 동일한 바코드 + 위치가 이미 존재하는지 확인
-          const itemLocation = item.location || 'A-1-001';
-          const { data: existingData, error: selectError } = await supabase
+      // 🚀 배치 업데이트 실행 (청크 단위)
+      setStockSubtractProgress({ current: 3, total: 3 });
+      
+      if (toUpdate.length > 0) {
+        for (let i = 0; i < toUpdate.length; i += CHUNK_SIZE) {
+          const chunk = toUpdate.slice(i, i + CHUNK_SIZE);
+          
+          const { error: updateError } = await supabase
             .from('stocks_management')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('barcode', item.barcode.trim())
-            .eq('location', itemLocation)
-            .single();
+            .upsert(chunk, { onConflict: 'id' });
 
-          if (selectError && selectError.code !== 'PGRST116') {
-            errorCount++;
-            continue;
+          if (updateError) {
+            console.error('배치 업데이트 오류:', updateError);
+            chunk.forEach(item => {
+              errorDetails.push(`ID: ${item.id} (오류: 데이터베이스 업데이트 실패)`);
+            });
+            errorCount += chunk.length;
+            successCount -= chunk.length;
           }
-
-          if (existingData) {
-            // 기존 데이터가 있으면 재고 수량 차감
-            const newStock = Math.max(0, existingData.stock - quantityToSubtract);
-            
-            const { error: updateError } = await supabase
-              .from('stocks_management')
-              .update({ 
-                stock: newStock
-              })
-              .eq('id', existingData.id);
-
-            if (updateError) {
-              errorCount++;
-            } else {
-              successCount++;
-            }
-          } else {
-            notFoundCount++;
-          }
-        } catch (itemError) {
-          errorCount++;
         }
       }
 
       if (errorCount > 0 || notFoundCount > 0) {
-        alert(`차감 완료!\n성공: ${successCount}개\n재고없음: ${notFoundCount}개\n오류: ${errorCount}개`);
+        const errorMessage = `차감 완료!\n성공: ${successCount}개\n재고없음: ${notFoundCount}개\n오류: ${errorCount}개\n\n오류 상세 (최대 10개만 표시):\n${errorDetails.slice(0, 10).join('\n')}${errorDetails.length > 10 ? '\n\n... 및 기타 ' + (errorDetails.length - 10) + '개 오류' : ''}`;
+        alert(errorMessage);
       } else {
         alert(`${successCount}개 항목의 재고가 성공적으로 차감되었습니다!`);
       }
@@ -683,6 +934,10 @@ function StocksScan() {
       setStockManagementData([]);
     } catch (err) {
       alert('재고 차감 중 오류가 발생했습니다.');
+    } finally {
+      // 로딩 상태 해제
+      setIsStockSubtractLoading(false);
+      setStockSubtractProgress({ current: 0, total: 0 });
     }
   };
 
@@ -834,6 +1089,7 @@ function StocksScan() {
     const barcode = inputBarcode.trim();
     const quantity = parseInt(inputQuantity) || 1;
     const location = inputLocation.trim();
+    const note = inputNote.trim();
 
     // Supabase에서 상품명 조회
     let productName = ''; // 기본값은 빈 문자열
@@ -853,10 +1109,10 @@ function StocksScan() {
       // 오류 시 빈 문자열 사용
     }
 
-    // 동일한 바코드 + 위치가 이미 있는지 확인
-    const existingItemIndex = stockManagementData.findIndex(
-      item => item.barcode === barcode && (item.location || '') === location
-    );
+    const itemId = `${location}=${barcode}`;
+    
+    // 동일한 ID가 이미 있는지 확인
+    const existingItemIndex = stockManagementData.findIndex(item => item.id === itemId);
 
     if (existingItemIndex !== -1) {
       // 기존 아이템이 있으면 수량 추가
@@ -870,11 +1126,12 @@ function StocksScan() {
     } else {
       // 새 아이템 추가
       const newItem = {
-        id: Date.now(),
+        id: itemId,
         barcode: barcode,
         productName: productName,
         quantity: quantity,
         location: location,
+        note: note,
         timestamp: new Date().toLocaleString()
       };
       setStockManagementData(prev => [newItem, ...prev]);
@@ -962,6 +1219,19 @@ function StocksScan() {
                   value={inputLocation}
                   onChange={handleLocationInputChange}
                   placeholder="위치 (선택사항)"
+                  className="product-list-search-input"
+                  style={{ width: '100%' }}
+                />
+              </div>
+              
+              {/* 비고 입력 */}
+              <div style={{ flex: 2 }}>
+                <label style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px', display: 'block' }}>비고</label>
+                <input
+                  type="text"
+                  value={inputNote}
+                  onChange={(e) => setInputNote(e.target.value)}
+                  placeholder="비고 (선택사항)"
                   className="product-list-search-input"
                   style={{ width: '100%' }}
                 />
@@ -1152,15 +1422,16 @@ function StocksScan() {
                   />
                 </th>
                 <th className="product-list-table-header-cell" style={{ width: '180px', textAlign: 'center' }}>바코드</th>
-                <th className="product-list-table-header-cell" style={{ width: '300px', textAlign: 'left' }}>상품명</th>
+                <th className="product-list-table-header-cell" style={{ width: '250px', textAlign: 'left' }}>상품명</th>
                 <th className="product-list-table-header-cell" style={{ width: '100px', textAlign: 'center' }}>재고</th>
                 <th className="product-list-table-header-cell" style={{ width: '120px', textAlign: 'center' }}>위치</th>
+                <th className="product-list-table-header-cell" style={{ width: '150px', textAlign: 'center' }}>비고</th>
               </tr>
             </thead>
             <tbody className="product-list-table-body">
               {optimizedStockData.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ 
+                  <td colSpan={6} style={{ 
                     textAlign: 'center', 
                     padding: '40px', 
                     color: '#666',
@@ -1231,6 +1502,9 @@ function StocksScan() {
                         {stock.location || '클릭해서 입력'}
                       </span>
                     )}
+                  </td>
+                  <td className="product-list-table-cell" style={{ textAlign: 'left', padding: '12px', fontSize: '14px', color: '#6b7280' }}>
+                    {stock.note || ''}
                   </td>
                 </tr>
               ))}
@@ -1354,8 +1628,8 @@ function StocksScan() {
                 onClick={handleQuantityMode}
                 style={{
                   padding: '8px 16px',
-                  backgroundColor: !isSelectingBarcode && !isSelectingLocation ? '#3b82f6' : '#e5e7eb',
-                  color: !isSelectingBarcode && !isSelectingLocation ? 'white' : '#374151',
+                  backgroundColor: !isSelectingBarcode && !isSelectingLocation && !isSelectingProductName && !isSelectingOptionName && !isSelectingNote ? '#3b82f6' : '#e5e7eb',
+                  color: !isSelectingBarcode && !isSelectingLocation && !isSelectingProductName && !isSelectingOptionName && !isSelectingNote ? 'white' : '#374151',
                   border: 'none',
                   borderRadius: '4px',
                   fontSize: '14px',
@@ -1377,6 +1651,48 @@ function StocksScan() {
                 }}
               >
                 위치 {selectedLocationColumn && `(${selectedLocationColumn})`}
+              </button>
+              <button
+                onClick={handleNoteMode}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: isSelectingNote ? '#3b82f6' : '#e5e7eb',
+                  color: isSelectingNote ? 'white' : '#374151',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  cursor: 'pointer'
+                }}
+              >
+                비고 {selectedNoteColumn && `(${selectedNoteColumn})`}
+              </button>
+              <button
+                onClick={handleProductNameMode}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: isSelectingProductName ? '#3b82f6' : '#e5e7eb',
+                  color: isSelectingProductName ? 'white' : '#374151',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  cursor: 'pointer'
+                }}
+              >
+                상품명 {selectedProductNameColumn && `(${selectedProductNameColumn})`}
+              </button>
+              <button
+                onClick={handleOptionNameMode}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: isSelectingOptionName ? '#3b82f6' : '#e5e7eb',
+                  color: isSelectingOptionName ? 'white' : '#374151',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  cursor: 'pointer'
+                }}
+              >
+                옵션명 {selectedOptionNameColumn && `(${selectedOptionNameColumn})`}
               </button>
             </div>
 
@@ -1404,16 +1720,22 @@ function StocksScan() {
                             padding: '8px 12px',
                             backgroundColor: 
                               (isSelectingBarcode && selectedBarcodeColumn === columnName) ||
-                              (!isSelectingBarcode && !isSelectingLocation && selectedQuantityColumn === columnName) ||
-                              (isSelectingLocation && selectedLocationColumn === columnName)
+                              (!isSelectingBarcode && !isSelectingLocation && !isSelectingProductName && !isSelectingOptionName && !isSelectingNote && selectedQuantityColumn === columnName) ||
+                              (isSelectingLocation && selectedLocationColumn === columnName) ||
+                              (isSelectingNote && selectedNoteColumn === columnName) ||
+                              (isSelectingProductName && selectedProductNameColumn === columnName) ||
+                              (isSelectingOptionName && selectedOptionNameColumn === columnName)
                                 ? '#3b82f6'
-                                : selectedBarcodeColumn === columnName || selectedQuantityColumn === columnName || selectedLocationColumn === columnName
+                                : selectedBarcodeColumn === columnName || selectedQuantityColumn === columnName || selectedLocationColumn === columnName || selectedNoteColumn === columnName || selectedProductNameColumn === columnName || selectedOptionNameColumn === columnName
                                 ? '#e5e7eb'
                                 : '#f1f5f9',
                             color: 
                               (isSelectingBarcode && selectedBarcodeColumn === columnName) ||
-                              (!isSelectingBarcode && !isSelectingLocation && selectedQuantityColumn === columnName) ||
-                              (isSelectingLocation && selectedLocationColumn === columnName)
+                              (!isSelectingBarcode && !isSelectingLocation && !isSelectingProductName && !isSelectingOptionName && !isSelectingNote && selectedQuantityColumn === columnName) ||
+                              (isSelectingLocation && selectedLocationColumn === columnName) ||
+                              (isSelectingNote && selectedNoteColumn === columnName) ||
+                              (isSelectingProductName && selectedProductNameColumn === columnName) ||
+                              (isSelectingOptionName && selectedOptionNameColumn === columnName)
                                 ? 'white'
                                 : '#374151',
                             border: '1px solid #e2e8f0',
@@ -1489,6 +1811,120 @@ function StocksScan() {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 재고 추가 로딩 모달 */}
+      {isStockAddLoading && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 2000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '32px',
+            width: '400px',
+            textAlign: 'center',
+            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)'
+          }}>
+            <div style={{
+              fontSize: '18px',
+              fontWeight: 'bold',
+              marginBottom: '16px',
+              color: '#374151'
+            }}>
+              재고 데이터 추가 중...
+            </div>
+            
+            <div style={{
+              width: '100%',
+              height: '8px',
+              backgroundColor: '#e5e7eb',
+              borderRadius: '4px',
+              overflow: 'hidden',
+              marginBottom: '16px'
+            }}>
+              <div style={{
+                width: `${stockAddProgress.total > 0 ? (stockAddProgress.current / stockAddProgress.total) * 100 : 0}%`,
+                height: '100%',
+                backgroundColor: '#3b82f6',
+                transition: 'width 0.3s ease'
+              }}></div>
+            </div>
+            
+            <div style={{
+              fontSize: '14px',
+              color: '#6b7280'
+            }}>
+              {stockAddProgress.current} / {stockAddProgress.total}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 재고 차감 로딩 모달 */}
+      {isStockSubtractLoading && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 2000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '32px',
+            width: '400px',
+            textAlign: 'center',
+            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)'
+          }}>
+            <div style={{
+              fontSize: '18px',
+              fontWeight: 'bold',
+              marginBottom: '16px',
+              color: '#374151'
+            }}>
+              재고 데이터 차감 중...
+            </div>
+            
+            <div style={{
+              width: '100%',
+              height: '8px',
+              backgroundColor: '#e5e7eb',
+              borderRadius: '4px',
+              overflow: 'hidden',
+              marginBottom: '16px'
+            }}>
+              <div style={{
+                width: `${stockSubtractProgress.total > 0 ? (stockSubtractProgress.current / stockSubtractProgress.total) * 100 : 0}%`,
+                height: '100%',
+                backgroundColor: '#ef4444',
+                transition: 'width 0.3s ease'
+              }}></div>
+            </div>
+            
+            <div style={{
+              fontSize: '14px',
+              color: '#6b7280'
+            }}>
+              {stockSubtractProgress.current} / {stockSubtractProgress.total}
             </div>
           </div>
         </div>

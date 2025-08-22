@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(npm run build:*)",
+      "Bash(set DISABLE_ESLINT_PLUGIN=true)",
+      "Bash(npm start)",
+      "Bash(taskkill:*)",
+      "Bash(npm install:*)",
+      "Bash(cmd //c:*)",
+      "Bash(curl:*)",
+      "Bash(node server.js)",
+      "Bash(npx kill-port:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": [],
+    "additionalDirectories": [
+      "D:\\"
+    ]
+  }
+}

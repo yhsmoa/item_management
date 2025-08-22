@@ -6,6 +6,7 @@ import UserProfilePage from '../features/auth/UserProfilePage';
 import DashboardPage from '../features/dashboard/DashboardPage';
 import ProductListPage from '../features/products/ProductListPage';
 import ViewsPage from '../features/products/ViewsPage';
+import ProductAdd from '../features/products/ProductAdd';
 import ChinaOrderListPage from '../features/chinaorder/ChinaOrderListPage';
 import StockManagement from '../features/stocks/StockManagement';
 import StocksScan from '../features/stocks/StocksScan';
@@ -113,6 +114,16 @@ const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <ProductListPage />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* 상품 등록 페이지 - 로그인 필요 */}
+        <Route 
+          path="/products/add" 
+          element={
+            <ProtectedRoute>
+              <ProductAdd />
             </ProtectedRoute>
           } 
         />

@@ -1,0 +1,392 @@
+/* CoupangOrders.css */
+
+.coupang-orders-container {
+  padding: 24px;
+  background-color: #f9fafb;
+  min-height: 100%;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+.coupang-orders-page-header {
+  margin-bottom: 24px;
+}
+
+.coupang-orders-page-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+/* 버튼 스타일 */
+.coupang-orders-button {
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  border: 1px solid transparent;
+}
+
+.coupang-orders-button-primary {
+  background-color: #10b981;
+  color: white;
+  border-color: #10b981;
+}
+
+.coupang-orders-button-primary:hover {
+  background-color: #059669;
+  border-color: #059669;
+}
+
+.coupang-orders-button-secondary {
+  background-color: #6b7280;
+  color: white;
+  border-color: #6b7280;
+}
+
+.coupang-orders-button-secondary:hover {
+  background-color: #4b5563;
+  border-color: #4b5563;
+}
+
+/* 검색 및 필터 섹션 */
+.coupang-orders-filter-section {
+  background-color: white;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.coupang-orders-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.coupang-orders-search-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.coupang-orders-search-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.coupang-orders-search-select {
+  flex: 1;
+  padding: 12px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #111827;
+  background-color: #ffffff;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.coupang-orders-search-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.coupang-orders-search-input {
+  flex: 2;
+  padding: 12px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #111827;
+  background-color: #ffffff;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.coupang-orders-search-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.coupang-orders-search-button {
+  flex: 1;
+  padding: 12px 16px;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.15s ease-in-out;
+}
+
+.coupang-orders-search-button:hover {
+  background-color: #2563eb;
+}
+
+/* 바코드 조회 섹션 */
+.coupang-orders-barcode-section {
+  margin: 16px 0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 테이블 섹션 */
+.coupang-orders-table-section {
+  background-color: white;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.coupang-orders-table-header-section {
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  background-color: #f9fafb;
+}
+
+.coupang-orders-table-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.coupang-orders-data-count {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.coupang-orders-table-container {
+  overflow-x: auto;
+  overflow-y: auto;
+  width: 100%;
+  max-width: 100%;
+  max-height: 70vh;
+}
+
+.coupang-orders-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1000px;
+}
+
+.coupang-orders-table th,
+.coupang-orders-table td {
+  text-align: center;
+  vertical-align: middle;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 12px 8px;
+  font-size: 14px;
+}
+
+.coupang-orders-table th {
+  background-color: #f9fafb;
+  font-weight: 600;
+  color: #374151;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.coupang-orders-table td {
+  color: #111827;
+}
+
+.coupang-orders-table tbody tr:hover {
+  background-color: #f9fafb;
+}
+
+/* 등록상품명 & 옵션명 컬럼은 좌측 정렬 */
+.coupang-orders-table td:nth-child(5) {
+  text-align: left !important;
+  white-space: pre-line;
+  word-wrap: break-word;
+}
+
+/* 모달 스타일 */
+.coupang-orders-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.coupang-orders-modal {
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow: hidden;
+}
+
+.coupang-orders-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.coupang-orders-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.coupang-orders-modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: background-color 0.15s ease-in-out;
+}
+
+.coupang-orders-modal-close:hover {
+  background-color: #f3f4f6;
+}
+
+.coupang-orders-modal-content {
+  padding: 24px;
+}
+
+/* 업로드 영역 스타일 */
+.coupang-orders-upload-area {
+  border: 2px dashed #d1d5db;
+  border-radius: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  background-color: #f9fafb;
+}
+
+.coupang-orders-upload-area:hover {
+  border-color: #3b82f6;
+  background-color: #eff6ff;
+}
+
+.coupang-orders-upload-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.coupang-orders-upload-area p {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.coupang-orders-upload-hint {
+  font-size: 14px !important;
+  color: #6b7280 !important;
+  margin-top: 8px !important;
+}
+
+/* 업로드 진행률 스타일 */
+.coupang-orders-upload-progress {
+  text-align: center;
+  padding: 24px;
+}
+
+.coupang-orders-progress-info p {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.coupang-orders-progress-bar {
+  width: 100%;
+  height: 8px;
+  background-color: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 16px 0;
+}
+
+.coupang-orders-progress-fill {
+  height: 100%;
+  background-color: #3b82f6;
+  transition: width 0.3s ease-in-out;
+  border-radius: 4px;
+}
+
+/* 비활성화된 버튼 스타일 */
+.coupang-orders-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.coupang-orders-button:disabled:hover {
+  background-color: #10b981;
+  border-color: #10b981;
+}
+
+/* 수취인 정보 모달 스타일 */
+.coupang-orders-recipient-modal {
+  max-width: 600px;
+}
+
+.coupang-orders-recipient-info {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.coupang-orders-recipient-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.coupang-orders-recipient-field label {
+  font-weight: 600;
+  color: #374151;
+  min-width: 100px;
+  flex-shrink: 0;
+}
+
+.coupang-orders-recipient-field span {
+  color: #111827;
+  word-wrap: break-word;
+  flex: 1;
+}
+
+.coupang-orders-recipient-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}

@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import DashboardStatsCard from './components/DashboardStatsCard';
 import { supabase } from '../../config/supabase';
 import './ProductListPage.css';
-import { processProductExcelUpload } from '../../services/excelUploadService';
+import { processProductExcelUpload, processSalesExcelUpload } from '../../services/excelUploadService';
 import { processRocketInventoryExcelUpload } from '../../services/rocketInventoryService';
 import { importImageInfoFromItemAll, importImageInfoFromItemAllRocketGrowth } from '../../services/imageInfoService';
+import { fetchCoupangSalesData } from '../../services/coupangSalesService';
+import { viewsService } from '../../services/viewsService';
 
 // 인터페이스 정의
 interface TableRow {
@@ -55,11 +57,20 @@ function ProductListPage() {
   const [itemViewsData, setItemViewsData] = useState<{[key: string]: string[]}>({});
   // 🆕 사입상태 데이터 (바코드별 주문 수량 합계)
   const [orderQuantityData, setOrderQuantityData] = useState<{[key: string]: number}>({});
+  // 🆕 쿠팡 판매량 데이터 (option_id별 판매량)
+  const [coupangSalesData, setCoupangSalesData] = useState<{[key: string]: number}>({});
+  // 🆕 창고재고 데이터 (바코드별 재고 합계)
+  const [warehouseStockData, setWarehouseStockData] = useState<{[key: string]: number}>({});
+  // 🆕 조회수 데이터 (날짜별로 item_id별 조회수 - view1~view5)
+  const [viewsDataByDate, setViewsDataByDate] = useState<Array<{[key: string]: string}>>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   
   // 검색 및 필터
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('전체');
+  const [appliedSearchKeyword, setAppliedSearchKeyword] = useState(''); // 실제 적용된 검색어
+  const [searchSuggestions, setSearchSuggestions] = useState<Array<{type: 'product' | 'barcode', value: string, display: string}>>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [searchFilter, setSearchFilter] = useState('상품명'); // 카테고리 -> 검색필터로 변경
   const [selectedExposure, setSelectedExposure] = useState('전체');
   const [selectedSaleStatus, setSelectedSaleStatus] = useState('전체');
   const [sortFilter, setSortFilter] = useState('전체');
@@ -72,7 +83,7 @@ function ProductListPage() {
   
   // 페이지네이션
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 50; // 50개로 다시 변경
+  const itemsPerPage = 100;
   
   // 입력 상태 관리
   const [editingCell, setEditingCell] = useState<string | null>(null);
@@ -83,6 +94,7 @@ function ProductListPage() {
   const [isLoadingApi2, setIsLoadingApi2] = useState(false);
   const [isLoadingNormalApi, setIsLoadingNormalApi] = useState(false);
   const [isUploadingRocketInventory, setIsUploadingRocketInventory] = useState(false);
+  const [isLoadingSalesExcel, setIsLoadingSalesExcel] = useState(false);
   
   // 진행률
   const [productInfoProgress, setProductInfoProgress] = useState<Progress | null>(null);
@@ -313,13 +325,13 @@ function ProductListPage() {
   const renderPendingInbounds = useCallback((row: TableRow) => {
     const value = row.option_id && rocketInventoryData[row.option_id]?.pending_inbounds;
     const numValue = typeof value === 'number' ? value : (typeof value === 'string' ? parseFloat(value) : 0);
-    return value && numValue > 0 ? <span className="value-highlight-gray">{value}</span> : '-';
+    return value && numValue > 0 ? <span className="product-list-highlight-gray">{value}</span> : '-';
   }, [rocketInventoryData]);
 
   const renderOrderableQuantity = useCallback((row: TableRow) => {
     const value = row.option_id && rocketInventoryData[row.option_id]?.orderable_quantity || row.stock || 0;
     const numValue = typeof value === 'number' ? value : (typeof value === 'string' ? parseFloat(value) : 0);
-    return numValue > 0 ? <span className="value-highlight-light-gray">{numValue}</span> : '-';
+    return numValue > 0 ? <span className="product-list-highlight-light-gray">{numValue}</span> : '-';
   }, [rocketInventoryData]);
 
   const renderOrderQuantity = useCallback((row: TableRow) => {
@@ -327,6 +339,26 @@ function ProductListPage() {
     const numValue = typeof value === 'number' ? value : (typeof value === 'string' ? parseFloat(value) : 0);
     return value && numValue > 0 ? <span className="value-highlight-orange">{value}</span> : '-';
   }, [orderQuantityData]);
+
+  // 🆕 창고재고 렌더링 (바코드별 재고 합계)
+  const renderWarehouseStock = useCallback((row: TableRow) => {
+    const barcode = String(row.barcode || '').trim();
+    const value = barcode && warehouseStockData[barcode];
+    const numValue = typeof value === 'number' ? value : 0;
+    
+    return numValue > 0 ? <span className="stock-warehouse">{numValue}</span> : '-';
+  }, [warehouseStockData]);
+
+  // 🆕 기간 열 데이터 렌더링 (쿠팡 판매량 데이터)
+  const renderPeriodSales = useCallback((row: TableRow) => {
+    const optionId = String(row.option_id);
+    const sales = coupangSalesData[optionId];
+    
+    if (sales && sales > 0) {
+      return <span className="product-list-highlight-blue-border">{sales}</span>;
+    }
+    return '-';
+  }, [coupangSalesData]);
 
   const renderRecommendedQuantity = useCallback((row: TableRow) => {
     const value = row.option_id && rocketInventoryData[row.option_id]?.recommanded_inboundquantity;
@@ -472,6 +504,157 @@ function ProductListPage() {
       
     } catch (error) {
       console.error('❌ 사입상태 데이터 로드 실패:', error);
+    }
+  };
+
+  // 🆕 쿠팡 판매량 데이터 로드
+  const loadCoupangSalesData = async () => {
+    try {
+      const salesData = await fetchCoupangSalesData();
+      setCoupangSalesData(salesData);
+      console.log('✅ 쿠팡 판매량 데이터 로드 완료:', Object.keys(salesData).length, '개 항목');
+    } catch (error) {
+      console.error('❌ 쿠팡 판매량 데이터 로드 실패:', error);
+    }
+  };
+
+  // 🆕 창고재고 데이터 로드 (stocks_management에서 바코드별 재고 합계)
+  const loadWarehouseStockData = async () => {
+    try {
+      // 현재 로그인한 사용자 ID 가져오기
+      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      const userId = currentUser.id;
+      
+      if (!userId) {
+        console.error('❌ 창고재고 데이터 로드: 사용자 ID를 찾을 수 없습니다.');
+        return;
+      }
+
+      // 먼저 전체 개수 확인
+      const { count, error: countError } = await supabase
+        .from('stocks_management')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .not('barcode', 'is', null)
+        .neq('barcode', '');
+
+      if (countError) {
+        console.error('❌ 창고재고 개수 조회 오류:', countError);
+      }
+
+      // 배치로 모든 데이터 가져오기
+      let allStocksData: any[] = [];
+      let hasMore = true;
+      let offset = 0;
+      const batchSize = 1000;
+
+      while (hasMore) {
+        const { data: batchData, error: batchError } = await supabase
+          .from('stocks_management')
+          .select('barcode, stock')
+          .eq('user_id', userId)
+          .not('barcode', 'is', null)
+          .neq('barcode', '')
+          .range(offset, offset + batchSize - 1);
+
+        if (batchError) {
+          console.error('❌ 창고재고 배치 로드 오류:', batchError);
+          throw batchError;
+        }
+
+        if (batchData && batchData.length > 0) {
+          allStocksData = [...allStocksData, ...batchData];
+          offset += batchSize;
+          
+          if (batchData.length < batchSize) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      // 데이터 로드 완료
+
+      // 바코드별 재고 합계 계산
+      const warehouseStockMap: {[key: string]: number} = {};
+      
+      if (allStocksData.length > 0) {
+        allStocksData.forEach(item => {
+          const barcode = item.barcode;
+          const stock = parseInt(item.stock) || 0;
+          
+          if (barcode && barcode.trim()) {
+            const cleanBarcode = barcode.trim();
+            if (warehouseStockMap[cleanBarcode]) {
+              warehouseStockMap[cleanBarcode] += stock;
+            } else {
+              warehouseStockMap[cleanBarcode] = stock;
+            }
+          }
+        });
+      }
+
+      setWarehouseStockData(warehouseStockMap);
+      
+    } catch (error) {
+      console.error('❌ 창고재고 데이터 로드 실패:', error);
+    }
+  };
+
+  // 조회수 데이터 로드 (최근 5개 날짜)
+  const loadViewsData = async () => {
+    try {
+      // 현재 로그인한 사용자 ID 가져오기
+      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      const userId = currentUser.id;
+      
+      if (!userId) {
+        console.error('❌ 조회수 데이터 로드: 사용자 ID를 찾을 수 없습니다.');
+        return;
+      }
+
+      // 최근 5개 날짜의 조회수 데이터 가져오기
+      const result = await viewsService.getRecentViewsData(userId);
+      console.log('API 응답:', result);
+      
+      if (result.success && result.data && result.data.length > 0) {
+        // 날짜별로 item_id별 조회수 맵 배열 생성
+        const viewsMaps: Array<{[key: string]: string}> = [];
+        
+        result.data.forEach((document: any, index: number) => {
+          const viewsMap: {[key: string]: string} = {};
+          console.log(`날짜 ${index + 1} (${document.date}):`, document.views?.length || 0, '개 데이터');
+          
+          if (document.views && Array.isArray(document.views)) {
+            document.views.forEach((item: any) => {
+              if (item.productId && item.productViews) {
+                viewsMap[item.productId] = item.productViews;
+              }
+            });
+          }
+          viewsMaps.push(viewsMap);
+        });
+        
+        setViewsDataByDate(viewsMaps);
+        console.log('✅ 최근 5개 날짜 조회수 데이터 로드 완료');
+        console.log('날짜 순서 (오래된것→최신):', result.data.map((d: any) => d.date));
+        console.log('view1~view5 데이터:', viewsMaps);
+        
+        // 첫 번째 item_id로 테스트
+        if (viewsMaps[0]) {
+          const firstItemId = Object.keys(viewsMaps[0])[0];
+          if (firstItemId) {
+            console.log(`샘플 테스트 - item_id: ${firstItemId}, view1 값: ${viewsMaps[0][firstItemId]}`);
+          }
+        }
+      } else {
+        console.log('⚠️ 조회수 데이터가 없습니다.');
+        setViewsDataByDate([]);
+      }
+    } catch (error) {
+      console.error('❌ 조회수 데이터 로드 실패:', error);
+      setViewsDataByDate([]);
     }
   };
 
@@ -794,6 +977,21 @@ function ProductListPage() {
 
       console.log(`📊 최종 로드된 데이터: ${allProducts.length}개 (예상: ${count}개)`);
 
+      // 바코드 데이터 확인
+      if (allProducts.length > 0) {
+        const barcodeSample = allProducts.slice(0, 5).map(item => ({
+          상품명: item.item_name,
+          옵션명: item.option_name,
+          바코드: item.barcode,
+          바코드타입: typeof item.barcode
+        }));
+        console.log('🔍 [제품로드] 바코드 샘플 확인:', barcodeSample);
+        
+        // 바코드가 있는 제품 수 확인
+        const productsWithBarcode = allProducts.filter(item => item.barcode && item.barcode.trim()).length;
+        console.log(`📊 [제품로드] 바코드가 있는 제품: ${productsWithBarcode}/${allProducts.length}개`);
+      }
+
       const products = allProducts;
       const error = null;
 
@@ -822,8 +1020,10 @@ function ProductListPage() {
     const rows: TableRow[] = [];
     
     data.forEach((item) => {
-      // 상품명 생성: item_name + 줄바꿈 + option_name
-      const displayName = item.item_name + (item.option_name ? '\n' + item.option_name : '');
+      // 상품명 생성: item_name + 줄바꿈 + option_name + 줄바꿈 + option_id | barcode
+      const optionLine = item.option_name ? '\n' + item.option_name : '';
+      const infoLine = '\n' + String(item.option_id || '') + ' | ' + String(item.barcode || '');
+      const displayName = item.item_name + optionLine + infoLine;
       
       // 판매방식 결정
       const isRocketGrowth = rocketInventoryOptionIds.has(String(item.option_id));
@@ -859,8 +1059,8 @@ function ProductListPage() {
   const applyAllFilters = useCallback(() => {
     console.log('🔍 [디버깅] ===== 필터링 시작 =====');
     console.log('🔍 [디버깅] 원본 데이터 개수:', data.length);
-    console.log('🔍 [디버깅] 검색어:', `"${searchKeyword}"`);
-    console.log('🔍 [디버깅] 선택된 카테고리:', selectedCategory);
+    console.log('🔍 [디버깅] 적용된 검색어:', `"${appliedSearchKeyword}"`);
+    console.log('🔍 [디버깅] 선택된 검색필터:', searchFilter);
     console.log('🔍 [디버깅] 선택된 노출상태:', selectedExposure);
     console.log('🔍 [디버깅] 선택된 판매상태:', selectedSaleStatus);
     console.log('🔍 [디버깅] 선택된 판매방식:', sortFilter);
@@ -868,39 +1068,45 @@ function ProductListPage() {
     let filtered = [...data];
     
     // 1. 검색 키워드 필터링 (null/undefined 안전 처리)
-    if (searchKeyword.trim()) {
+    if (appliedSearchKeyword.trim()) {
       console.log('🔍 [디버깅] 검색 키워드 필터링 시작...');
       const beforeSearchCount = filtered.length;
       
+      // 콤마, 줄바꿈, 공백으로 분리하여 여러개 검색어 처리
+      const keywords = appliedSearchKeyword
+        .split(/[,\n\s]+/) // 콤마, 줄바꿈, 공백으로 분리
+        .map(k => k.trim())
+        .filter(k => k.length > 0)
+        .slice(0, 100); // 최대 100개로 제한
+      
       filtered = filtered.filter(item => {
-        const itemName = (item.item_name || '').toLowerCase();
-        const optionName = (item.option_name || '').toLowerCase();
-        const searchTerm = searchKeyword.toLowerCase();
-        
-        // 개별 필드 검색 + 합쳐진 문자열 검색 모두 지원
-        const combinedName = `${itemName} ${optionName}`.toLowerCase();
-        
-        const itemNameMatch = itemName.includes(searchTerm);
-        const optionNameMatch = optionName.includes(searchTerm);
-        const combinedNameMatch = combinedName.includes(searchTerm);
-        
-        const isMatch = itemNameMatch || optionNameMatch || combinedNameMatch;
-        
-        // 검색 매칭 상세 로그 (처음 5개만)
-        if (beforeSearchCount <= 10 || isMatch) {
-          console.log(`🔍 [디버깅] 검색 매칭 체크:`, {
-            item_id: item.item_id,
-            option_id: item.option_id,
-            item_name: item.item_name,
-            option_name: item.option_name,
-            itemNameMatch,
-            optionNameMatch,
-            combinedNameMatch,
-            isMatch
-          });
-        }
-        
-        return isMatch;
+        // 검색 필터에 따라 다른 필드에서 검색
+        return keywords.some(keyword => {
+          const lowerKeyword = keyword.toLowerCase();
+          
+          switch (searchFilter) {
+            case '상품명':
+              const itemName = (item.item_name || '').toLowerCase();
+              const optionName = (item.option_name || '').toLowerCase();
+              const productName = (item.product_name || '').toLowerCase();
+              const combinedName = `${itemName} ${optionName}`.toLowerCase();
+              return itemName.includes(lowerKeyword) || 
+                     optionName.includes(lowerKeyword) || 
+                     combinedName.includes(lowerKeyword) ||
+                     productName.includes(lowerKeyword);
+            
+            case '옵션id':
+              const optionId = String(item.option_id || '');
+              return optionId.includes(keyword);
+            
+            case '바코드':
+              const barcode = (item.barcode || '').toLowerCase();
+              return barcode.includes(lowerKeyword);
+            
+            default:
+              return false;
+          }
+        });
       });
       
       console.log(`🔍 [디버깅] 검색 필터링 완료: ${beforeSearchCount}개 → ${filtered.length}개`);
@@ -919,12 +1125,7 @@ function ProductListPage() {
       }
     }
     
-    // 2. 카테고리 필터링
-    if (selectedCategory !== '전체') {
-      const beforeCount = filtered.length;
-      filtered = filtered.filter(item => item.category === selectedCategory);
-      console.log(`🔍 [디버깅] 카테고리 필터링: ${beforeCount}개 → ${filtered.length}개`);
-    }
+    // 카테고리 필터링 제거됨 (검색필터로 대체)
     
     // 3. 노출상태 필터링
     if (selectedExposure !== '전체') {
@@ -949,6 +1150,29 @@ function ProductListPage() {
       const beforeCount = filtered.length;
       filtered = filtered.filter(item => rocketInventoryOptionIds.has(String(item.option_id)));
       console.log(`🔍 [디버깅] 로켓그로스 필터링: ${beforeCount}개 → ${filtered.length}개`);
+    } else if (sortFilter === '사입보기') {
+      const beforeCount = filtered.length;
+      filtered = filtered.filter(item => {
+        const isRocketGrowth = rocketInventoryOptionIds.has(String(item.option_id));
+        
+        if (isRocketGrowth) {
+          // 로켓그로스는 모두 노출
+          return true;
+        } else {
+          // 일반판매는 '기간' 열에 값이 0보다 큰 경우만 노출
+          // 현재 기간 데이터가 '-'로 하드코딩되어 있으므로, 
+          // 실제 데이터 필드가 추가되면 여기를 수정해야 함
+          // 예시: item.period_value && item.period_value > 0
+          
+          // 임시로 7일 판매량이나 30일 판매량이 있는 경우를 기간 조건으로 사용
+          const sales7Days = rocketInventoryData[String(item.option_id)]?.sales_quantity_last_7_days || 0;
+          const sales30Days = rocketInventoryData[String(item.option_id)]?.sales_quantity_last_30_days || 0;
+          
+          // 7일 또는 30일 판매량이 0보다 큰 경우 표시
+          return sales7Days > 0 || sales30Days > 0;
+        }
+      });
+      console.log(`🔍 [디버깅] 사입보기 필터링: ${beforeCount}개 → ${filtered.length}개`);
     }
     
     // 6. 판매방식이 '전체'인 경우에만 정렬 적용
@@ -981,24 +1205,85 @@ function ProductListPage() {
     
     setFilteredData(filtered);
     
-    // 🆕 페이지 초기화 개선: 검색어가 있을 때만 1페이지로 이동
-    if (searchKeyword.trim()) {
+    // 🆕 페이지 초기화 개선: 필터 변경 시 1페이지로 이동
+    if (selectedExposure !== '전체' || selectedSaleStatus !== '전체' || sortFilter !== '전체' || appliedSearchKeyword.trim()) {
       setCurrentPage(1);
       console.log('🔍 [디버깅] 페이지를 1페이지로 초기화');
     }
-  }, [data, searchKeyword, selectedCategory, selectedExposure, selectedSaleStatus, sortFilter, rocketInventoryOptionIds]);
+  }, [data, searchFilter, selectedExposure, selectedSaleStatus, sortFilter, appliedSearchKeyword, rocketInventoryOptionIds]);
 
-  // 🆕 검색 상태 보존 함수
-  const preserveSearchState = useCallback(() => {
-    if (searchKeyword.trim() || selectedCategory !== '전체' || selectedExposure !== '전체' || selectedSaleStatus !== '전체' || sortFilter !== '전체') {
-      applyAllFilters();
+  // 🆕 검색 상태 보존 함수 - 더 이상 필요없음 (useEffect가 자동 처리)
+  // const preserveSearchState = useCallback(() => {
+  //   // useEffect에서 자동으로 필터링됨
+  // }, []);
+
+  // 🆕 검색 자동완성 제안 생성 함수
+  const generateSearchSuggestions = useCallback((keyword: string) => {
+    if (!keyword.trim() || keyword.length < 2) {
+      setSearchSuggestions([]);
+      setShowSuggestions(false);
+      return;
     }
-  }, [searchKeyword, selectedCategory, selectedExposure, selectedSaleStatus, sortFilter, applyAllFilters]);
 
-  // 🛠️ 검색 함수 - applyAllFilters 호출
+    const searchTerm = keyword.toLowerCase().trim();
+    const suggestions: Array<{type: 'product' | 'barcode', value: string, display: string}> = [];
+    const seen = new Set<string>();
+
+    // 상품명과 바코드에서 검색어와 일치하는 것들을 찾기
+    data.forEach(item => {
+      // 상품명 검색
+      const productName = `${item.item_name || ''} ${item.option_name || ''}`.trim();
+      if (productName.toLowerCase().includes(searchTerm)) {
+        const key = `product:${productName}`;
+        if (!seen.has(key) && suggestions.length < 10) {
+          seen.add(key);
+          suggestions.push({
+            type: 'product',
+            value: productName,
+            display: productName
+          });
+        }
+      }
+
+      // 바코드 검색
+      if (item.barcode && item.barcode.toLowerCase().includes(searchTerm)) {
+        const key = `barcode:${item.barcode}`;
+        if (!seen.has(key) && suggestions.length < 10) {
+          seen.add(key);
+          suggestions.push({
+            type: 'barcode',
+            value: item.barcode,
+            display: `${item.barcode} (${item.item_name || '상품명 없음'})`
+          });
+        }
+      }
+    });
+
+    setSearchSuggestions(suggestions);
+    setShowSuggestions(suggestions.length > 0);
+  }, [data]);
+
+  // 🛠️ 검색어 입력 핸들러
+  const handleSearchKeywordChange = useCallback((value: string) => {
+    setSearchKeyword(value);
+    generateSearchSuggestions(value);
+  }, [generateSearchSuggestions]);
+
+  // 🛠️ 검색 제안 선택 핸들러
+  const handleSuggestionSelect = useCallback((suggestion: {type: 'product' | 'barcode', value: string, display: string}) => {
+    setSearchKeyword(suggestion.value);
+    setShowSuggestions(false);
+    setAppliedSearchKeyword(suggestion.value); // 바로 검색 실행
+    setCurrentPage(1);
+  }, []);
+
+  // 🛠️ 검색 함수 - appliedSearchKeyword 업데이트 후 applyAllFilters 호출
   const handleSearch = useCallback(() => {
-    applyAllFilters();
-  }, [applyAllFilters]);
+    setAppliedSearchKeyword(searchKeyword); // 현재 입력된 검색어를 적용된 검색어로 설정
+    setCurrentPage(1); // 검색 시 첫 페이지로 이동
+    setShowSuggestions(false); // 제안 목록 숨김
+    // appliedSearchKeyword가 변경되면 useEffect에서 applyAllFilters가 호출됨
+  }, [searchKeyword]);
 
   // 🛠️ 4단계 최적화: 키 입력 핸들러 캐싱
   const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -1028,6 +1313,53 @@ function ProductListPage() {
     }
   }, [selectedItems]);
 
+  // 전체 데이터 삭제 핸들러
+  const handleDeleteAllData = async () => {
+    const confirmMessage = '정말로 모든 상품 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.';
+    
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      // 현재 로그인한 사용자 ID 가져오기
+      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      const userId = currentUser.id || currentUser.user_id;
+      
+      if (!userId) {
+        alert('로그인 정보를 찾을 수 없습니다.');
+        return;
+      }
+
+      // extract_coupang_item_all 테이블에서 해당 user_id 데이터 삭제
+      const { error } = await supabase
+        .from('extract_coupang_item_all')
+        .delete()
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error('데이터 삭제 실패:', error);
+        alert('데이터 삭제 중 오류가 발생했습니다.');
+        return;
+      }
+
+      // 성공 시 로컬 상태 초기화
+      setData([]);
+      setFilteredData([]);
+      setSelectedItems([]);
+      setSelectAll(false);
+      
+      alert('모든 상품 데이터가 성공적으로 삭제되었습니다.');
+      
+      // 데이터 다시 로드 (빈 상태 확인)
+      await loadProductsFromDB();
+      
+    } catch (error) {
+      console.error('전체 삭제 실패:', error);
+      alert('데이터 삭제 중 오류가 발생했습니다.');
+    }
+  };
+
   const handleExcelUpload = () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -1043,8 +1375,7 @@ function ProductListPage() {
             }
           });
           await loadProductsFromDB();
-          // 🆕 검색 상태 보존
-          preserveSearchState();
+          // 검색 상태는 useEffect에서 자동으로 보존됨
           alert('상품등록 엑셀 업로드가 완료되었습니다.');
         } catch (error) {
           console.error('엑셀 업로드 실패:', error);
@@ -1073,14 +1404,50 @@ function ProductListPage() {
             }
           });
           await loadRocketInventoryOptionIds();
-          // 🆕 검색 상태 보존
-          preserveSearchState();
+          // 검색 상태는 useEffect에서 자동으로 보존됨
           alert('로켓그로스 xlsx 업로드가 완료되었습니다.');
         } catch (error) {
           console.error('로켓그로스 업로드 실패:', error);
           alert('로켓그로스 업로드 중 오류가 발생했습니다.');
         } finally {
           setIsUploadingRocketInventory(false);
+          setProductInfoProgress(null);
+        }
+      }
+    };
+    input.click();
+  };
+
+  const handleSalesExcelUpload = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.xlsx,.xls';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        setIsLoadingSalesExcel(true);
+        try {
+          const result = await processSalesExcelUpload(file, (stage, current, total) => {
+            if (current !== undefined && total !== undefined) {
+              setProductInfoProgress({ current, total, message: stage });
+            }
+          });
+          
+          if (result.success) {
+            alert(`판매량 xlsx 업로드가 완료되었습니다.\n처리된 데이터: ${result.processedCount}개`);
+            console.log('📊 판매량 엑셀 업로드 성공:', {
+              파일명: file.name,
+              처리된행수: result.processedCount,
+              전체행수: result.totalRows
+            });
+          } else {
+            throw new Error(result.error || '업로드 실패');
+          }
+        } catch (error) {
+          console.error('판매량 엑셀 업로드 실패:', error);
+          alert(`판매량 엑셀 업로드 중 오류가 발생했습니다.\n${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+        } finally {
+          setIsLoadingSalesExcel(false);
           setProductInfoProgress(null);
         }
       }
@@ -1103,8 +1470,7 @@ function ProductListPage() {
         setProductInfoProgress({ current, total, message });
       });
       await loadProductsFromDB();
-      // 🆕 검색 상태 보존
-      preserveSearchState();
+      // 검색 상태는 useEffect에서 자동으로 보존됨
       alert('로켓그로스 API 로드가 완료되었습니다.');
     } catch (error) {
       console.error('로켓그로스 API 로드 실패:', error);
@@ -1130,8 +1496,7 @@ function ProductListPage() {
         setProductInfoProgress({ current, total, message });
       });
       await loadProductsFromDB();
-      // 🆕 검색 상태 보존
-      preserveSearchState();
+      // 검색 상태는 useEffect에서 자동으로 보존됨
       alert('일반 API 로드가 완료되었습니다.');
     } catch (error) {
       console.error('일반 API 로드 실패:', error);
@@ -1182,10 +1547,15 @@ function ProductListPage() {
   };
 
   const handleInputChange = (cellId: string, value: string) => {
-    setInputValues(prev => ({
-      ...prev,
+    const newInputValues = {
+      ...inputValues,
       [cellId]: value
-    }));
+    };
+    
+    setInputValues(newInputValues);
+    
+    // localStorage에 저장
+    localStorage.setItem('productInputValues', JSON.stringify(newInputValues));
   };
 
   const handleInputBlur = useCallback(async () => {
@@ -1218,34 +1588,18 @@ function ProductListPage() {
     }
   }, [getCurrentPageData]);
 
-  // 🆕 Enter 키 입력 시 저장 및 다음 셀로 이동
+  // 🆕 Enter 키 입력 시 다음 셀로 이동 (메모리에만 저장)
   const handleEnterKeyAndSave = useCallback(async (e: React.KeyboardEvent<HTMLInputElement>, row: TableRow, cellId: string, currentRowIndex: number) => {
     if (e.key === 'Enter') {
-      const inputValue = inputValues[cellId] || '';
-      const quantity = parseFloat(inputValue);
-      
-      // 유효한 숫자이고 0보다 큰 경우에만 저장
-      if (inputValue.trim() && !isNaN(quantity) && quantity > 0) {
-        await saveToCart(row, quantity);
-      }
-      
-      // 다음 행으로 이동
+      // 다음 행으로 이동만 (DB 저장 안함)
       handleInputKeyPress(e, currentRowIndex);
     }
-  }, [inputValues, saveToCart, handleInputKeyPress]);
+  }, [handleInputKeyPress]);
 
-  // 🆕 Blur 시 저장
+  // 🆕 Blur 시 메모리에만 저장 (DB 저장 안함)
   const handleBlurAndSave = useCallback(async (row: TableRow, cellId: string) => {
-    const inputValue = inputValues[cellId] || '';
-    const quantity = parseFloat(inputValue);
-    
-    // 유효한 숫자이고 0보다 큰 경우에만 저장
-    if (inputValue.trim() && !isNaN(quantity) && quantity > 0) {
-      await saveToCart(row, quantity);
-    }
-    
     setEditingCell(null);
-  }, [inputValues, saveToCart]);
+  }, []);
 
   // 상품명 클릭 시 쿠팡 링크로 이동
   const handleProductNameClick = (productId: string, optionId?: string) => {
@@ -1257,17 +1611,32 @@ function ProductListPage() {
 
   // 🚀 컴포넌트 마운트 시 데이터 로드 + 🧹 메모리 누수 방지
   useEffect(() => {
-    console.log('🔄 ProductListPage 컴포넌트 마운트됨 - 초기 데이터 로딩 시작...');
     loadProductsFromDB();
     loadRocketInventoryOptionIds();
     loadItemViewsData();
     // 🆕 사입상태 데이터 로드 추가
     loadOrderQuantityData();
+    // 🆕 쿠팡 판매량 데이터 로드 추가
+    loadCoupangSalesData();
+    // 🆕 창고재고 데이터 로드 추가
+    loadWarehouseStockData();
+    // 🆕 조회수 데이터 로드 추가
+    loadViewsData();
+    
+    // localStorage에서 입력값 복구
+    const savedInputValues = localStorage.getItem('productInputValues');
+    if (savedInputValues) {
+      try {
+        const parsedValues = JSON.parse(savedInputValues);
+        setInputValues(parsedValues);
+      } catch (error) {
+        console.error('localStorage 데이터 복구 실패:', error);
+        localStorage.removeItem('productInputValues');
+      }
+    }
     
     // 🧹 cleanup 함수: 컴포넌트 언마운트 시 메모리 정리
     return () => {
-      console.log('🧹 ProductListPage 컴포넌트 언마운트 - 메모리 정리 중...');
-      
       // 타이머 정리
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
@@ -1487,6 +1856,50 @@ function ProductListPage() {
     }
   };
 
+  // 🆕 창고재고 디버깅 함수
+  const debugWarehouseStock = () => {
+    console.log('🔍 [창고재고 디버깅] ===== 창고재고 데이터 상태 =====');
+    console.log('1. warehouseStockData 상태:', {
+      총개수: Object.keys(warehouseStockData).length,
+      전체데이터: warehouseStockData,
+      샘플키: Object.keys(warehouseStockData).slice(0, 20)
+    });
+    
+    console.log('2. 현재 제품 바코드 상태:', {
+      제품수: data.length,
+      바코드있는제품수: data.filter(item => item.barcode).length,
+      샘플: data.slice(0, 5).map(item => ({
+        상품명: item.item_name,
+        바코드: item.barcode,
+        매칭여부: item.barcode ? warehouseStockData[item.barcode] !== undefined : false,
+        재고: item.barcode ? warehouseStockData[item.barcode] : null
+      }))
+    });
+    
+    // 특정 바코드 테스트
+    const testBarcode = 'S0026693082112';
+    console.log(`3. 테스트 바코드 ${testBarcode}:`, {
+      제품에존재: data.some(item => item.barcode === testBarcode),
+      창고재고에존재: testBarcode in warehouseStockData,
+      재고값: warehouseStockData[testBarcode]
+    });
+    
+    // 매칭 성공한 바코드 찾기
+    const matchedBarcodes = data.filter(item => 
+      item.barcode && warehouseStockData[item.barcode] !== undefined
+    );
+    console.log('4. 매칭 성공한 바코드:', {
+      개수: matchedBarcodes.length,
+      샘플: matchedBarcodes.slice(0, 5).map(item => ({
+        상품명: item.item_name,
+        바코드: item.barcode,
+        재고: warehouseStockData[item.barcode]
+      }))
+    });
+    
+    return { warehouseStockData, data };
+  };
+
   // 🆕 데이터 흐름 전체 디버깅 함수
   const debugDataFlow = () => {
     console.log('🔍 [데이터흐름] ===== 전체 데이터 흐름 디버깅 =====');
@@ -1530,33 +1943,90 @@ function ProductListPage() {
     console.log('🔍 [데이터흐름] ===== 디버깅 완료 =====');
   };
 
-  // window 객체에 디버깅 함수들 추가 (브라우저 콘솔에서 호출 가능)
-  useEffect(() => {
-    (window as any).debugSearchRivedi = debugSearchRivedi;
-    (window as any).debugDataState = debugDataState;
-    (window as any).debugOptionCounts = debugOptionCounts;
-    (window as any).debugMemoryData = debugMemoryData;
-    (window as any).debugDataFlow = debugDataFlow;
-    
-    console.log('🔧 [디버깅] 디버깅 함수들이 window 객체에 추가되었습니다.');
-    console.log('🔧 [디버깅] 브라우저 콘솔에서 debugDataFlow() 를 호출하여 전체 데이터 흐름을 확인하세요.');
-    
-    // cleanup 함수
-    return () => {
-      delete (window as any).debugSearchRivedi;
-      delete (window as any).debugDataState;
-      delete (window as any).debugOptionCounts;
-      delete (window as any).debugMemoryData;
-      delete (window as any).debugDataFlow;
-    };
-  }, [data, filteredData, transformedData, searchKeyword, sortFilter, rocketInventoryOptionIds]);
 
-  // 🆕 필터 조건 변경 시 자동 필터링 적용 (searchKeyword 추가)
+
+  // 🆕 필터 조건 변경 시 자동 필터링 적용 (순환 의존성 방지를 위해 직접 구현)
   useEffect(() => {
-    if (data.length > 0) {
-      applyAllFilters();
+    if (data.length === 0) return;
+
+    // console.log('🔍 [디버깅] ===== 필터링 시작 =====');
+    // console.log('🔍 [디버깅] 원본 데이터 개수:', data.length);
+    // console.log('🔍 [디버깅] 적용된 검색어:', `"${appliedSearchKeyword}"`);
+    
+    let filtered = [...data];
+    
+    // 1. 검색 키워드 필터링 (여러개 검색 지원)
+    if (appliedSearchKeyword.trim()) {
+      const keywords = appliedSearchKeyword
+        .split(/[,\n\s]+/) // 콤마, 줄바꿈, 공백으로 분리
+        .map(k => k.trim())
+        .filter(k => k.length > 0)
+        .slice(0, 100);
+      
+      filtered = filtered.filter(item => {
+        return keywords.some(keyword => {
+          const lowerKeyword = keyword.toLowerCase();
+          
+          switch (searchFilter) {
+            case '상품명':
+              const itemName = (item.item_name || '').toLowerCase();
+              const optionName = (item.option_name || '').toLowerCase();
+              const productName = (item.product_name || '').toLowerCase();
+              const combinedName = `${itemName} ${optionName}`.toLowerCase();
+              return itemName.includes(lowerKeyword) || 
+                     optionName.includes(lowerKeyword) || 
+                     combinedName.includes(lowerKeyword) ||
+                     productName.includes(lowerKeyword);
+            
+            case '옵션id':
+              const optionId = String(item.option_id || '');
+              return optionId.includes(keyword);
+            
+            case '바코드':
+              const barcode = (item.barcode || '').toLowerCase();
+              return barcode.includes(lowerKeyword);
+            
+            default:
+              return false;
+          }
+        });
+      });
     }
-  }, [data, searchKeyword, selectedCategory, selectedExposure, selectedSaleStatus, sortFilter, rocketInventoryOptionIds, applyAllFilters]);
+    
+    // 카테고리 필터링 제거됨 (검색필터로 대체)
+    
+    // 3. 노출상태 필터링
+    if (selectedExposure !== '전체') {
+      filtered = filtered.filter(item => item.status === selectedExposure);
+    }
+    
+    // 4. 판매상태 필터링
+    if (selectedSaleStatus !== '전체') {
+      filtered = filtered.filter(item => item.sales_status === selectedSaleStatus);
+    }
+    
+    // 5. 판매방식 필터링
+    if (sortFilter === '일반판매') {
+      filtered = filtered.filter(item => !rocketInventoryOptionIds.has(String(item.option_id)));
+    } else if (sortFilter === '로켓그로스') {
+      filtered = filtered.filter(item => rocketInventoryOptionIds.has(String(item.option_id)));
+    } else if (sortFilter === '사입보기') {
+      filtered = filtered.filter(item => {
+        const isRocketGrowth = rocketInventoryOptionIds.has(String(item.option_id));
+        if (isRocketGrowth) return true;
+        return false; // 일단 간단하게 처리
+      });
+    }
+    
+    // console.log('🔍 [디버깅] 필터링 완료:', filtered.length + '개');
+    setFilteredData(filtered);
+    
+    // 페이지 초기화
+    if (selectedExposure !== '전체' || selectedSaleStatus !== '전체' || sortFilter !== '전체' || appliedSearchKeyword.trim()) {
+      setCurrentPage(1);
+      // console.log('🔍 [디버깅] 페이지를 1페이지로 초기화');
+    }
+  }, [data, searchFilter, selectedExposure, selectedSaleStatus, sortFilter, appliedSearchKeyword, rocketInventoryOptionIds]);
 
   // 🛠️ 4단계 최적화: 페이지네이션 계산 캐싱 (캐싱된 데이터 사용)
   const totalPages = useMemo(() => {
@@ -1575,19 +2045,47 @@ function ProductListPage() {
         <h1 className="product-list-page-title">상품 조회/수정</h1>
       </div>
 
+      {/* API 버튼들을 카드 위에 배치 */}
+      <div className="product-list-api-buttons">
+        <button
+          onClick={handleApiLoad2}
+          disabled={isLoadingApi2}
+          className="product-list-button product-list-button-primary"
+        >
+          {isLoadingApi2 ? '처리 중...' : '쿠팡일반 api'}
+        </button>
+
+        <button
+          onClick={handleNormalApiLoad}
+          disabled={isLoadingNormalApi}
+          className="product-list-button product-list-button-orange"
+        >
+          {isLoadingNormalApi ? '처리 중...' : '로켓그로스 api'}
+        </button>
+      </div>
+
       {/* 통계 카드 섹션 */}
-      <div className="product-list-stats-grid">
-        <DashboardStatsCard title="전체" value={stats.total} color="default" />
-        <DashboardStatsCard title="아이템파너 아님" value={stats.notItemPartner} hasInfo={true} subtitle="쿠팡 배송 성장 20% 상품 中" color="orange" />
-        <DashboardStatsCard title="품절" value={stats.outOfStock} color="red" />
-        <DashboardStatsCard title="승인반려" value={stats.rejected} hasInfo={true} color="red" />
-        <DashboardStatsCard title="판매중" value={stats.selling} color="blue" />
-        <DashboardStatsCard title="임시저장" value={stats.tempSave} color="default" />
+      <div className="product-list-stats-section">
+        <div className="product-list-stats-grid">
+          <DashboardStatsCard title="전체" value={stats.total} color="default" />
+          <DashboardStatsCard title="아이템파너 아님" value={stats.notItemPartner} hasInfo={true} subtitle="쿠팡 배송 성장 20% 상품 中" color="orange" />
+          <DashboardStatsCard title="품절" value={stats.outOfStock} color="red" />
+          <DashboardStatsCard title="승인반려" value={stats.rejected} hasInfo={true} color="red" />
+          <DashboardStatsCard title="판매중" value={stats.selling} color="blue" />
+          <DashboardStatsCard title="임시저장" value={stats.tempSave} color="default" />
+        </div>
       </div>
 
       {/* 상단 액션 버튼 섹션 */}
       <div className="product-list-top-actions-section">
         <div className="product-list-top-actions-buttons">
+          <button
+            onClick={handleDeleteAllData}
+            className="product-list-button product-list-button-danger"
+          >
+            전체삭제
+          </button>
+          
           <button
             onClick={handleExcelUpload}
             disabled={isLoadingApi}
@@ -1597,19 +2095,11 @@ function ProductListPage() {
           </button>
           
           <button
-            onClick={handleApiLoad2}
-            disabled={isLoadingApi2}
-            className="product-list-button product-list-button-primary"
+            onClick={handleSalesExcelUpload}
+            disabled={isLoadingSalesExcel}
+            className="product-list-button product-list-button-success"
           >
-            {isLoadingApi2 ? '처리 중...' : '쿠팡일반 api'}
-          </button>
-
-          <button
-            onClick={handleNormalApiLoad}
-            disabled={isLoadingNormalApi}
-            className="product-list-button product-list-button-orange"
-          >
-            {isLoadingNormalApi ? '처리 중...' : '로켓그로스 api'}
+            {isLoadingSalesExcel ? '업로드 중...' : '판매량 xlsx'}
           </button>
           
           <button
@@ -1636,6 +2126,7 @@ function ProductListPage() {
               <option value="전체">전체</option>
               <option value="로켓그로스">로켓그로스</option>
               <option value="일반판매">일반판매</option>
+              <option value="사입보기">사입보기</option>
             </select>
           </div>
 
@@ -1670,28 +2161,32 @@ function ProductListPage() {
             </select>
           </div>
 
-          {/* 카테고리 (마지막으로 이동) */}
+          {/* 검색필터 */}
           <div>
-            <label className="product-list-label">카테고리</label>
+            <label className="product-list-label">검색필터</label>
             <select 
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
               className="product-list-select"
             >
-              <option value="전체">전체</option>
+              <option value="상품명">상품명</option>
+              <option value="옵션id">옵션id</option>
+              <option value="바코드">바코드</option>
             </select>
           </div>
 
           {/* 검색창 */}
-          <div className="product-list-search-container">
+          <div className="product-list-search-container" style={{ position: 'relative' }}>
             <label className="product-list-label">검색</label>
             <div className="product-list-search-wrapper">
               <input
                 type="text"
                 value={searchKeyword}
-                onChange={(e) => setSearchKeyword(e.target.value)}
+                onChange={(e) => handleSearchKeywordChange(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="등록상품명으로 검색... (Enter 키로 검색)"
+                onFocus={() => searchKeyword.length >= 2 && setShowSuggestions(searchSuggestions.length > 0)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} // 지연으로 클릭 이벤트 허용
+                placeholder="콤마, 공백, 줄바꿈으로 여러개 검색 가능 (최대 100개)"
                 className="product-list-search-input"
               />
               <button 
@@ -1700,6 +2195,59 @@ function ProductListPage() {
               >
                 🔍
               </button>
+              
+              {/* 검색 자동완성 드롭다운 */}
+              {showSuggestions && searchSuggestions.length > 0 && (
+                <div 
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    backgroundColor: 'white',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '4px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    zIndex: 1000
+                  }}
+                >
+                  {searchSuggestions.map((suggestion, index) => (
+                    <div
+                      key={`${suggestion.type}-${index}`}
+                      onClick={() => handleSuggestionSelect(suggestion)}
+                      style={{
+                        padding: '8px 12px',
+                        cursor: 'pointer',
+                        borderBottom: index < searchSuggestions.length - 1 ? '1px solid #f3f4f6' : 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        fontSize: '14px'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                    >
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          padding: '2px 6px',
+                          borderRadius: '3px',
+                          fontSize: '12px',
+                          marginRight: '8px',
+                          backgroundColor: suggestion.type === 'product' ? '#dbeafe' : '#fef3c7',
+                          color: suggestion.type === 'product' ? '#1e40af' : '#92400e'
+                        }}
+                      >
+                        {suggestion.type === 'product' ? '상품' : '바코드'}
+                      </span>
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {suggestion.display}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1868,7 +2416,10 @@ function ProductListPage() {
                     {renderOrderQuantity(row)}
                   </td>
                   <td className="product-list-table-cell">-</td>
-                  <td className="product-list-table-cell">-</td>
+                  <td className="product-list-table-cell">
+                    {/* 🆕 기간 열: 쿠팡 판매량 데이터 표시 */}
+                    {renderPeriodSales(row)}
+                  </td>
                   <td className="product-list-table-cell">
                     {render7DaysSales(row)}
                   </td>
@@ -1878,29 +2429,32 @@ function ProductListPage() {
                   <td className="product-list-table-cell">
                     {renderRecommendedQuantity(row)}
                   </td>
-                  <td className="product-list-table-cell">-</td>
+                  <td className="product-list-table-cell">
+                    {/* 🆕 창고재고: 바코드별 재고 합계 표시 */}
+                    {renderWarehouseStock(row)}
+                  </td>
                   <td className="product-list-table-cell">
                     {renderStorageFee(row)}
                   </td>
-                  <td className="product-list-table-cell" style={{ color: getViewCountColor(itemViewsData[row.item_id]?.[0], undefined, true) }}>
-                    {/* 🔄 view1: 항상 검은색 */}
-                    {itemViewsData[row.item_id]?.[0] || '-'}
+                  <td className="product-list-table-cell" style={{ color: getViewCountColor(viewsDataByDate[0]?.[row.item_id], undefined, true) }}>
+                    {/* 🔄 view1: 가장 오래된 날짜 데이터 */}
+                    {viewsDataByDate[0]?.[row.item_id] || '-'}
                   </td>
-                  <td className="product-list-table-cell" style={{ color: getViewCountColor(itemViewsData[row.item_id]?.[1], itemViewsData[row.item_id]?.[0], false) }}>
+                  <td className="product-list-table-cell" style={{ color: getViewCountColor(viewsDataByDate[1]?.[row.item_id], viewsDataByDate[0]?.[row.item_id], false) }}>
                     {/* 🔄 view2: view1과 비교 */}
-                    {itemViewsData[row.item_id]?.[1] || '-'}
+                    {viewsDataByDate[1]?.[row.item_id] || '-'}
                   </td>
-                  <td className="product-list-table-cell" style={{ color: getViewCountColor(itemViewsData[row.item_id]?.[2], itemViewsData[row.item_id]?.[1], false) }}>
+                  <td className="product-list-table-cell" style={{ color: getViewCountColor(viewsDataByDate[2]?.[row.item_id], viewsDataByDate[1]?.[row.item_id], false) }}>
                     {/* 🔄 view3: view2와 비교 */}
-                    {itemViewsData[row.item_id]?.[2] || '-'}
+                    {viewsDataByDate[2]?.[row.item_id] || '-'}
                   </td>
-                  <td className="product-list-table-cell" style={{ color: getViewCountColor(itemViewsData[row.item_id]?.[3], itemViewsData[row.item_id]?.[2], false) }}>
+                  <td className="product-list-table-cell" style={{ color: getViewCountColor(viewsDataByDate[3]?.[row.item_id], viewsDataByDate[2]?.[row.item_id], false) }}>
                     {/* 🔄 view4: view3과 비교 */}
-                    {itemViewsData[row.item_id]?.[3] || '-'}
+                    {viewsDataByDate[3]?.[row.item_id] || '-'}
                   </td>
-                  <td className="product-list-table-cell" style={{ color: getViewCountColor(itemViewsData[row.item_id]?.[4], itemViewsData[row.item_id]?.[3], false) }}>
-                    {/* 🔄 view5: view4와 비교 */}
-                    {itemViewsData[row.item_id]?.[4] || '-'}
+                  <td className="product-list-table-cell" style={{ color: getViewCountColor(viewsDataByDate[4]?.[row.item_id], viewsDataByDate[3]?.[row.item_id], false) }}>
+                    {/* 🔄 view5: view4와 비교 (가장 최근 날짜) */}
+                    {viewsDataByDate[4]?.[row.item_id] || '-'}
                   </td>
                   <td className="product-list-table-cell">-</td>
                   <td className="product-list-table-cell" style={{ textAlign: 'right', fontWeight: '600', color: '#000000' }}>

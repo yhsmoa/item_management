@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../config/supabase';
+import * as XLSX from 'xlsx';
 import '../../features/products/ProductListPage.css';
 
 /**
@@ -10,7 +11,9 @@ import '../../features/products/ProductListPage.css';
 function StockManagement() {
   // State 정의
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [locationSearchKeyword, setLocationSearchKeyword] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('전체');
+  const [searchCategory, setSearchCategory] = useState('바코드');
   const [isLoading, setIsLoading] = useState(false);
   
   // 재고 데이터
@@ -26,7 +29,11 @@ function StockManagement() {
 
   // 페이지네이션
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 50;
+  const [itemsPerPage, setItemsPerPage] = useState(100); // 기본 100개로 증가
+  
+  // 정렬 관련 state
+  const [sortField, setSortField] = useState<string>('location'); // 위치, 상품명, 재고, 비고
+  const [sortOrder, setSortOrder] = useState<string>('asc'); // 오름차순, 내림차순
 
   // 컴포넌트 마운트 시 데이터 로드 + 🧹 메모리 누수 방지
   useEffect(() => {
@@ -71,7 +78,7 @@ function StockManagement() {
     }
   };
 
-  // 재고 데이터 로드 (Supabase에서)
+  // 재고 데이터 로드 (Supabase에서 - 청크 방식으로 모든 데이터 가져오기)
   const loadStockData = async () => {
     const userId = await getCurrentUserId();
     if (!userId) {
@@ -83,19 +90,42 @@ function StockManagement() {
     try {
       setIsLoading(true);
       
-      const { data, error } = await supabase
-        .from('stocks_management')
-        .select('*')
-        .eq('user_id', userId)
-        .order('id', { ascending: false });
+      let allData: any[] = [];
+      let hasMore = true;
+      let offset = 0;
+      const batchSize = 1000; // 한번에 1000개씩 가져오기
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('stocks_management')
+          .select('*')
+          .eq('user_id', userId)
+          .order('id', { ascending: false })
+          .range(offset, offset + batchSize - 1);
 
-      if (error) {
-        return;
+        if (error) {
+          console.error('데이터 로드 오류:', error);
+          break;
+        }
+
+        if (data && data.length > 0) {
+          allData = [...allData, ...data];
+          offset += batchSize;
+          
+          // 가져온 데이터가 배치 크기보다 작으면 더 이상 데이터가 없음
+          if (data.length < batchSize) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
       }
 
-      setStockData(data || []);
-      setFilteredStockData(data || []);
+      console.log(`✅ 총 ${allData.length}개의 재고 데이터를 로드했습니다.`);
+      setStockData(allData);
+      setFilteredStockData(allData);
     } catch (error) {
+      console.error('데이터 로드 중 오류:', error);
     } finally {
       setIsLoading(false);
     }
@@ -103,17 +133,44 @@ function StockManagement() {
 
   // 검색 핸들러
   const handleSearch = async () => {
-    if (!searchKeyword.trim()) {
-      setFilteredStockData(stockData);
-      setCurrentPage(1);
-      return;
+    let filtered = stockData;
+
+    // 검색 카테고리별 검색
+    if (searchKeyword.trim()) {
+      const searchLower = searchKeyword.toLowerCase().trim();
+      
+      switch (searchCategory) {
+        case '바코드':
+          filtered = filtered.filter(stock => 
+            stock.barcode?.toLowerCase().includes(searchLower)
+          );
+          break;
+        case '상품명':
+          filtered = filtered.filter(stock => 
+            stock.item_name?.toLowerCase().includes(searchLower)
+          );
+          break;
+        case '비고':
+          filtered = filtered.filter(stock => 
+            stock.note?.toLowerCase().includes(searchLower)
+          );
+          break;
+        default:
+          // 기본적으로 상품명과 바코드 모두 검색
+          filtered = filtered.filter(stock => 
+            stock.item_name?.toLowerCase().includes(searchLower) ||
+            stock.barcode?.toLowerCase().includes(searchLower)
+          );
+      }
     }
 
-    const searchLower = searchKeyword.toLowerCase().trim();
-    const filtered = stockData.filter(stock => 
-      stock.item_name?.toLowerCase().includes(searchLower) ||
-      stock.barcode?.toLowerCase().includes(searchLower)
-    );
+    // 위치 검색
+    if (locationSearchKeyword.trim()) {
+      const locationLower = locationSearchKeyword.toLowerCase().trim();
+      filtered = filtered.filter(stock => 
+        stock.location?.toLowerCase().includes(locationLower)
+      );
+    }
     
     setFilteredStockData(filtered);
     setCurrentPage(1);
@@ -125,18 +182,64 @@ function StockManagement() {
     }
   };
 
+  const handleLocationKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
+
   // 페이지네이션
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
 
+  // 정렬된 데이터 가져오기
+  const getSortedData = () => {
+    const sortedData = [...filteredStockData].sort((a, b) => {
+      let aValue = '';
+      let bValue = '';
+      
+      switch(sortField) {
+        case 'location':
+          aValue = a.location || '';
+          bValue = b.location || '';
+          break;
+        case 'item_name':
+          aValue = a.item_name || '';
+          bValue = b.item_name || '';
+          break;
+        case 'stock':
+          const aStock = parseInt(a.stock) || 0;
+          const bStock = parseInt(b.stock) || 0;
+          return sortOrder === 'asc' ? aStock - bStock : bStock - aStock;
+        case 'note':
+          aValue = a.note || '';
+          bValue = b.note || '';
+          break;
+        default:
+          return 0;
+      }
+      
+      // 문자열 비교
+      if (sortOrder === 'asc') {
+        return aValue.localeCompare(bValue);
+      } else {
+        return bValue.localeCompare(aValue);
+      }
+    });
+    
+    return sortedData;
+  };
+  
   const getCurrentPageData = () => {
+    const sortedData = getSortedData();
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
-    return filteredStockData.slice(startIndex, endIndex);
+    return sortedData.slice(startIndex, endIndex);
   };
 
-  const totalPages = Math.ceil(filteredStockData.length / itemsPerPage);
+  const sortedData = getSortedData();
+  const totalPages = Math.ceil(sortedData.length / itemsPerPage);
   const currentData = getCurrentPageData();
 
   // 체크박스 선택 핸들러
@@ -181,7 +284,7 @@ function StockManagement() {
   };
 
   // 편집 완료 (blur 또는 Enter)
-  const handleEditComplete = async (cellId: string, stockId: number, field: 'stock' | 'location') => {
+  const handleEditComplete = async (cellId: string, stockId: number, field: 'stock' | 'location' | 'item_name' | 'note') => {
     const newValue = editValues[cellId];
     if (!newValue) return;
 
@@ -203,6 +306,10 @@ function StockManagement() {
         updateData.stock = stockValue;
       } else if (field === 'location') {
         updateData.location = newValue.trim();
+      } else if (field === 'item_name') {
+        updateData.item_name = newValue.trim();
+      } else if (field === 'note') {
+        updateData.note = newValue.trim();
       }
 
       const { error } = await supabase
@@ -234,13 +341,58 @@ function StockManagement() {
   };
 
   // Enter 키 처리 (편집용)
-  const handleEditKeyPress = (e: React.KeyboardEvent<HTMLInputElement>, cellId: string, stockId: number, field: 'stock' | 'location') => {
+  const handleEditKeyPress = (e: React.KeyboardEvent<HTMLInputElement>, cellId: string, stockId: number, field: 'stock' | 'location' | 'item_name' | 'note') => {
     if (e.key === 'Enter') {
       handleEditComplete(cellId, stockId, field);
     }
   };
 
-  // 선택된 항목들 삭제
+  // XLSX 다운로드 핸들러
+  const handleDownloadXLSX = () => {
+    // 선택된 항목이 있으면 선택된 데이터만, 없으면 검색 결과 전체
+    const dataToDownload = selectedItems.length > 0 
+      ? getCurrentPageData().filter(item => selectedItems.includes(item.id))
+      : getSortedData();
+
+    if (dataToDownload.length === 0) {
+      alert('다운로드할 데이터가 없습니다.');
+      return;
+    }
+
+    // 엑셀 데이터 준비
+    const excelData = [
+      ['위치', '바코드', '상품명', '재고', '비고'], // 헤더
+      ...dataToDownload.map(stock => [
+        stock.location || '',
+        stock.barcode || '',
+        stock.item_name || '',
+        stock.stock || 0,
+        stock.note || ''
+      ])
+    ];
+
+    // 워크북 생성
+    const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, '재고관리');
+
+    // 파일명 생성 (현재 날짜 포함)
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
+    const filename = `재고관리_${dateStr}_${timeStr}.xlsx`;
+
+    // 다운로드
+    XLSX.writeFile(workbook, filename);
+  };
+
+  // XLSX 수정 핸들러 (기능은 추후 구현)
+  const handleEditXLSX = () => {
+    // 추후 기능 구현 예정
+    alert('XLSX 수정 기능은 추후 구현될 예정입니다.');
+  };
+
+  // 선택된 항목들 삭제 (청크 단위로 처리)
   const handleDeleteSelected = async () => {
     if (selectedItems.length === 0) {
       alert('삭제할 항목을 선택해주세요.');
@@ -258,15 +410,26 @@ function StockManagement() {
     }
 
     try {
-      const { error } = await supabase
-        .from('stocks_management')
-        .delete()
-        .in('id', selectedItems)
-        .eq('user_id', userId);
+      const CHUNK_SIZE = 50; // 한번에 50개씩 삭제
+      let deletedCount = 0;
+      let errorCount = 0;
 
-      if (error) {
-        alert('삭제 중 오류가 발생했습니다.');
-        return;
+      // 선택된 항목들을 청크로 나누어 삭제
+      for (let i = 0; i < selectedItems.length; i += CHUNK_SIZE) {
+        const chunk = selectedItems.slice(i, i + CHUNK_SIZE);
+        
+        const { error } = await supabase
+          .from('stocks_management')
+          .delete()
+          .in('id', chunk)
+          .eq('user_id', userId);
+
+        if (error) {
+          console.error('청크 삭제 오류:', error);
+          errorCount += chunk.length;
+        } else {
+          deletedCount += chunk.length;
+        }
       }
 
       // 데이터 다시 로드
@@ -275,8 +438,13 @@ function StockManagement() {
       // 선택 해제
       setSelectedItems([]);
       
-      alert(`${selectedItems.length}개 항목이 삭제되었습니다.`);
+      if (errorCount > 0) {
+        alert(`삭제 완료: ${deletedCount}개 성공, ${errorCount}개 실패`);
+      } else {
+        alert(`${deletedCount}개 항목이 삭제되었습니다.`);
+      }
     } catch (err) {
+      console.error('삭제 중 예외:', err);
       alert('삭제 중 오류가 발생했습니다.');
     }
   };
@@ -290,7 +458,7 @@ function StockManagement() {
 
       {/* 검색 및 필터 섹션 */}
       <div className="product-list-filter-section">
-        <div className="product-list-filter-grid-improved">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '16px', alignItems: 'end' }}>
           {/* 카테고리 */}
           <div>
             <label className="product-list-label">카테고리</label>
@@ -306,22 +474,40 @@ function StockManagement() {
             </select>
           </div>
 
-          {/* 재고 상태 */}
+          {/* 검색 카테고리 */}
           <div>
-            <label className="product-list-label">재고 상태</label>
+            <label className="product-list-label">검색 카테고리</label>
             <select 
               className="product-list-select"
+              value={searchCategory}
+              onChange={(e) => setSearchCategory(e.target.value)}
             >
-              <option value="전체">전체</option>
-              <option value="정상">정상</option>
-              <option value="부족">부족</option>
-              <option value="과다">과다</option>
+              <option value="바코드">바코드</option>
+              <option value="상품명">상품명</option>
+              <option value="비고">비고</option>
             </select>
           </div>
 
-          {/* 빈 공간 */}
-          <div></div>
-          <div></div>
+          {/* 위치 검색 */}
+          <div className="product-list-search-container">
+            <label className="product-list-label">자리검색</label>
+            <div className="product-list-search-wrapper">
+              <input
+                type="text"
+                value={locationSearchKeyword}
+                onChange={(e) => setLocationSearchKeyword(e.target.value)}
+                onKeyPress={handleLocationKeyPress}
+                placeholder="위치를 입력하세요..."
+                className="product-list-search-input"
+              />
+              <button 
+                onClick={handleSearch}
+                className="product-list-search-button"
+              >
+                🔍
+              </button>
+            </div>
+          </div>
 
           {/* 검색창 */}
           <div className="product-list-search-container">
@@ -332,7 +518,7 @@ function StockManagement() {
                 value={searchKeyword}
                 onChange={(e) => setSearchKeyword(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="상품명 또는 SKU를 입력하세요..."
+                placeholder={`${searchCategory}를 입력하세요...`}
                 className="product-list-search-input"
               />
               <button 
@@ -346,23 +532,106 @@ function StockManagement() {
         </div>
       </div>
 
+      {/* 정렬 및 페이지당 개수 선택 */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        {/* 정렬 옵션 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <label style={{ fontSize: '14px', color: '#6b7280' }}>정렬:</label>
+          <select 
+            value={sortField}
+            onChange={(e) => setSortField(e.target.value)}
+            style={{
+              padding: '4px 8px',
+              border: '1px solid #d1d5db',
+              borderRadius: '4px',
+              fontSize: '14px'
+            }}
+          >
+            <option value="location">위치</option>
+            <option value="item_name">상품명</option>
+            <option value="stock">재고</option>
+            <option value="note">비고</option>
+          </select>
+          
+          <select 
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value)}
+            style={{
+              padding: '4px 8px',
+              border: '1px solid #d1d5db',
+              borderRadius: '4px',
+              fontSize: '14px'
+            }}
+          >
+            <option value="asc">오름차순</option>
+            <option value="desc">내림차순</option>
+          </select>
+        </div>
+        
+        {/* 페이지당 개수 선택 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <label style={{ fontSize: '14px', color: '#6b7280' }}>페이지당:</label>
+          <select 
+            value={itemsPerPage}
+            onChange={(e) => {
+              setItemsPerPage(Number(e.target.value));
+              setCurrentPage(1);
+            }}
+            style={{
+              padding: '4px 8px',
+              border: '1px solid #d1d5db',
+              borderRadius: '4px',
+              fontSize: '14px'
+            }}
+          >
+            <option value={50}>50개</option>
+            <option value={100}>100개</option>
+            <option value={200}>200개</option>
+            <option value={500}>500개</option>
+            <option value={1000}>1000개</option>
+            <option value={filteredStockData.length}>전체</option>
+          </select>
+        </div>
+      </div>
+
       {/* 데이터 테이블 */}
       <div className="product-list-table-section">
         {/* 테이블 헤더 */}
         <div className="product-list-table-header-section">
           <div className="product-list-table-info">
             <div className="product-list-data-count">
-              총 {filteredStockData.length}개 상품
+              총 {filteredStockData.length}개 상품 
+              {filteredStockData.length > itemsPerPage && (
+                <span style={{ color: '#6b7280', fontSize: '14px', marginLeft: '8px' }}>
+                  (페이지당 {itemsPerPage}개 표시)
+                </span>
+              )}
             </div>
           </div>
           
           <div className="product-list-action-buttons">
             <button
-              onClick={loadStockData}
-              disabled={isLoading}
-              className="product-list-button product-list-button-primary"
+              onClick={handleEditXLSX}
+              className="product-list-button"
+              style={{ 
+                backgroundColor: '#6b7280', 
+                color: 'white',
+                border: '1px solid #6b7280'
+              }}
             >
-              {isLoading ? '새로고침 중...' : '새로고침'}
+              xlsx 수정
+            </button>
+            
+            <button
+              onClick={handleDownloadXLSX}
+              className="product-list-button"
+              style={{ 
+                backgroundColor: '#10b981', 
+                color: 'white',
+                border: '1px solid #10b981'
+              }}
+            >
+              xlsx 다운
             </button>
             
             <button
@@ -380,7 +649,7 @@ function StockManagement() {
           <table className="product-list-table">
             <thead className="product-list-table-header">
               <tr>
-                <th className="product-list-table-header-cell" style={{ width: '60px', textAlign: 'center' }}>
+                <th className="product-list-table-header-cell" style={{ width: '4%', textAlign: 'center' }}>
                   <input 
                     type="checkbox" 
                     onChange={handleSelectAll}
@@ -388,16 +657,17 @@ function StockManagement() {
                     style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                   />
                 </th>
-                <th className="product-list-table-header-cell" style={{ width: '180px', textAlign: 'center' }}>바코드</th>
-                <th className="product-list-table-header-cell" style={{ width: '300px', textAlign: 'left' }}>상품명</th>
-                <th className="product-list-table-header-cell" style={{ width: '100px', textAlign: 'center' }}>재고</th>
-                <th className="product-list-table-header-cell" style={{ width: '120px', textAlign: 'center' }}>위치</th>
+                <th className="product-list-table-header-cell" style={{ width: '8%', textAlign: 'center' }}>위치</th>
+                <th className="product-list-table-header-cell" style={{ width: '16%', textAlign: 'center' }}>바코드</th>
+                <th className="product-list-table-header-cell" style={{ width: '24%', textAlign: 'left' }}>상품명</th>
+                <th className="product-list-table-header-cell" style={{ width: '8%', textAlign: 'center' }}>재고</th>
+                <th className="product-list-table-header-cell" style={{ width: '24%', textAlign: 'center' }}>비고</th>
               </tr>
             </thead>
             <tbody className="product-list-table-body">
               {currentData.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ 
+                  <td colSpan={6} style={{ 
                     textAlign: 'center', 
                     padding: '40px', 
                     color: '#666',
@@ -417,42 +687,6 @@ function StockManagement() {
                         onChange={() => handleItemSelect(stock.id)}
                         style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                       />
-                    </td>
-                    <td className="product-list-table-cell" style={{ textAlign: 'center', padding: '12px', fontFamily: 'monospace' }}>
-                      {stock.barcode}
-                    </td>
-                    <td className="product-list-table-cell" style={{ textAlign: 'left', padding: '12px' }}>
-                      {stock.item_name}
-                    </td>
-                    <td 
-                      className="product-list-table-cell" 
-                      style={{ textAlign: 'center', padding: '12px', fontWeight: 'bold', cursor: 'pointer' }}
-                      onClick={() => handleCellClick(`stock-${stock.id}`, stock.stock)}
-                    >
-                      {editingCell === `stock-${stock.id}` ? (
-                        <input
-                          type="number"
-                          value={editValues[`stock-${stock.id}`] || ''}
-                          onChange={(e) => handleEditValueChange(`stock-${stock.id}`, e.target.value)}
-                          onBlur={() => handleEditComplete(`stock-${stock.id}`, stock.id, 'stock')}
-                          onKeyPress={(e) => handleEditKeyPress(e, `stock-${stock.id}`, stock.id, 'stock')}
-                          autoFocus
-                          style={{ 
-                            width: '100%', 
-                            textAlign: 'center', 
-                            border: 'none', 
-                            outline: 'none', 
-                            background: 'transparent',
-                            fontWeight: 'bold',
-                            // 숫자 입력 필드의 스피너 버튼 제거
-                            MozAppearance: 'textfield' // Firefox용
-                          }}
-                          // Chrome, Safari, Edge용 스피너 버튼 제거
-                          className="no-spinner"
-                        />
-                      ) : (
-                        stock.stock
-                      )}
                     </td>
                     <td 
                       className="product-list-table-cell" 
@@ -476,7 +710,102 @@ function StockManagement() {
                           }}
                         />
                       ) : (
-                        stock.location
+                        <span style={{ backgroundColor: '#9ca3af', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>
+                          {stock.location}
+                        </span>
+                      )}
+                    </td>
+                    <td className="product-list-table-cell" style={{ textAlign: 'center', padding: '12px', fontSize: '16px' }}>
+                      {stock.barcode}
+                    </td>
+                    <td 
+                      className="product-list-table-cell" 
+                      style={{ textAlign: 'left', padding: '12px', cursor: 'pointer' }}
+                      onClick={() => handleCellClick(`item_name-${stock.id}`, stock.item_name)}
+                    >
+                      {editingCell === `item_name-${stock.id}` ? (
+                        <input
+                          type="text"
+                          value={editValues[`item_name-${stock.id}`] || ''}
+                          onChange={(e) => handleEditValueChange(`item_name-${stock.id}`, e.target.value)}
+                          onBlur={() => handleEditComplete(`item_name-${stock.id}`, stock.id, 'item_name')}
+                          onKeyPress={(e) => handleEditKeyPress(e, `item_name-${stock.id}`, stock.id, 'item_name')}
+                          autoFocus
+                          style={{ 
+                            width: '100%', 
+                            textAlign: 'left', 
+                            border: 'none', 
+                            outline: 'none', 
+                            background: 'transparent',
+                            fontSize: '16px'
+                          }}
+                        />
+                      ) : (
+                        <span style={{ fontSize: '16px' }}>
+                          {stock.item_name}
+                        </span>
+                      )}
+                    </td>
+                    <td 
+                      className="product-list-table-cell" 
+                      style={{ textAlign: 'center', padding: '12px', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px' }}
+                      onClick={() => handleCellClick(`stock-${stock.id}`, stock.stock)}
+                    >
+                      {editingCell === `stock-${stock.id}` ? (
+                        <input
+                          type="number"
+                          value={editValues[`stock-${stock.id}`] || ''}
+                          onChange={(e) => handleEditValueChange(`stock-${stock.id}`, e.target.value)}
+                          onBlur={() => handleEditComplete(`stock-${stock.id}`, stock.id, 'stock')}
+                          onKeyPress={(e) => handleEditKeyPress(e, `stock-${stock.id}`, stock.id, 'stock')}
+                          autoFocus
+                          style={{ 
+                            width: '100%', 
+                            textAlign: 'center', 
+                            border: 'none', 
+                            outline: 'none', 
+                            background: 'transparent',
+                            fontWeight: 'bold',
+                            fontSize: '16px',
+                            // 숫자 입력 필드의 스피너 버튼 제거
+                            MozAppearance: 'textfield' // Firefox용
+                          }}
+                          // Chrome, Safari, Edge용 스피너 버튼 제거
+                          className="no-spinner"
+                        />
+                      ) : (
+                        <span style={{ fontSize: '16px', fontWeight: 'bold' }}>
+                          {stock.stock}
+                        </span>
+                      )}
+                    </td>
+                    <td 
+                      className="product-list-table-cell" 
+                      style={{ textAlign: 'center', padding: '12px', fontSize: '16px', color: '#000000', cursor: 'pointer' }}
+                      onClick={() => handleCellClick(`note-${stock.id}`, stock.note || '')}
+                    >
+                      {editingCell === `note-${stock.id}` ? (
+                        <input
+                          type="text"
+                          value={editValues[`note-${stock.id}`] || ''}
+                          onChange={(e) => handleEditValueChange(`note-${stock.id}`, e.target.value)}
+                          onBlur={() => handleEditComplete(`note-${stock.id}`, stock.id, 'note')}
+                          onKeyPress={(e) => handleEditKeyPress(e, `note-${stock.id}`, stock.id, 'note')}
+                          autoFocus
+                          style={{ 
+                            width: '100%', 
+                            textAlign: 'center', 
+                            border: 'none', 
+                            outline: 'none', 
+                            background: 'transparent',
+                            fontSize: '16px',
+                            color: '#000000'
+                          }}
+                        />
+                      ) : (
+                        <span style={{ fontSize: '16px' }}>
+                          {stock.note || ''}
+                        </span>
                       )}
                     </td>
                   </tr>
