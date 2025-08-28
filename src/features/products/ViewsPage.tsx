@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import DashboardStatsCard from './components/DashboardStatsCard';
 import { viewsService } from '../../services/viewsService';
 import { getCurrentUserId } from '../../services/authService';
+import * as XLSX from 'xlsx';
 import './ProductListPage.css';
 
 function ViewsPage() {
@@ -29,6 +30,13 @@ function ViewsPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [dateToDelete, setDateToDelete] = useState('');
+  
+  // Excel 업로드 모달
+  const [showExcelModal, setShowExcelModal] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  
+  // 전체 삭제 모달
+  const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
   
   // 페이지네이션
   const [currentPage, setCurrentPage] = useState(1);
@@ -278,6 +286,153 @@ function ViewsPage() {
     }
   };
 
+  // 전체 조회수 데이터 삭제 핸들러
+  const handleDeleteAllViews = async () => {
+    setIsLoading(true);
+    try {
+      const currentUserId = getCurrentUserId();
+      if (!currentUserId) {
+        alert('로그인이 필요합니다.');
+        return;
+      }
+
+      // viewsService를 통해 모든 조회수 데이터 삭제
+      const result = await viewsService.deleteAllViewsData(currentUserId);
+      
+      if (result.success) {
+        alert(`총 ${result.deletedCount}개의 조회수 데이터가 삭제되었습니다.`);
+        setShowDeleteAllModal(false);
+        
+        // 현재 화면의 데이터도 초기화
+        setAccumulatedData([]);
+        setFilteredData([]);
+        setAddedDates([]);
+      } else {
+        alert('전체 조회수 데이터 삭제에 실패했습니다.');
+      }
+    } catch (error) {
+      alert('전체 조회수 데이터 삭제 중 오류가 발생했습니다.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Excel 파일 업로드 및 MongoDB 저장 핸들러
+  const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // 파일 확장자 검증
+    const fileName = file.name.toLowerCase();
+    if (!fileName.endsWith('.xlsx') && !fileName.endsWith('.xls')) {
+      alert('Excel 파일(.xlsx, .xls)만 업로드 가능합니다.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const currentUserId = getCurrentUserId();
+      if (!currentUserId) {
+        alert('로그인이 필요합니다.');
+        return;
+      }
+
+      // Excel 파일 읽기
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      
+      // 데이터를 2차원 배열로 변환
+      const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+      
+      if (data.length < 2) {
+        alert('유효한 데이터가 없습니다. 최소 2행(헤더 + 데이터) 이상이어야 합니다.');
+        return;
+      }
+
+      // 헤더 행 (첫 번째 행)에서 날짜들 추출
+      const headerRow = data[0];
+      const dates = headerRow.slice(1); // A열(productId) 제외하고 B열부터가 날짜들
+      
+      // 날짜 형식 검증 (YYYY-MM-DD)
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      for (const date of dates) {
+        if (date && !dateRegex.test(String(date))) {
+          alert(`잘못된 날짜 형식입니다: "${date}"\n날짜는 YYYY-MM-DD 형식이어야 합니다. (예: 2025-08-01)`);
+          return;
+        }
+      }
+      
+      // 날짜별로 데이터 그룹핑
+      const dateGroupedData: { [date: string]: any[] } = {};
+      
+      // 각 날짜별로 빈 배열 초기화
+      dates.forEach(date => {
+        if (date) {
+          dateGroupedData[String(date)] = [];
+        }
+      });
+      
+      // 2행부터 데이터 처리 (1행은 헤더이므로 제외)
+      for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        const productId = row[0]; // A열: productId
+        
+        if (!productId) continue; // productId가 없으면 스킵
+        
+        // B열부터 각 날짜의 조회수 데이터 처리
+        for (let j = 1; j < row.length && j <= dates.length; j++) {
+          const date = dates[j - 1];
+          const productViews = row[j];
+          
+          if (date && productViews !== undefined && productViews !== '') {
+            dateGroupedData[String(date)].push({
+              productId: String(productId),
+              productViews: String(productViews)
+            });
+          }
+        }
+      }
+
+      // 각 날짜별로 문서 생성 및 저장
+      let totalSavedCount = 0;
+      
+      for (const [date, views] of Object.entries(dateGroupedData)) {
+        if (views.length > 0) {
+          try {
+            const result = await viewsService.saveViewsData(views, date, currentUserId);
+            
+            if (result.success) {
+              totalSavedCount += views.length;
+            } else {
+              alert(`${date} 날짜 데이터 저장에 실패했습니다.`);
+            }
+          } catch (error) {
+            alert(`${date} 날짜 데이터 저장 중 오류가 발생했습니다.`);
+          }
+        }
+      }
+
+      if (totalSavedCount === 0) {
+        alert('저장할 유효한 데이터가 없습니다.');
+        return;
+      }
+
+      alert(`총 ${totalSavedCount}개의 조회수 데이터가 MongoDB에 저장되었습니다.`);
+      setShowExcelModal(false);
+      
+    } catch (error) {
+      alert('Excel 파일 처리 중 오류가 발생했습니다.');
+    } finally {
+      setIsLoading(false);
+      // 파일 입력 초기화
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   // 페이지네이션 핸들러
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -378,13 +533,251 @@ function ViewsPage() {
       {/* 페이지 헤더 */}
       <div className="product-list-page-header">
         <h1 className="product-list-page-title">쿠팡 조회수 관리</h1>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button 
+              className="product-list-button product-list-button-info"
+              onClick={() => setShowExcelModal(true)}
+            >
+              조회수 xlsx 저장
+            </button>
+            <button 
+              className="product-list-button"
+              onClick={() => setShowDeleteAllModal(true)}
+              style={{
+                backgroundColor: '#dc2626',
+                color: 'white',
+                border: '1px solid #dc2626'
+              }}
+            >
+              전체 조회수 제거
+            </button>
+          </div>
+          
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button 
+              className="product-list-button product-list-button-warning"
+              onClick={async () => {
+                // 콘솔 스크립트 복사 기능
+                setIsLoading(true);
+                try {
+                  const currentUserId = getCurrentUserId();
+                  if (!currentUserId) {
+                    alert('로그인이 필요합니다.');
+                    return;
+                  }
+
+                  // extract_coupang_item_all 테이블에서 해당 user_id의 모든 item_id 조회 (배치 처리)
+                  const { supabase } = await import('../../config/supabase');
+                  
+                  let allData: any[] = [];
+                  let page = 0;
+                  const pageSize = 1000;
+                  let hasMore = true;
+
+                  while (hasMore) {
+                    const from = page * pageSize;
+                    const to = from + pageSize - 1;
+                    
+                    const { data: batch, error } = await supabase
+                      .from('extract_coupang_item_all')
+                      .select('item_id')
+                      .eq('user_id', currentUserId)
+                      .not('item_id', 'is', null)
+                      .neq('item_id', '')
+                      .range(from, to);
+
+                    if (error) {
+                      console.error('데이터 조회 오류:', error);
+                      alert('데이터 조회 중 오류가 발생했습니다.');
+                      return;
+                    }
+
+                    if (batch && batch.length > 0) {
+                      allData = [...allData, ...batch];
+                      hasMore = batch.length === pageSize;
+                      page++;
+                    } else {
+                      hasMore = false;
+                    }
+                  }
+
+                  // 중복 제거 및 정렬
+                  const itemIds = allData.map(item => item.item_id);
+                  const uniqueItemIds = Array.from(new Set(itemIds)).sort();
+                  
+                  if (uniqueItemIds.length > 0) {
+                    // 콘솔 스크립트 템플릿
+                    const consoleScript = `// 상품 ID 배열
+const productIDs = [${uniqueItemIds.map(id => `'${id}'`).join(', ')}]
+// Initialize global variables
+const allData = [];
+let stopScript = false;
+// Flag to stop the script
+
+// Function to extract data from the current page
+function extractDataFromPage() {
+    const rows = document.querySelectorAll('table tbody tr');
+    rows.forEach( (row) => {
+        const productId = row.querySelector('td:nth-child(2)').textContent.trim();
+        const productViews = row.querySelector('td:nth-child(5)').textContent.trim();
+        allData.push({
+            productId,
+            productViews
+        });
+    }
+    );
+}
+
+// Function to search IDs in groups of 10
+async function searchProductIDs(ids) {
+    for (let i = 0; i < ids.length; i += 10) {
+        if (stopScript) {
+            console.log("Script stopped by user.");
+            break;
+        }
+
+        // Get the current group of 10 IDs
+        const currentIDs = ids.slice(i, i + 10);
+        console.log(\`Searching IDs: \${currentIDs.join(', ')}\`);
+
+        // Input the IDs into the textarea
+        const textarea = document.querySelector('textarea[placeholder*="등록상품 ID"]');
+        if (textarea) {
+            textarea.value = currentIDs.join(',');
+            textarea.dispatchEvent(new Event('input',{
+                bubbles: true
+            }));
+        }
+
+        // Click the search button
+        const searchButton = document.querySelector('button[type="submit"]');
+        if (searchButton) {
+            searchButton.click();
+        }
+
+        // Wait for the page to load and extract data
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        // Adjust delay as necessary
+        extractDataFromPage();
+    }
+
+    // Log all collected data
+    console.log("All collected data:", allData);
+}
+
+// Add a command to stop the script dynamically
+window.stopDataExtraction = () => {
+    stopScript = true;
+    console.log("Stop command received. Finishing current operation...");
+}
+;
+
+// Start searching and extracting data
+searchProductIDs(productIDs);`;
+
+                    navigator.clipboard.writeText(consoleScript).then(() => {
+                      alert(`${uniqueItemIds.length}개의 상품ID를 포함한 콘솔 스크립트가 복사되었습니다.`);
+                    }).catch(() => {
+                      alert('복사에 실패했습니다.');
+                    });
+                  } else {
+                    alert('복사할 상품ID가 없습니다.');
+                  }
+                } catch (error) {
+                  console.error('콘솔 스크립트 복사 오류:', error);
+                  alert('콘솔 스크립트 복사 중 오류가 발생했습니다.');
+                } finally {
+                  setIsLoading(false);
+                }
+              }}
+              disabled={isLoading}
+            >
+              콘솔 복사
+            </button>
+            <button 
+              className="product-list-button product-list-button-secondary"
+              onClick={async () => {
+              // Supabase에서 상품ID 복사 기능
+              setIsLoading(true);
+              try {
+                const currentUserId = getCurrentUserId();
+                if (!currentUserId) {
+                  alert('로그인이 필요합니다.');
+                  return;
+                }
+
+                // extract_coupang_item_all 테이블에서 해당 user_id의 모든 item_id 조회 (배치 처리)
+                const { supabase } = await import('../../config/supabase');
+                
+                let allData: any[] = [];
+                let page = 0;
+                const pageSize = 1000;
+                let hasMore = true;
+
+                while (hasMore) {
+                  const from = page * pageSize;
+                  const to = from + pageSize - 1;
+                  
+                  const { data: batch, error } = await supabase
+                    .from('extract_coupang_item_all')
+                    .select('item_id')
+                    .eq('user_id', currentUserId)
+                    .not('item_id', 'is', null)
+                    .neq('item_id', '')
+                    .range(from, to);
+
+                  if (error) {
+                    console.error('데이터 조회 오류:', error);
+                    alert('데이터 조회 중 오류가 발생했습니다.');
+                    return;
+                  }
+
+                  if (batch && batch.length > 0) {
+                    allData = [...allData, ...batch];
+                    hasMore = batch.length === pageSize;
+                    page++;
+                  } else {
+                    hasMore = false;
+                  }
+                }
+
+                const data = allData;
+
+                // 중복 제거 및 정렬
+                const itemIds = data.map(item => item.item_id);
+                const uniqueItemIds = Array.from(new Set(itemIds)).sort();
+                
+                if (uniqueItemIds.length > 0) {
+                  // 'item_id1', 'item_id2', 'item_id3' 형태로 복사
+                  const formattedIds = uniqueItemIds.map(id => `'${id}'`).join(', ');
+                  
+                  navigator.clipboard.writeText(formattedIds).then(() => {
+                    alert(`${uniqueItemIds.length}개의 상품ID가 복사되었습니다.`);
+                  }).catch(() => {
+                    alert('복사에 실패했습니다.');
+                  });
+                } else {
+                  alert('복사할 상품ID가 없습니다.');
+                }
+              } catch (error) {
+                console.error('상품ID 복사 오류:', error);
+                alert('상품ID 복사 중 오류가 발생했습니다.');
+              } finally {
+                setIsLoading(false);
+              }
+            }}
+            disabled={isLoading}
+          >
+            상품id 복사
+          </button>
           <button 
             className="product-list-button product-list-button-primary"
             onClick={() => setShowModal(true)}
           >
-            조회수 추가
-          </button>
+            조회수 저장
+            </button>
+          </div>
         </div>
       </div>
 
@@ -637,49 +1030,436 @@ function ViewsPage() {
       {/* 삭제 확인 모달 */}
       {showDeleteModal && (
         <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px', width: '90%' }}>
             <div className="modal-header">
-              <h3>조회수 데이터 삭제</h3>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>조회수 데이터 삭제</h3>
+              <button 
+                className="modal-close-button"
+                onClick={() => setShowDeleteModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  color: '#6b7280',
+                  cursor: 'pointer',
+                  padding: '0',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '6px'
+                }}
+              >
+                ×
+              </button>
             </div>
             
-            <div className="modal-body">
-              <div style={{ marginBottom: '20px', fontSize: '16px', color: '#374151' }}>
-                <p><strong>{dateToDelete}</strong> 날짜의 조회수를 삭제하시겠습니까?</p>
-                <p>삭제 진행을 원하시면 <strong>'삭제'</strong>라고 입력해주세요.</p>
+            <div className="modal-body" style={{ padding: '24px' }}>
+              <div style={{ 
+                marginBottom: '24px', 
+                padding: '16px', 
+                backgroundColor: '#fef2f2', 
+                border: '1px solid #fecaca', 
+                borderRadius: '8px' 
+              }}>
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'flex-start', 
+                  gap: '12px' 
+                }}>
+                  <div style={{ 
+                    fontSize: '20px', 
+                    color: '#dc2626',
+                    marginTop: '2px'
+                  }}>
+                    ⚠️
+                  </div>
+                  <div>
+                    <p style={{ 
+                      margin: '0 0 8px 0', 
+                      fontSize: '16px', 
+                      fontWeight: '600', 
+                      color: '#dc2626' 
+                    }}>
+                      데이터 삭제 확인
+                    </p>
+                    <p style={{ 
+                      margin: '0', 
+                      fontSize: '14px', 
+                      color: '#374151',
+                      lineHeight: '1.5' 
+                    }}>
+                      <strong>{dateToDelete}</strong> 날짜의 조회수 데이터를 완전히 삭제합니다.<br/>
+                      이 작업은 되돌릴 수 없습니다.
+                    </p>
+                  </div>
+                </div>
               </div>
               
               <div className="input-group">
-                <label>확인 텍스트</label>
+                <label style={{ 
+                  display: 'block', 
+                  marginBottom: '8px', 
+                  fontSize: '14px', 
+                  fontWeight: '600', 
+                  color: '#374151' 
+                }}>
+                  삭제 확인을 위해 "<strong>삭제</strong>"라고 입력해주세요
+                </label>
                 <input
                   type="text"
                   value={deleteConfirmText}
                   onChange={(e) => setDeleteConfirmText(e.target.value)}
                   placeholder="삭제"
-                  className="modal-date-input"
-                  style={{ width: '100%' }}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    outline: 'none',
+                    transition: 'border-color 0.15s ease-in-out',
+                    boxSizing: 'border-box'
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = '#3b82f6';
+                    e.target.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = '#d1d5db';
+                    e.target.style.boxShadow = 'none';
+                  }}
                 />
               </div>
+            </div>
+            
+            <div className="modal-footer" style={{ 
+              padding: '16px 24px', 
+              borderTop: '1px solid #e5e7eb',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '12px'
+            }}>
+              <button 
+                className="modal-button modal-button-cancel"
+                onClick={() => setShowDeleteModal(false)}
+                style={{
+                  padding: '10px 20px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  backgroundColor: 'white',
+                  color: '#374151',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease-in-out'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f9fafb';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'white';
+                }}
+              >
+                취소
+              </button>
+              <button 
+                onClick={handleConfirmDelete}
+                disabled={isLoading || deleteConfirmText !== '삭제'}
+                style={{
+                  padding: '10px 20px',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  backgroundColor: deleteConfirmText === '삭제' ? '#dc2626' : '#9ca3af',
+                  color: 'white',
+                  cursor: deleteConfirmText === '삭제' ? 'pointer' : 'not-allowed',
+                  transition: 'all 0.15s ease-in-out',
+                  opacity: (isLoading || deleteConfirmText !== '삭제') ? 0.6 : 1
+                }}
+                onMouseEnter={(e) => {
+                  if (deleteConfirmText === '삭제' && !isLoading) {
+                    e.currentTarget.style.backgroundColor = '#b91c1c';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (deleteConfirmText === '삭제' && !isLoading) {
+                    e.currentTarget.style.backgroundColor = '#dc2626';
+                  }
+                }}
+              >
+                {isLoading ? '삭제 중...' : '삭제'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Excel 업로드 모달 */}
+      {showExcelModal && (
+        <div className="modal-overlay" onClick={() => setShowExcelModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>조회수 Excel 업로드</h3>
+            </div>
+            
+            <div className="modal-body">
+              <div style={{ marginBottom: '20px', fontSize: '14px', color: '#374151' }}>
+                <p><strong>Excel 파일 형식:</strong></p>
+                <ul style={{ marginLeft: '20px', lineHeight: '1.6' }}>
+                  <li>A열: productId (상품 ID)</li>
+                  <li>B열부터: 날짜별 조회수 데이터</li>
+                  <li>첫 번째 행은 헤더로 무시됩니다</li>
+                </ul>
+                <p style={{ marginTop: '15px', fontSize: '12px', color: '#6b7280' }}>
+                  예시: A1="productId", B1="2025-08-01", C1="2025-08-07"<br/>
+                  A2=25487, B2=27, C2=32
+                </p>
+              </div>
+              
+              {!isLoading ? (
+                <div 
+                  className="product-list-upload-area"
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    border: '2px dashed #d1d5db',
+                    borderRadius: '8px',
+                    padding: '40px',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    backgroundColor: '#f9fafb'
+                  }}
+                >
+                  <div style={{ fontSize: '24px', marginBottom: '10px' }}>📁</div>
+                  <p style={{ margin: '0', fontSize: '16px', color: '#374151' }}>
+                    Excel 파일을 선택하세요
+                  </p>
+                  <p style={{ margin: '5px 0 0 0', fontSize: '14px', color: '#6b7280' }}>
+                    .xlsx, .xls 파일만 지원
+                  </p>
+                </div>
+              ) : (
+                <div style={{
+                  border: '2px solid #3b82f6',
+                  borderRadius: '8px',
+                  padding: '40px',
+                  textAlign: 'center',
+                  backgroundColor: '#eff6ff'
+                }}>
+                  <div style={{ fontSize: '24px', marginBottom: '16px' }}>⏳</div>
+                  <p style={{ 
+                    margin: '0 0 8px 0', 
+                    fontSize: '16px', 
+                    fontWeight: '600',
+                    color: '#1d4ed8' 
+                  }}>
+                    Excel 파일 처리 중...
+                  </p>
+                  <p style={{ 
+                    margin: '0', 
+                    fontSize: '14px', 
+                    color: '#4b5563' 
+                  }}>
+                    데이터를 읽고 MongoDB에 저장하고 있습니다.
+                  </p>
+                  <div style={{ 
+                    marginTop: '16px',
+                    display: 'flex',
+                    justifyContent: 'center'
+                  }}>
+                    <div style={{
+                      width: '32px',
+                      height: '32px',
+                      border: '3px solid #e5e7eb',
+                      borderTop: '3px solid #3b82f6',
+                      borderRadius: '50%',
+                      animation: 'spin 1s linear infinite'
+                    }}></div>
+                  </div>
+                </div>
+              )}
+              
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleExcelUpload}
+                style={{ display: 'none' }}
+                disabled={isLoading}
+              />
             </div>
             
             <div className="modal-footer">
               <button 
                 className="modal-button modal-button-cancel"
-                onClick={() => setShowDeleteModal(false)}
+                onClick={() => setShowExcelModal(false)}
+                disabled={isLoading}
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 전체 삭제 확인 모달 */}
+      {showDeleteAllModal && (
+        <div className="modal-overlay" onClick={() => setShowDeleteAllModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px', width: '90%' }}>
+            <div className="modal-header">
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>전체 조회수 데이터 삭제</h3>
+              <button 
+                className="modal-close-button"
+                onClick={() => setShowDeleteAllModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  color: '#6b7280',
+                  cursor: 'pointer',
+                  padding: '0',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '6px'
+                }}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="modal-body" style={{ padding: '24px' }}>
+              <div style={{ 
+                marginBottom: '24px', 
+                padding: '16px', 
+                backgroundColor: '#fef2f2', 
+                border: '1px solid #fecaca', 
+                borderRadius: '8px' 
+              }}>
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'flex-start', 
+                  gap: '12px' 
+                }}>
+                  <div style={{ 
+                    fontSize: '20px', 
+                    color: '#dc2626',
+                    marginTop: '2px'
+                  }}>
+                    ⚠️
+                  </div>
+                  <div>
+                    <p style={{ 
+                      margin: '0 0 8px 0', 
+                      fontSize: '16px', 
+                      fontWeight: '600', 
+                      color: '#dc2626' 
+                    }}>
+                      전체 조회수 데이터 삭제 확인
+                    </p>
+                    <p style={{ 
+                      margin: '0', 
+                      fontSize: '14px', 
+                      color: '#374151',
+                      lineHeight: '1.5' 
+                    }}>
+                      계정의 <strong>모든 조회수 데이터</strong>를 완전히 삭제합니다.<br/>
+                      이 작업은 되돌릴 수 없으며, 모든 날짜의 조회수 기록이 사라집니다.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div style={{ 
+                textAlign: 'center',
+                padding: '20px',
+                backgroundColor: '#f9fafb',
+                borderRadius: '8px',
+                border: '1px solid #e5e7eb'
+              }}>
+                <p style={{ 
+                  margin: '0 0 16px 0', 
+                  fontSize: '16px', 
+                  fontWeight: '600',
+                  color: '#374151' 
+                }}>
+                  정말로 모든 조회수 데이터를 삭제하시겠습니까?
+                </p>
+                <p style={{ 
+                  margin: '0', 
+                  fontSize: '14px', 
+                  color: '#6b7280' 
+                }}>
+                  아래 버튼을 클릭하여 삭제를 진행하세요
+                </p>
+              </div>
+            </div>
+            
+            <div className="modal-footer" style={{ 
+              padding: '16px 24px', 
+              borderTop: '1px solid #e5e7eb',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '12px'
+            }}>
+              <button 
+                onClick={() => setShowDeleteAllModal(false)}
+                disabled={isLoading}
+                style={{
+                  padding: '10px 20px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  backgroundColor: 'white',
+                  color: '#374151',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease-in-out'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isLoading) {
+                    e.currentTarget.style.backgroundColor = '#f9fafb';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isLoading) {
+                    e.currentTarget.style.backgroundColor = 'white';
+                  }
+                }}
               >
                 취소
               </button>
               <button 
-                className="modal-button"
-                onClick={handleConfirmDelete}
-                disabled={isLoading || deleteConfirmText !== '삭제'}
+                onClick={handleDeleteAllViews}
+                disabled={isLoading}
                 style={{
-                  backgroundColor: deleteConfirmText === '삭제' ? '#dc2626' : '#9ca3af',
-                  color: 'white',
+                  padding: '10px 20px',
                   border: 'none',
-                  cursor: deleteConfirmText === '삭제' ? 'pointer' : 'not-allowed'
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  backgroundColor: isLoading ? '#9ca3af' : '#dc2626',
+                  color: 'white',
+                  cursor: isLoading ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.15s ease-in-out',
+                  opacity: isLoading ? 0.6 : 1
+                }}
+                onMouseEnter={(e) => {
+                  if (!isLoading) {
+                    e.currentTarget.style.backgroundColor = '#b91c1c';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isLoading) {
+                    e.currentTarget.style.backgroundColor = '#dc2626';
+                  }
                 }}
               >
-                {isLoading ? '삭제 중...' : '삭제'}
+                {isLoading ? '삭제 중...' : '전체 삭제를 진행합니다'}
               </button>
             </div>
           </div>

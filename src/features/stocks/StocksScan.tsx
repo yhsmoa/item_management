@@ -591,25 +591,6 @@ function StocksScan() {
     setStockAddProgress({ current: 0, total: stockManagementData.length });
 
     try {
-      // 테이블 존재 여부 먼저 확인
-      const { error: tableCheckError } = await supabase
-        .from('stocks_management')
-        .select('count(*)', { count: 'exact' })
-        .limit(0);
-
-      if (tableCheckError) {
-        console.error('❌ 테이블 확인 오류:', tableCheckError);
-        if (tableCheckError.code === '42703' || tableCheckError.code === '42P01' || tableCheckError.message?.includes('does not exist')) {
-          alert('stocks_management 테이블이 존재하지 않습니다. Supabase에서 stocks_management_table.sql을 실행하여 테이블을 먼저 생성해주세요.');
-          return;
-        }
-      }
-
-      let successCount = 0;
-      let updateCount = 0;
-      let insertCount = 0;
-      let errorCount = 0;
-      let errorDetails: string[] = []; // 오류 상세 정보
 
       // 🗺️ 동일한 바코드+위치를 미리 그룹화하여 중복 처리 방지
       const groupedData = new Map<string, any>();
@@ -643,39 +624,18 @@ function StocksScan() {
       // 🧹 메모리 정리: Map 객체 명시적 해제
       groupedData.clear();
 
-      // 🚀 배치 처리: 기존 데이터를 청크 단위로 조회 (URL 길이 제한 방지)
-      setStockAddProgress({ current: 1, total: 4 });
+      // 🚀 간단한 처리: location=barcode를 ID로 사용
+      setStockAddProgress({ current: 1, total: 3 });
       
-      const CHUNK_SIZE = 50; // 한번에 50개씩 처리
-      const allIds = groupedItems.map(item => item.id);
-      const existingMap = new Map();
+      // 변수 초기화
+      let successCount = 0;
+      let updateCount = 0;
+      let insertCount = 0;
+      let errorCount = 0;
+      let errorDetails: string[] = [];
       
-      // ID 배열을 청크로 나누어 처리
-      for (let i = 0; i < allIds.length; i += CHUNK_SIZE) {
-        const chunk = allIds.slice(i, i + CHUNK_SIZE);
-        
-        const { data: existingRecords, error: batchSelectError } = await supabase
-          .from('stocks_management')
-          .select('id, stock')
-          .eq('user_id', userId)
-          .in('id', chunk);
-
-        if (batchSelectError) {
-          console.error('배치 조회 오류:', batchSelectError);
-          continue; // 이 청크는 건너뛰고 계속 진행
-        }
-
-        // 조회된 데이터를 Map에 추가
-        existingRecords?.forEach(record => {
-          existingMap.set(record.id, record);
-        });
-      }
-
-      // 📝 업데이트와 삽입할 데이터 분리
-      const toUpdate: any[] = [];
-      const toInsert: any[] = [];
-
-      groupedItems.forEach((item, index) => {
+      // 각 아이템 처리
+      for (const item of groupedItems) {
         const { id, barcode, location, itemName, note, totalQuantity } = item;
         
         // 바코드나 수량이 없는 경우 건너뛰기
@@ -683,81 +643,105 @@ function StocksScan() {
           errorCount++;
           const errorMsg = `바코드: ${barcode || '비어있음'}, 위치: ${location}, 수량: ${totalQuantity} (오류: 잘못된 데이터)`;
           errorDetails.push(errorMsg);
-          return;
+          continue;
         }
 
-        const existing = existingMap.get(id);
-        if (existing) {
-          // 기존 데이터가 있으면 재고 수량 합산
-          const currentStock = parseInt(existing.stock) || 0;
-          const newStock = currentStock + totalQuantity;
-          toUpdate.push({
-            id: id,
-            stock: newStock
-          });
-          updateCount++;
+        // 동일한 ID(location=barcode)로 기존 재고 조회
+        const { data: existingStock, error: selectError } = await supabase
+          .from('stocks_management')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('barcode', barcode)
+          .eq('location', location)
+          .maybeSingle();
+
+        if (selectError && selectError.code !== 'PGRST116') {
+          console.error('기존 재고 조회 오류:', selectError);
+          errorDetails.push(`ID:${id} (오류: 기존 재고 조회 실패)`);
+          errorCount++;
+          continue;
+        }
+
+        if (existingStock) {
+          // 기존 재고가 있으면 수량만 합산 (note는 건드리지 않음 - pass)
+          const newStock = (existingStock.stock || 0) + totalQuantity;
+          
+          const updateData: any = {
+            stock: newStock,
+            item_name: itemName
+          };
+          // 기존 데이터의 note는 변경하지 않음 (pass)
+          
+          const { error: updateError } = await supabase
+            .from('stocks_management')
+            .update(updateData)
+            .eq('id', existingStock.id);
+
+          if (updateError) {
+            console.error('재고 업데이트 오류:', updateError);
+            errorDetails.push(`ID:${id} (오류: 데이터베이스 업데이트 실패)`);
+            errorCount++;
+          } else {
+            updateCount++;
+            successCount++;
+          }
         } else {
-          // 기존 데이터가 없으면 새로 추가
-          toInsert.push({
-            id: id,
+          // 새 재고 데이터 삽입 - id는 location=barcode 형태
+          const insertData: any = {
+            id: id,  // location=barcode 형태의 id 사용
             user_id: userId,
             item_name: itemName,
             barcode: barcode,
             stock: totalQuantity,
-            location: location,
-            note: note
-          });
-          insertCount++;
-        }
-      });
-
-      // 🚀 배치 업데이트 실행 (청크 단위)
-      setStockAddProgress({ current: 2, total: 4 });
-      
-      if (toUpdate.length > 0) {
-        for (let i = 0; i < toUpdate.length; i += CHUNK_SIZE) {
-          const chunk = toUpdate.slice(i, i + CHUNK_SIZE);
+            location: location
+          };
           
-          const { error: updateError } = await supabase
-            .from('stocks_management')
-            .upsert(chunk, { onConflict: 'id' });
-
-          if (updateError) {
-            console.error('배치 업데이트 오류:', updateError);
-            chunk.forEach(item => {
-              errorDetails.push(`ID: ${item.id} (오류: 데이터베이스 업데이트 실패)`);
-            });
-            errorCount += chunk.length;
-            updateCount -= chunk.length;
+          // 새 데이터 추가 시 note가 있으면 포함
+          if (note && note.trim() !== '') {
+            insertData.note = note;
           }
-        }
-      }
-
-      // 🚀 배치 삽입 실행 (청크 단위)
-      setStockAddProgress({ current: 3, total: 4 });
-      
-      if (toInsert.length > 0) {
-        for (let i = 0; i < toInsert.length; i += CHUNK_SIZE) {
-          const chunk = toInsert.slice(i, i + CHUNK_SIZE);
           
           const { error: insertError } = await supabase
             .from('stocks_management')
-            .insert(chunk);
+            .insert(insertData);
 
           if (insertError) {
-            console.error('배치 삽입 오류:', insertError);
-            chunk.forEach(item => {
-              errorDetails.push(`바코드: ${item.barcode}, 위치: ${item.location} (오류: 데이터베이스 삽입 실패)`);
-            });
-            errorCount += chunk.length;
-            insertCount -= chunk.length;
+            console.error('재고 삽입 오류:', insertError);
+            console.error('삽입 시도한 데이터:', insertData);
+            
+            // note 컬럼이 없어서 오류가 발생한 경우 note 제외하고 재시도
+            if (insertError.message?.includes('note')) {
+              delete insertData.note;
+              const { error: retryError } = await supabase
+                .from('stocks_management')
+                .insert(insertData);
+              
+              if (retryError) {
+                console.error('재시도 오류:', retryError);
+                errorDetails.push(`ID:${id} (오류: ${retryError.message})`);
+                errorCount++;
+              } else {
+                insertCount++;
+                successCount++;
+              }
+            } else {
+              errorDetails.push(`ID:${id} (오류: ${insertError.message})`);
+              errorCount++;
+            }
+          } else {
+            insertCount++;
+            successCount++;
           }
         }
+        
+        // 진행상황 업데이트
+        setStockAddProgress({ 
+          current: Math.min(2, 1 + (groupedItems.indexOf(item) / groupedItems.length)), 
+          total: 3 
+        });
       }
 
-      setStockAddProgress({ current: 4, total: 4 });
-
-      successCount = updateCount + insertCount;
+      setStockAddProgress({ current: 3, total: 3 });
 
       if (errorCount > 0) {
         const errorMessage = `처리 완료!\n성공: ${successCount}개\n오류: ${errorCount}개\n\n오류 상세 (최대 10개만 표시):\n${errorDetails.slice(0, 10).join('\n')}${errorDetails.length > 10 ? '\n\n... 및 기타 ' + (errorDetails.length - 10) + '개 오류' : ''}`;
@@ -1079,7 +1063,7 @@ function StocksScan() {
     }
   };
 
-  // 단일 아이템 추가 함수
+  // 단일 아이템 추가 함수 (로컬 목록에만 추가)
   const handleAddSingleItem = async () => {
     if (!inputBarcode.trim()) {
       alert('바코드를 입력해주세요.');
@@ -1088,11 +1072,11 @@ function StocksScan() {
 
     const barcode = inputBarcode.trim();
     const quantity = parseInt(inputQuantity) || 1;
-    const location = inputLocation.trim();
+    const location = inputLocation.trim() || 'A-1-001';
     const note = inputNote.trim();
 
     // Supabase에서 상품명 조회
-    let productName = ''; // 기본값은 빈 문자열
+    let productName = '';
     try {
       const { data: productData, error } = await supabase
         .from('extract_coupang_item_all')
@@ -1107,6 +1091,11 @@ function StocksScan() {
       }
     } catch (err) {
       // 오류 시 빈 문자열 사용
+    }
+
+    // 최종적으로 상품명이 없으면 기본값 설정
+    if (!productName) {
+      productName = `상품-${barcode}`;
     }
 
     const itemId = `${location}=${barcode}`;
@@ -1156,8 +1145,9 @@ function StocksScan() {
         </p>
       </div>
 
-      {/* xlsx 추가 버튼 - board 외부 위쪽 */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+      {/* 버튼들 - 보드 위쪽 */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        {/* 왼쪽: xlsx 추가 버튼 */}
         <button
           onClick={handleExcelUpload}
           className="product-list-button product-list-button-success"
@@ -1165,21 +1155,49 @@ function StocksScan() {
         >
           📄 xlsx 추가
         </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".xlsx,.xls"
-          onChange={handleFileSelect}
-          style={{ display: 'none' }}
-        />
+        
+        {/* 오른쪽: 재고 추가/차감 버튼들 */}
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button
+            onClick={handleStockAdd}
+            className="product-list-button product-list-button-primary"
+            style={{ minWidth: '120px' }}
+          >
+            ➕ 재고 추가
+          </button>
+          <button
+            onClick={handleStockSubtract}
+            style={{ 
+              minWidth: '120px',
+              padding: '8px 16px',
+              backgroundColor: '#ef4444',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '14px',
+              cursor: 'pointer',
+              fontWeight: '500'
+            }}
+          >
+            ➖ 재고 차감
+          </button>
+        </div>
       </div>
+
+      {/* 숨겨진 파일 입력 */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xls"
+        onChange={handleFileSelect}
+        style={{ display: 'none' }}
+      />
 
       {/* 바코드 입력 섹션 */}
       <div className="product-list-filter-section">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* 바코드, 개수, 위치 입력 폼 */}
           <div>
-            <label className="product-list-label">재고 입력</label>
             <div style={{ display: 'flex', gap: '12px', alignItems: 'end' }}>
               {/* 바코드 입력 */}
               <div style={{ flex: 2 }}>
@@ -1251,54 +1269,6 @@ function StocksScan() {
         </div>
       </div>
 
-      {/* 재고 관리 액션 버튼 섹션 */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        gap: '16px', 
-        margin: '20px 0',
-        maxWidth: '800px',
-        marginLeft: 'auto',
-        marginRight: 'auto'
-      }}>
-        <button
-          onClick={handleStockAdd}
-          className="product-list-button product-list-button-primary"
-          style={{ 
-            flex: 1,
-            minWidth: '250px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            padding: '12px 24px',
-            fontSize: '16px'
-          }}
-        >
-          ➕ 재고 추가
-        </button>
-        <button
-          onClick={handleStockSubtract}
-          style={{ 
-            flex: 1,
-            minWidth: '250px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            padding: '12px 24px',
-            backgroundColor: '#ef4444',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            fontSize: '16px',
-            cursor: 'pointer',
-            fontWeight: '500'
-          }}
-        >
-          ➖ 재고 차감
-        </button>
-      </div>
 
       {/* 스캔 결과 섹션 */}
       {currentStock && (

@@ -10,6 +10,18 @@
   overflow-x: hidden;
 }
 
+/* 통계 카드 섹션 */
+.coupang-orders-stats-section {
+  margin: 20px 0;
+}
+
+.coupang-orders-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
 .coupang-orders-page-header {
   margin-bottom: 24px;
 }

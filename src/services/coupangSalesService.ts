@@ -53,7 +53,7 @@ export async function fetchCoupangSalesData(): Promise<{[key: string]: number}> 
     // option_id를 키로 하는 객체로 변환
     const salesMap: {[key: string]: number} = {};
     data.forEach((item: any) => {
-      if (item.option_id && item.sales) {
+      if (item.option_id && item.sales !== null && item.sales !== undefined) {
         salesMap[item.option_id] = parseInt(item.sales) || 0;
       }
     });

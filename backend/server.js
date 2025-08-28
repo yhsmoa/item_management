@@ -276,6 +276,10 @@ app.post('/api/test-encryption', (req, res) => {
 const viewsRouter = require('./routes/views');
 app.use('/api/views', viewsRouter);
 
+// 구글시트 관리 라우터
+const googlesheetsRouter = require('./routes/googlesheets');
+app.use('/api/googlesheets', googlesheetsRouter);
+
 // 404 에러 핸들러
 app.use('*', (req, res) => {
   res.status(404).json({

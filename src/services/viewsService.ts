@@ -201,6 +201,36 @@ export class ViewsService {
     }
   }
 
+  async deleteAllViewsData(userId: string) {
+    try {
+      const response = await fetch(`http://localhost:3001/api/views/delete-all/${userId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      const result = await response.json();
+      
+      if (response.ok) {
+        console.log('전체 조회수 데이터 삭제 완료:', result.message);
+        return {
+          success: true,
+          message: result.message,
+          deletedCount: result.deletedCount
+        };
+      } else {
+        throw new Error(result.message || '서버 오류');
+      }
+    } catch (error) {
+      console.error('전체 조회수 데이터 삭제 중 오류:', error);
+      return {
+        success: false,
+        error: error
+      };
+    }
+  }
+
   parseViewsData(rawData: string): ViewsData[] {
     try {
       // 객체 형태 데이터 파싱을 위한 정규식

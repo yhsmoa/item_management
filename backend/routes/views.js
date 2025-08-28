@@ -375,4 +375,58 @@ router.delete('/delete/:userId/:date', async (req, res) => {
   }
 });
 
+// 사용자의 모든 조회수 데이터 삭제 API
+router.delete('/delete-all/:userId', async (req, res) => {
+  let client;
+  
+  try {
+    const { userId } = req.params;
+    console.log(`전체 조회수 데이터 삭제 요청: userId=${userId}`);
+    
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'userId 파라미터가 필요합니다.'
+      });
+    }
+
+    // MongoDB 연결
+    client = new MongoClient(MONGODB_URI);
+    await client.connect();
+    
+    const db = client.db('coupang_views');
+    const collection = db.collection('views');
+
+    // 해당 user_id의 모든 document 삭제
+    const result = await collection.deleteMany({
+      user_id: userId
+    });
+
+    if (result.deletedCount === 0) {
+      return res.json({
+        success: false,
+        message: '삭제할 데이터가 없습니다.'
+      });
+    }
+    
+    res.json({
+      success: true,
+      deletedCount: result.deletedCount,
+      message: `총 ${result.deletedCount}개의 조회수 데이터가 성공적으로 삭제되었습니다.`
+    });
+
+  } catch (error) {
+    console.error('전체 조회수 데이터 삭제 오류:', error);
+    res.status(500).json({
+      success: false,
+      message: '서버 오류가 발생했습니다.',
+      error: error.message
+    });
+  } finally {
+    if (client) {
+      await client.close();
+    }
+  }
+});
+
 module.exports = router;

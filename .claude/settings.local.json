@@ -15,7 +15,10 @@
       "Bash(npx tsc:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(grep:*)",
+      "Bash(npm run backend:*)",
+      "Bash(git log:*)"
     ],
     "deny": [],
     "ask": [],

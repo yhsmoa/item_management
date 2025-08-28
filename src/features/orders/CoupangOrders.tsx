@@ -3,6 +3,7 @@ import './CoupangOrders.css';
 import { processPersonalOrderExcelUpload } from '../../services/excelUploadService';
 import { supabase } from '../../config/supabase';
 import * as XLSX from 'xlsx';
+import DashboardStatsCard from '../products/components/DashboardStatsCard';
 
 /**
  * 쿠팡 주문 데이터 타입
@@ -24,6 +25,10 @@ interface CoupangOrderData {
   recipient_address: string;
   delivery_message: string;
   user_id: string;
+  // 계산된 필드들
+  sequence?: number;
+  total_qty?: number;
+  stock_qty?: number;
   // 엑셀 다운로드용 전체 필드들
   number?: string;
   bundle_shipping_number?: string;
@@ -90,6 +95,7 @@ const CoupangOrders: React.FC = () => {
   const itemsPerPage = 50;
   const [orderData, setOrderData] = useState<CoupangOrderData[]>([]);
   const [filteredOrderData, setFilteredOrderData] = useState<CoupangOrderData[]>([]);
+  const [stockData, setStockData] = useState<Map<string, number>>(new Map());
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -99,9 +105,154 @@ const CoupangOrders: React.FC = () => {
   const [showRecipientModal, setShowRecipientModal] = useState(false);
   const [selectedRecipient, setSelectedRecipient] = useState<CoupangOrderData | null>(null);
   const [clearDataBeforeUpload, setClearDataBeforeUpload] = useState(true);
+
+  // 통계 데이터 계산
+  const stats = React.useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    let overdueCount = 0;
+    let todayCount = 0;
+    let threeDaysCount = 0;
+    let normalCount = 0;
+    let barcodeFilledCount = 0;
+    
+    filteredOrderData.forEach(order => {
+      if (order.barcode) {
+        barcodeFilledCount++;
+      }
+      
+      if (order.order_expected_shipping_date) {
+        const orderDateObj = new Date(order.order_expected_shipping_date);
+        orderDateObj.setHours(0, 0, 0, 0);
+        
+        const diffTime = orderDateObj.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays < 0) {
+          overdueCount++;
+        } else if (diffDays === 0) {
+          todayCount++;
+        } else if (diffDays <= 3) {
+          threeDaysCount++;
+        } else {
+          normalCount++;
+        }
+      }
+    });
+    
+    return {
+      total: filteredOrderData.length,
+      overdue: overdueCount,
+      today: todayCount,
+      threeDays: threeDaysCount,
+      normal: normalCount,
+      barcodeFilled: barcodeFilledCount
+    };
+  }, [filteredOrderData]);
   
   // File input ref
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 재고 데이터 로드 함수
+  const loadStockData = async () => {
+    const userId = getCurrentUserId();
+    if (!userId) {
+      return;
+    }
+
+    try {
+      // stocks_management 테이블에서 배치로 모든 데이터 가져오기
+      let allStockData: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+        
+        const { data: batch, error } = await supabase
+          .from('stocks_management')
+          .select('barcode, stock')
+          .eq('user_id', userId)
+          .not('barcode', 'is', null)
+          .neq('barcode', '')
+          .range(from, to);
+
+        if (error) {
+          console.error('재고 데이터 조회 실패:', error);
+          break;
+        }
+
+        if (batch && batch.length > 0) {
+          allStockData = [...allStockData, ...batch];
+          hasMore = batch.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      // 바코드별 재고 합계 계산
+      const stockMap = new Map<string, number>();
+      allStockData.forEach(item => {
+        const currentStock = stockMap.get(item.barcode) || 0;
+        stockMap.set(item.barcode, currentStock + (item.stock || 0));
+      });
+
+      setStockData(stockMap);
+    } catch (error) {
+      console.error('재고 데이터 로드 오류:', error);
+    }
+  };
+
+  // 주문 데이터에 계산된 필드 추가하는 함수
+  const calculateOrderFields = (orders: CoupangOrderData[]): CoupangOrderData[] => {
+    // order_expected_shipping_date 기준으로 정렬 (오름차순)
+    const sortedOrders = [...orders].sort((a, b) => {
+      const dateA = new Date(a.order_expected_shipping_date || '9999-12-31');
+      const dateB = new Date(b.order_expected_shipping_date || '9999-12-31');
+      return dateA.getTime() - dateB.getTime();
+    });
+
+    // 바코드별 전체 qty 계산
+    const barcodeQtyMap = new Map<string, number>();
+    sortedOrders.forEach(order => {
+      if (order.barcode) {
+        const currentQty = barcodeQtyMap.get(order.barcode) || 0;
+        barcodeQtyMap.set(order.barcode, currentQty + order.qty);
+      }
+    });
+
+    // 바코드별 순서 계산을 위한 누적 카운터
+    const barcodeSequenceMap = new Map<string, number>();
+
+    return sortedOrders.map(order => {
+      const barcode = order.barcode || '';
+      
+      // 순서 계산
+      let sequence = 0;
+      if (barcode) {
+        const currentSequence = barcodeSequenceMap.get(barcode) || 0;
+        sequence = currentSequence + 1;
+        barcodeSequenceMap.set(barcode, currentSequence + order.qty);
+      }
+
+      // 전체 qty 계산
+      const total_qty = barcode ? barcodeQtyMap.get(barcode) || 0 : 0;
+
+      // 창고 재고 계산
+      const stock_qty = barcode ? stockData.get(barcode) || 0 : 0;
+
+      return {
+        ...order,
+        sequence,
+        total_qty,
+        stock_qty
+      };
+    });
+  };
 
   // 데이터 로드 함수
   const loadOrderData = async () => {
@@ -113,21 +264,45 @@ const CoupangOrders: React.FC = () => {
 
     setIsLoading(true);
     try {
-      // Supabase 1000개 제한을 해제하고 모든 데이터 가져오기
-      const { data, error } = await supabase
-        .from('coupang_personal_order')
-        .select('*')
-        .eq('user_id', userId)
-        .order('order_date', { ascending: false });
+      // 배치로 모든 주문 데이터 가져오기
+      let allOrderData: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (error) {
-        console.error('데이터 로드 실패:', error);
-        alert('주문 데이터를 불러오는데 실패했습니다.');
-        return;
+      while (hasMore) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+        
+        const { data: batch, error } = await supabase
+          .from('coupang_personal_order')
+          .select('*')
+          .eq('user_id', userId)
+          .range(from, to);
+
+        if (error) {
+          console.error('데이터 로드 실패:', error);
+          alert('주문 데이터를 불러오는데 실패했습니다.');
+          return;
+        }
+
+        if (batch && batch.length > 0) {
+          allOrderData = [...allOrderData, ...batch];
+          hasMore = batch.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
       }
 
-      setOrderData(data || []);
-      setFilteredOrderData(data || []);
+      // 재고 데이터도 함께 로드
+      await loadStockData();
+
+      // 계산된 필드 추가
+      const processedData = calculateOrderFields(allOrderData);
+
+      setOrderData(processedData);
+      setFilteredOrderData(processedData);
     } catch (error) {
       console.error('데이터 로드 오류:', error);
       alert('주문 데이터를 불러오는 중 오류가 발생했습니다.');
@@ -141,34 +316,84 @@ const CoupangOrders: React.FC = () => {
     loadOrderData();
   }, []);
 
+  // stockData가 변경될 때마다 계산된 필드 업데이트
+  useEffect(() => {
+    if (orderData.length > 0 && stockData.size > 0) {
+      const processedData = calculateOrderFields(orderData);
+      setFilteredOrderData(processedData);
+    }
+  }, [orderData, stockData]);
+
   // 수취인 정보 모달 열기
   const handleRecipientClick = (order: CoupangOrderData) => {
     setSelectedRecipient(order);
     setShowRecipientModal(true);
   };
   
+  // 날짜별 폰트 배경색과 스타일 결정 함수
+  const getDateStyle = (orderDate: string): React.CSSProperties => {
+    if (!orderDate) return {};
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const orderDateObj = new Date(orderDate);
+    orderDateObj.setHours(0, 0, 0, 0);
+    
+    const diffTime = orderDateObj.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    // 오늘이거나 지난 날짜인 경우 진한 빨간색
+    if (diffDays <= 0) {
+      return {
+        backgroundColor: '#f44336', // 진한 빨간색
+        color: 'white',
+        fontWeight: 'bold',
+        padding: '2px 6px',
+        borderRadius: '4px',
+        display: 'inline-block'
+      };
+    }
+    // 오늘로부터 3일 이내인 경우 진한 주황색
+    else if (diffDays <= 3) {
+      return {
+        backgroundColor: '#ff9800', // 진한 주황색
+        color: 'white',
+        fontWeight: 'bold',
+        padding: '2px 6px',
+        borderRadius: '4px',
+        display: 'inline-block'
+      };
+    }
+    
+    return {};
+  };
+
   // 검색 핸들러
   const handleSearch = () => {
-    if (!searchKeyword.trim()) {
-      setFilteredOrderData(orderData);
-      return;
+    let dataToFilter = orderData;
+    
+    if (searchKeyword.trim()) {
+      const keyword = searchKeyword.toLowerCase().trim();
+      dataToFilter = orderData.filter(order => {
+        switch (searchCategory) {
+          case '등록상품명':
+            return order.item_name.toLowerCase().includes(keyword);
+          case '주문번호':
+            return order.order_number.toLowerCase().includes(keyword);
+          case '수취인정보':
+            return order.recipient_name.toLowerCase().includes(keyword);
+          case '바코드':
+            return (order.barcode || '').toLowerCase().includes(keyword);
+          default:
+            return false;
+        }
+      });
     }
 
-    const filtered = orderData.filter(order => {
-      const keyword = searchKeyword.toLowerCase().trim();
-      switch (searchCategory) {
-        case '등록상품명':
-          return order.item_name.toLowerCase().includes(keyword);
-        case '주문번호':
-          return order.order_number.toLowerCase().includes(keyword);
-        case '수취인정보':
-          return order.recipient_name.toLowerCase().includes(keyword);
-        default:
-          return false;
-      }
-    });
-
-    setFilteredOrderData(filtered);
+    // 계산된 필드 추가하여 정렬
+    const processedData = calculateOrderFields(dataToFilter);
+    setFilteredOrderData(processedData);
   };
 
   // xlsx 다운로드 핸들러
@@ -332,10 +557,158 @@ const CoupangOrders: React.FC = () => {
     setSelectedOrders(newSelected);
   };
 
-  // 바코드 조회 핸들러 (추후 구현)
-  const handleBarcodeSearch = () => {
-    // 기능은 추후에 구현
-    console.log('바코드 조회 버튼 클릭');
+  /**
+   * 바코드 조회 핸들러
+   * - coupang_personal_order의 item_name, option_name과
+   * - extract_coupang_item_all의 item_name, option_name이 일치하는 경우
+   * - extract_coupang_item_all의 barcode를 가져와서 업데이트
+   */
+  const handleBarcodeSearch = async () => {
+    const userId = getCurrentUserId();
+    if (!userId) {
+      alert('로그인한 사용자 정보를 찾을 수 없습니다.');
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      // 1. coupang_personal_order 테이블에서 현재 사용자의 데이터 조회 (제한 없음)
+      const { data: orderData, error: orderError } = await supabase
+        .from('coupang_personal_order')
+        .select('id, item_name, option_name')
+        .eq('user_id', userId)
+        .range(0, 99999);  // 최대 100,000개까지 조회
+
+      if (orderError) {
+        throw new Error(`주문 데이터 조회 실패: ${orderError.message}`);
+      }
+
+      if (!orderData || orderData.length === 0) {
+        alert('조회할 주문 데이터가 없습니다.');
+        return;
+      }
+
+      // 2. extract_coupang_item_all 테이블에서 바코드가 있는 데이터 조회 (페이징으로 전체 조회)
+      let allItemData: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+        
+        const { data: batch, error: itemError } = await supabase
+          .from('extract_coupang_item_all')
+          .select('item_name, option_name, barcode')
+          .eq('user_id', userId)
+          .not('barcode', 'is', null)
+          .neq('barcode', '')
+          .range(from, to);
+
+        if (itemError) {
+          throw new Error(`상품 데이터 조회 실패: ${itemError.message}`);
+        }
+
+        if (batch && batch.length > 0) {
+          allItemData = [...allItemData, ...batch];
+          hasMore = batch.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const itemData = allItemData;
+
+      if (!itemData || itemData.length === 0) {
+        alert('바코드가 있는 상품 데이터가 없습니다.');
+        return;
+      }
+
+      // 3. 매칭 및 업데이트 수행
+      let updateCount = 0;
+      const updates: { id: string; barcode: string }[] = [];
+
+      // Map을 사용하여 빠른 검색 구현
+      const itemBarcodeMap = new Map<string, string>();
+      itemData.forEach(item => {
+        const key = `${item.item_name}|${item.option_name}`;
+        itemBarcodeMap.set(key, item.barcode);
+      });
+
+      /**
+       * option_name의 마지막 공백 기준으로 순서를 변경하는 함수
+       * 예: "블랙 [무릎] 66" -> "66 블랙 [무릎]"
+       */
+      const swapLastSpace = (optionName: string): string => {
+        const lastSpaceIndex = optionName.lastIndexOf(' ');
+        if (lastSpaceIndex === -1) return optionName;
+        
+        const lastPart = optionName.substring(lastSpaceIndex + 1);
+        const firstPart = optionName.substring(0, lastSpaceIndex);
+        return `${lastPart} ${firstPart}`;
+      };
+
+      // 매칭되는 바코드 찾기
+      orderData.forEach(order => {
+        const key = `${order.item_name}|${order.option_name}`;
+        let barcode = itemBarcodeMap.get(key);
+        
+        // 1차 시도: 원본 그대로 검색
+        if (!barcode) {
+          // 2차 시도: option_name 순서 변경하여 검색
+          const swappedOptionName = swapLastSpace(order.option_name);
+          const swappedKey = `${order.item_name}|${swappedOptionName}`;
+          barcode = itemBarcodeMap.get(swappedKey);
+        }
+        
+        if (barcode) {
+          updates.push({ id: order.id, barcode });
+        }
+      });
+
+      // 4. 배치 업데이트 수행
+      if (updates.length > 0) {
+        const BATCH_SIZE = 50;
+        
+        for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+          const batch = updates.slice(i, i + BATCH_SIZE);
+          
+          // 각 배치를 개별 업데이트
+          for (const update of batch) {
+            const { error: updateError } = await supabase
+              .from('coupang_personal_order')
+              .update({ barcode: update.barcode })
+              .eq('id', update.id)
+              .eq('user_id', userId);
+
+            if (updateError) {
+              console.error(`업데이트 실패 (ID: ${update.id}):`, updateError);
+            } else {
+              updateCount++;
+            }
+          }
+        }
+      }
+
+      // 5. 결과 메시지 표시
+      console.log(`조회된 주문 데이터: ${orderData.length}개`);
+      console.log(`조회된 상품 데이터 (바코드 있음): ${itemData.length}개`);
+      console.log(`매칭 시도: ${orderData.length}개, 매칭 성공: ${updates.length}개`);
+      
+      alert(`바코드 조회 완료!\n조회된 주문: ${orderData.length}개\n조회된 상품 (바코드 있음): ${itemData.length}개\n매칭 성공: ${updateCount}개`);
+      
+      // 6. 데이터 새로고침
+      await loadOrderData();
+      
+    } catch (error) {
+      console.error('바코드 조회 오류:', error);
+      alert(`바코드 조회 중 오류 발생: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Excel 업로드 핸들러
@@ -371,7 +744,7 @@ const CoupangOrders: React.FC = () => {
     const failedFiles: string[] = [];
 
     try {
-      // 데이터 초기화 (전체 업로드 시작 전에 한 번만)
+      // 데이터 초기화 (전체 업로드 시작 전에 한 번만 - 첫 번째 파일 처리 전에만)
       if (clearDataBeforeUpload) {
         setUploadProgress({ stage: '기존 데이터 초기화 중...', current: 5, total: 100 });
         
@@ -388,15 +761,17 @@ const CoupangOrders: React.FC = () => {
         }
       }
 
+      // 모든 파일을 순차적으로 업로드
       for (let i = 0; i < fileArray.length; i++) {
         const file = fileArray[i];
         setMultiFileProgress({ currentFile: i + 1, totalFiles: fileArray.length, fileName: file.name });
         setUploadProgress({ stage: `${file.name} 처리 중...`, current: 0, total: 100 });
 
         try {
+          // 각 파일은 초기화 없이 추가로 업로드
           const result = await processPersonalOrderExcelUpload(file, (stage, current, total) => {
             setUploadProgress({ stage: `${file.name} - ${stage}`, current: current || 0, total: total || 100 });
-          }); // clearDataFirst 매개변수 제거
+          });
 
           if (result.success) {
             totalProcessedCount += result.processedCount || 0;
@@ -450,6 +825,25 @@ const CoupangOrders: React.FC = () => {
           >
             {isUploading ? '업로드 중...' : 'xlsx 업로드'}
           </button>
+          <button 
+            className="coupang-orders-button coupang-orders-button-secondary"
+            onClick={handleBarcodeSearch}
+            disabled={isLoading || isUploading}
+          >
+            {isLoading ? '조회 중...' : '바코드 조회'}
+          </button>
+        </div>
+      </div>
+
+      {/* 통계 카드 섹션 */}
+      <div className="coupang-orders-stats-section">
+        <div className="coupang-orders-stats-grid">
+          <DashboardStatsCard title="전체 주문" value={stats.total} color="default" />
+          <DashboardStatsCard title="연체" value={stats.overdue} color="red" />
+          <DashboardStatsCard title="오늘 출고" value={stats.today} color="orange" />
+          <DashboardStatsCard title="3일 이내" value={stats.threeDays} color="orange" />
+          <DashboardStatsCard title="여유" value={stats.normal} color="blue" />
+          <DashboardStatsCard title="바코드 완료" value={stats.barcodeFilled} color="blue" />
         </div>
       </div>
 
@@ -466,6 +860,7 @@ const CoupangOrders: React.FC = () => {
               <option value="등록상품명">등록상품명</option>
               <option value="주문번호">주문번호</option>
               <option value="수취인정보">수취인정보</option>
+              <option value="바코드">바코드</option>
             </select>
             <input
               type="text"
@@ -483,16 +878,6 @@ const CoupangOrders: React.FC = () => {
             </button>
           </div>
         </div>
-      </div>
-
-      {/* 바코드 조회 섹션 */}
-      <div className="coupang-orders-barcode-section">
-        <button 
-          className="coupang-orders-button coupang-orders-button-secondary"
-          onClick={handleBarcodeSearch}
-        >
-          바코드 조회
-        </button>
       </div>
 
       {/* 데이터 테이블 */}
@@ -521,16 +906,19 @@ const CoupangOrders: React.FC = () => {
                 <th style={{ width: '120px', textAlign: 'center' }}>주문번호</th>
                 <th style={{ width: '100px', textAlign: 'center' }}>분리배송</th>
                 <th style={{ width: '120px', textAlign: 'center' }}>출고예정일</th>
-                <th style={{ width: '300px', textAlign: 'left' }}>등록상품명 & 옵션명</th>
-                <th style={{ width: '100px', textAlign: 'center' }}>Id</th>
+                <th style={{ width: '350px', textAlign: 'left' }}>등록상품명 & 옵션명</th>
                 <th style={{ width: '80px', textAlign: 'center' }}>주문개수</th>
                 <th style={{ width: '200px', textAlign: 'center' }}>수취인정보</th>
+                <th style={{ width: '40px', textAlign: 'center' }}>순서</th>
+                <th style={{ width: '40px', textAlign: 'center' }}>전체</th>
+                <th style={{ width: '40px', textAlign: 'center' }}>사입</th>
+                <th style={{ width: '40px', textAlign: 'center' }}>창고</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} style={{ 
+                  <td colSpan={11} style={{ 
                     textAlign: 'center', 
                     padding: '40px', 
                     color: '#666',
@@ -541,7 +929,7 @@ const CoupangOrders: React.FC = () => {
                 </tr>
               ) : filteredOrderData.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ 
+                  <td colSpan={11} style={{ 
                     textAlign: 'center', 
                     padding: '40px', 
                     color: '#666',
@@ -568,13 +956,15 @@ const CoupangOrders: React.FC = () => {
                     <td style={{ textAlign: 'center' }}>{order.separate_shipping}</td>
                     <td style={{ textAlign: 'center' }}>
                       {formatDate(order.order_date)}<br/>
-                      {order.order_expected_shipping_date}
+                      <span style={getDateStyle(order.order_expected_shipping_date)}>
+                        {formatDate(order.order_expected_shipping_date)}
+                      </span>
                     </td>
                     <td style={{ textAlign: 'left' }}>
                       {order.item_name}<br/>
-                      {order.option_name}
+                      {order.option_name}<br/>
+                      {order.barcode || ''}
                     </td>
-                    <td style={{ textAlign: 'center' }}>{order.barcode || ''}</td>
                     <td style={{ textAlign: 'center' }}>{order.qty}</td>
                     <td 
                       style={{ 
@@ -586,6 +976,10 @@ const CoupangOrders: React.FC = () => {
                     >
                       {order.recipient_name}
                     </td>
+                    <td style={{ textAlign: 'center' }}>{order.sequence || ''}</td>
+                    <td style={{ textAlign: 'center' }}>{order.total_qty || ''}</td>
+                    <td style={{ textAlign: 'center' }}></td>
+                    <td style={{ textAlign: 'center' }}>{order.stock_qty || ''}</td>
                   </tr>
                 ))
               )}

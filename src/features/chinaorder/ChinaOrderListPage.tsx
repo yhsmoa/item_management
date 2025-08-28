@@ -369,10 +369,10 @@ function ChinaOrderListPage() {
 
         {/* 테이블 컨테이너 */}
         <div className="product-list-table-container">
-          <table className="product-list-table" key={`table-page-${currentPage}`}>
-            <thead className="product-list-table-header">
+          <table className="chinaorder-table" key={`table-page-${currentPage}`}>
+            <thead className="chinaorder-table-header">
               <tr>
-                <th className="product-list-table-header-cell product-list-table-header-checkbox chinaorder-table-header-checkbox">
+                <th className="chinaorder-table-header-cell chinaorder-table-header-checkbox">
                   <input
                     type="checkbox"
                     checked={selectAll}
@@ -380,33 +380,31 @@ function ChinaOrderListPage() {
                     className="product-list-checkbox-large"
                   />
                 </th>
-                <th className="product-list-table-header-cell chinaorder-table-header-image">이미지</th>
-                <th className="product-list-table-header-cell chinaorder-table-header-order-number">주문번호</th>
-                <th className="product-list-table-header-cell chinaorder-table-header-date">날짜</th>
-                <th className="product-list-table-header-cell chinaorder-table-header-item-name">등록상품명/옵션명</th>
-                <th className="product-list-table-header-cell chinaorder-table-header-china-option">중국옵션</th>
-                <th className="product-list-table-header-cell chinaorder-table-header-quantity">주문수량</th>
-                <th className="product-list-table-header-cell chinaorder-table-header-price">위안</th>
-                <th className="product-list-table-header-cell chinaorder-table-header-status">진행</th>
-                <th className="product-list-table-header-cell chinaorder-table-header-status">확인</th>
-                <th className="product-list-table-header-cell chinaorder-table-header-status">취소</th>
-                <th className="product-list-table-header-cell chinaorder-table-header-status">출고</th>
-                <th className="product-list-table-header-cell chinaorder-table-header-remark">비고</th>
-                <th className="product-list-table-header-cell chinaorder-table-header-confirm">주문번호</th>
-                <th className="product-list-table-header-cell chinaorder-table-header-confirm">출고번호</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-image">이미지</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-order-number">주문번호</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-item-name">등록상품명/옵션명</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-china-option">중국옵션</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-quantity">수량</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-price">위안</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-status">진행</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-status">확인</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-status">취소</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-status">출고</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-remark">비고</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-confirm">출고번호</th>
               </tr>
             </thead>
-            <tbody className="product-list-table-body">
+            <tbody className="chinaorder-table-body">
               {currentTableRows.length === 0 && (
                 <tr>
-                  <td colSpan={15} className="chinaorder-empty-data">
+                  <td colSpan={13} className="chinaorder-empty-data">
                     {isLoading ? '데이터를 불러오는 중...' : '데이터가 없습니다.'}
                   </td>
                 </tr>
               )}
               {currentTableRows.map((row, index) => (
-                <tr key={row.id} className="product-list-table-row">
-                  <td className="product-list-table-cell chinaorder-table-cell-checkbox">
+                <tr key={row.id} className="chinaorder-table-row">
+                  <td className="chinaorder-table-cell-checkbox">
                     <input
                       type="checkbox"
                       checked={selectedItems.includes(row.id)}
@@ -414,7 +412,7 @@ function ChinaOrderListPage() {
                       className="product-list-checkbox-large"
                     />
                   </td>
-                  <td className="product-list-table-cell chinaorder-table-cell-image">
+                  <td className="chinaorder-table-cell-image">
                     {row.image_url && row.image_url !== row.china_link && !row.image_url.includes('placeholder') ? (
                       row.china_link ? (
                         <a href={row.china_link} target="_blank" rel="noopener noreferrer">
@@ -465,59 +463,67 @@ function ChinaOrderListPage() {
                       </div>
                     )}
                   </td>
-                  <td className="product-list-table-cell chinaorder-table-cell-order-number">{row.china_order_number || '-'}</td>
-                  <td className="product-list-table-cell chinaorder-table-cell-date">{row.date || '-'}</td>
-                  <td className="product-list-table-cell chinaorder-table-cell-item-name">
+                  <td className="chinaorder-table-cell-order-number">
+                    <div className="chinaorder-order-info">
+                      {row.date || '-'}<br/>
+                      {row.china_order_number || '-'}
+                    </div>
+                  </td>
+                  <td className="chinaorder-table-cell-item-name">
                     <div className="chinaorder-item-info">
                       {row.item_name || '-'}
                       {row.option_name && '\n' + row.option_name}
                       {row.barcode && '\n' + row.barcode}
                     </div>
                   </td>
-                  <td className="product-list-table-cell chinaorder-table-cell-china-option">
+                  <td className="chinaorder-table-cell-china-option">
                     <div className="chinaorder-china-option-info">
                       {row.china_option1 || '-'}
                       {row.china_option2 && '\n' + row.china_option2}
                     </div>
                   </td>
-                  <td className="product-list-table-cell chinaorder-table-cell-quantity">{row.order_quantity || '-'}</td>
-                  <td className="product-list-table-cell chinaorder-table-cell-price">
+                  <td className="chinaorder-table-cell-quantity">{row.order_quantity || '-'}</td>
+                  <td className="chinaorder-table-cell-price">
                     <div className="chinaorder-price-info">
                       {row.china_price || '-'}
                       {row.china_total_price && '\n' + row.china_total_price}
                     </div>
                   </td>
-                  <td className="product-list-table-cell chinaorder-table-cell-status">
+                  <td className="chinaorder-table-cell-status">
                     {row.order_status_ordering ? (
                       <span className="chinaorder-status-badge chinaorder-status-ordering">
                         {row.order_status_ordering}
                       </span>
                     ) : '-'}
                   </td>
-                  <td className="product-list-table-cell chinaorder-table-cell-status">
+                  <td className="chinaorder-table-cell-status">
                     {row.order_status_check ? (
                       <span className="chinaorder-status-badge chinaorder-status-check">
                         {row.order_status_check}
                       </span>
                     ) : '-'}
                   </td>
-                  <td className="product-list-table-cell chinaorder-table-cell-status">
+                  <td className="chinaorder-table-cell-status">
                     {row.order_status_cancel ? (
                       <span className="chinaorder-status-badge chinaorder-status-cancel">
                         {row.order_status_cancel}
                       </span>
                     ) : '-'}
                   </td>
-                  <td className="product-list-table-cell chinaorder-table-cell-status">
+                  <td className="chinaorder-table-cell-status">
                     {row.order_status_shipment ? (
                       <span className="chinaorder-status-badge chinaorder-status-shipment">
                         {row.order_status_shipment}
                       </span>
                     ) : '-'}
                   </td>
-                  <td className="product-list-table-cell chinaorder-table-cell-remark">{row.remark || '-'}</td>
-                  <td className="product-list-table-cell chinaorder-table-cell-confirm">{row.confirm_order_id || '-'}</td>
-                  <td className="product-list-table-cell chinaorder-table-cell-confirm">{row.confirm_shipment_id || '-'}</td>
+                  <td className="chinaorder-table-cell-remark">{row.remark || ''}</td>
+                  <td className="chinaorder-table-cell-confirm">
+                    <div className="chinaorder-shipment-info">
+                      {row.confirm_order_id || '-'}<br/>
+                      {row.confirm_shipment_id || '-'}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -248,6 +248,382 @@ function ProductListPage() {
     }
   }, [formatDateToMMDD]);
 
+  /**
+   * 주문 데이터 타입 정의
+   */
+  interface OrderData {
+    item_name: string;
+    option_name: string;
+    quantity: number;
+    barcode: string;
+    option_id: string;
+    _debug?: {
+      cellId: string;
+      itemId: string;
+      original_product_name?: string;
+    };
+  }
+
+  /**
+   * 기업급 에러 처리 유틸리티
+   * @description unknown 타입의 에러를 안전하게 처리하는 유틸리티 함수
+   */
+  const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) {
+      return error.message;
+    }
+    if (typeof error === 'string') {
+      return error;
+    }
+    return '알 수 없는 오류가 발생했습니다.';
+  };
+
+  const getErrorStack = (error: unknown): string | undefined => {
+    if (error instanceof Error) {
+      return error.stack;
+    }
+    return undefined;
+  };
+
+  /**
+   * 기업급 일괄 주문 처리 함수
+   * @description localStorage에서 입력 데이터를 추출하고 상품 정보와 매칭하여 구글시트에 일괄 저장
+   * @author 기업 전문 개발팀
+   * @version 1.0.0
+   * @created 2025-08-27
+   */
+  const handleBatchOrderSubmission = useCallback(async () => {
+    const operationStartTime = performance.now();
+    
+    try {
+      console.log('🚀 [BATCH_ORDER] 일괄 주문 처리 시작');
+      
+      // 1. 사용자 인증 검증
+      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      const userId = currentUser.id;
+      
+      if (!userId) {
+        console.error('❌ [BATCH_ORDER] 사용자 인증 실패');
+        alert('로그인이 필요합니다.');
+        return;
+      }
+      
+      console.log('✅ [BATCH_ORDER] 사용자 인증 확인:', userId);
+
+      // 2. localStorage에서 입력 데이터 추출
+      console.log('📋 [BATCH_ORDER] 입력 데이터 추출 중...');
+      console.log('🔍 [DEBUG] inputValues 전체:', inputValues);
+      console.log('🔍 [DEBUG] inputValues 키 개수:', Object.keys(inputValues).length);
+      
+      const inputEntries = Object.entries(inputValues)
+        .filter(([cellId, quantity]) => {
+          const numQuantity = Number(quantity);
+          const isValid = quantity && numQuantity > 0 && !isNaN(numQuantity);
+          console.log(`🔍 [DEBUG] 필터링 체크: ${cellId} = ${quantity} -> ${isValid}`);
+          return isValid;
+        })
+        .map(([cellId, quantity]) => ({
+          cellId,
+          quantity: Number(quantity)
+        }));
+      
+      if (inputEntries.length === 0) {
+        console.warn('⚠️ [BATCH_ORDER] 입력된 주문 데이터가 없음');
+        alert('주문할 수량이 입력된 상품이 없습니다.');
+        return;
+      }
+      
+      console.log('📊 [BATCH_ORDER] 추출된 입력 데이터:', {
+        total_entries: inputEntries.length,
+        entries: inputEntries.slice(0, 3) // 처음 3개만 로그
+      });
+
+      // 3. 상품 데이터와 매칭하여 주문 정보 구성
+      console.log('🔄 [BATCH_ORDER] 상품 데이터 매칭 중...');
+      console.log('🔍 [BATCH_ORDER] 전체 상품 데이터 개수:', data.length);
+      console.log('🔍 [BATCH_ORDER] 현재 페이지 데이터 개수:', getCurrentPageData().length);
+      console.log('🔍 [BATCH_ORDER] inputValues와 data 매칭 분석...');
+      
+      // inputValues의 cellId들 분석
+      const inputCellIds = Object.keys(inputValues);
+      console.log('🔍 [BATCH_ORDER] inputValues cellId 샘플:', inputCellIds.slice(0, 5));
+      
+      // data의 item_id, option_id 샘플
+      console.log('🔍 [BATCH_ORDER] data 상품 샘플:', data.slice(0, 3).map(p => ({
+        item_id: p.item_id,
+        option_id: p.option_id,
+        expected_cellId: `input-${p.item_id}-${p.option_id}`
+      })));
+      
+      const orders: OrderData[] = [];
+      const unmatchedEntries: any[] = [];
+
+      for (const { cellId, quantity } of inputEntries) {
+        try {
+          let productData: any = null;
+          let itemId = '';
+          let optionId = '';
+          
+          // localStorage에 상품 정보가 객체로 저장되어 있는 경우 우선 사용
+          if (typeof quantity === 'object' && quantity !== null && 'item_name' in quantity) {
+            const quantityObj = quantity as any;
+            productData = {
+              product_name: quantityObj.item_name,
+              option_name: quantityObj.option_name || '',
+              barcode: quantityObj.barcode || '',
+              option_id: quantityObj.option_id,
+              item_id: quantityObj.item_id
+            };
+            itemId = quantityObj.item_id;
+            optionId = quantityObj.option_id;
+            console.log('📦 [BATCH_ORDER] localStorage에서 상품 정보 사용:', productData);
+          } else {
+            // 기존 방식: cellId 파싱 및 현재 페이지 데이터 매칭
+            const cellIdMatch = cellId.match(/^input-(.+)-(.+)$/);
+            if (!cellIdMatch) {
+              console.warn('⚠️ [BATCH_ORDER] 잘못된 cellId 형식:', cellId);
+              unmatchedEntries.push({ cellId, reason: 'INVALID_CELL_ID_FORMAT' });
+              continue;
+            }
+
+            [, itemId, optionId] = cellIdMatch;
+            
+            console.log(`🔍 [BATCH_ORDER] 매칭 시도 (현재 페이지):`, { cellId, itemId, optionId });
+            
+            // 현재 페이지 데이터에서 매칭되는 상품 찾기
+            const matchingProduct = data.find(product => 
+              String(product.item_id) === String(itemId) && 
+              String(product.option_id) === String(optionId)
+            );
+            
+            if (matchingProduct) {
+              productData = matchingProduct;
+              console.log('✅ [BATCH_ORDER] 현재 페이지에서 상품 매칭 성공');
+            } else {
+              // 현재 페이지에 없는 경우 - 다른 페이지의 상품으로 간주하고 스킵 (매칭 실패로 분류하지 않음)
+              console.log('ℹ️ [BATCH_ORDER] 다른 페이지 상품으로 추정 - 처리 스킵:', { cellId, itemId, optionId });
+              continue; // unmatchedEntries에 추가하지 않고 스킵
+            }
+          }
+
+          const matchingProduct = productData;
+          
+          // quantity 값 추출 (새로운 형식과 기존 형식 모두 지원)
+          const actualQuantity = (typeof quantity === 'object' && quantity !== null && 'quantity' in quantity) 
+            ? (quantity as any).quantity 
+            : quantity;
+          
+          console.log(`🔍 [BATCH_ORDER] 매칭 결과:`, { 
+            cellId, 
+            found: !!matchingProduct,
+            matching_item_id: matchingProduct?.item_id,
+            matching_option_id: matchingProduct?.option_id,
+            quantity: actualQuantity
+          });
+
+          if (!matchingProduct) {
+            console.warn('⚠️ [BATCH_ORDER] 매칭되는 상품 없음:', { itemId, optionId });
+            unmatchedEntries.push({ cellId, itemId, optionId, reason: 'PRODUCT_NOT_FOUND' });
+            continue;
+          }
+
+          // 상품명 파싱 전 데이터 확인
+          console.log('🔍 [BATCH_ORDER] 매칭된 상품 전체 데이터:', {
+            ...matchingProduct,
+            // 긴 필드는 축약
+            product_name: matchingProduct.product_name?.substring(0, 100) + '...'
+          });
+
+          // 데이터 추출 로직 개선
+          // item_name과 option_name을 적절히 찾기
+          let itemName = '';
+          let optionName = '';
+          
+          // product_name이 있는 경우 파싱 시도
+          if (matchingProduct.product_name) {
+            const productLines = matchingProduct.product_name.split('\n');
+            itemName = productLines[0]?.trim() || '';
+            optionName = productLines[1]?.trim() || '';
+          }
+          
+          // item_name 필드가 직접 있는 경우
+          if (!itemName && matchingProduct.item_name) {
+            itemName = String(matchingProduct.item_name).trim();
+          }
+          
+          // option_name 필드가 직접 있는 경우
+          if (!optionName && matchingProduct.option_name) {
+            optionName = String(matchingProduct.option_name).trim();
+          }
+          
+          // product_title 필드도 체크
+          if (!itemName && matchingProduct.product_title) {
+            itemName = String(matchingProduct.product_title).trim();
+          }
+
+          console.log('📝 [BATCH_ORDER] 추출된 데이터:', {
+            itemName,
+            optionName,
+            barcode: matchingProduct.barcode,
+            option_id: matchingProduct.option_id
+          });
+
+          // 필수 데이터 검증 (barcode는 선택사항으로 변경)
+          if (!itemName) {
+            console.warn('⚠️ [BATCH_ORDER] 필수 데이터 부족:', {
+              itemId,
+              optionId,
+              available_fields: Object.keys(matchingProduct),
+              itemName,
+              optionName,
+              barcode: matchingProduct.barcode
+            });
+            unmatchedEntries.push({ 
+              cellId, 
+              itemId, 
+              optionId, 
+              reason: 'MISSING_REQUIRED_DATA',
+              available_fields: Object.keys(matchingProduct)
+            });
+            continue;
+          }
+
+          // 주문 데이터 구성
+          orders.push({
+            item_name: itemName,
+            option_name: optionName || '옵션없음', // 옵션명이 없으면 기본값
+            quantity: actualQuantity,
+            barcode: String(matchingProduct.barcode || ''), // 바코드가 없으면 빈 문자열
+            option_id: String(matchingProduct.option_id),
+            // 디버깅을 위한 추가 정보
+            _debug: {
+              cellId,
+              itemId: matchingProduct.item_id,
+              original_product_name: matchingProduct.product_name
+            }
+          });
+
+        } catch (error) {
+          console.error(`❌ [BATCH_ORDER] 항목 처리 중 오류 (${cellId}):`, error);
+          unmatchedEntries.push({ 
+            cellId, 
+            reason: 'PROCESSING_ERROR', 
+            error: getErrorMessage(error)
+          });
+        }
+      }
+
+      console.log('📈 [BATCH_ORDER] 데이터 매칭 결과:', {
+        total_inputs: inputEntries.length,
+        matched_orders: orders.length,
+        unmatched_entries: unmatchedEntries.length,
+        success_rate: `${((orders.length / inputEntries.length) * 100).toFixed(1)}%`
+      });
+      
+      if (unmatchedEntries.length > 0) {
+        console.log('⚠️ [BATCH_ORDER] 매칭 실패 상세:', unmatchedEntries);
+      }
+
+      // 처리 가능한 주문이 없는 경우
+      if (orders.length === 0) {
+        console.error('❌ [BATCH_ORDER] 처리 가능한 주문이 없음');
+        alert('처리 가능한 주문 데이터가 없습니다.\n상품 정보를 확인해 주세요.');
+        return;
+      }
+
+      // 4. 백엔드 API 호출
+      console.log('📡 [BATCH_ORDER] 백엔드 API 호출 중...');
+      const apiStartTime = performance.now();
+      
+      const response = await fetch('http://localhost:3001/api/googlesheets/batch-orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          orders: orders
+        })
+      });
+
+      const result = await response.json();
+      const apiEndTime = performance.now();
+      
+      console.log('📊 [BATCH_ORDER] API 응답:', {
+        status: response.status,
+        success: result.success,
+        api_duration_ms: Math.round(apiEndTime - apiStartTime),
+        result_summary: result.data || result.message
+      });
+
+      // 5. 결과 처리 및 사용자 피드백
+      if (result.success) {
+        const { processed_count, failed_count, processing_time_ms, range } = result.data;
+        
+        console.log('✅ [BATCH_ORDER] 처리 완료:', {
+          processed_count,
+          failed_count,
+          server_processing_time_ms: processing_time_ms,
+          googlesheet_range: range
+        });
+
+        // 성공 메시지 구성
+        let successMessage = `✅ 주문 처리 완료!\n\n`;
+        successMessage += `📊 처리 결과:\n`;
+        successMessage += `• 성공: ${processed_count}개\n`;
+        if (failed_count > 0) {
+          successMessage += `• 실패: ${failed_count}개\n`;
+        }
+        if (unmatchedEntries.length > 0) {
+          successMessage += `• 매칭 실패: ${unmatchedEntries.length}개\n`;
+        }
+        successMessage += `\n📍 구글시트 위치: ${range}`;
+        successMessage += `\n⏱️ 처리 시간: ${processing_time_ms}ms`;
+
+        alert(successMessage);
+
+        // 모든 입력값 전체 초기화 (선택적)
+        const shouldClearInputs = window.confirm('모든 입력값을 전체 초기화하시겠습니까?');
+        if (shouldClearInputs) {
+          console.log('🧹 [BATCH_ORDER] 전체 초기화 시작');
+          console.log('🧹 [BATCH_ORDER] 초기화 전 총 입력값 개수:', Object.keys(inputValues).length);
+          
+          // 모든 입력값 완전 삭제
+          setInputValues({});
+          
+          // localStorage 완전 삭제
+          localStorage.removeItem('productInputValues');
+          
+          console.log('✅ [BATCH_ORDER] 모든 입력값 전체 초기화 완료');
+        }
+
+      } else {
+        console.error('❌ [BATCH_ORDER] 서버 처리 실패:', result);
+        alert(`주문 처리에 실패했습니다.\n\n오류: ${result.message}\n오류 코드: ${result.error_code || 'UNKNOWN'}`);
+      }
+
+    } catch (error) {
+      const errorMessage = getErrorMessage(error);
+      const errorStack = getErrorStack(error);
+      
+      console.error('❌ [BATCH_ORDER] 예상치 못한 오류:', {
+        error: errorMessage,
+        stack: errorStack
+      });
+      
+      alert(`주문 처리 중 오류가 발생했습니다.\n\n오류: ${errorMessage}\n\n개발자 도구의 콘솔을 확인해 주세요.`);
+      
+    } finally {
+      const operationEndTime = performance.now();
+      const totalDuration = Math.round(operationEndTime - operationStartTime);
+      
+      console.log('🏁 [BATCH_ORDER] 작업 완료:', {
+        total_duration_ms: totalDuration,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }, [inputValues, data]);
+
   // 🛠️ 수정된 조회수 색상 결정 함수: view1=검은색, view2~5는 이전값 대비 증감에 따라 색상 결정
   const getViewCountColor = useCallback((current: string | undefined, previous: string | undefined, isFirstView: boolean = false): string => {
     // view1인 경우 항상 검은색
@@ -311,9 +687,24 @@ function ProductListPage() {
     return value || '-';
   }, []);
 
+  // 입력값 추출 헬퍼 함수 (객체와 문자열 모두 지원)
+  const getInputValue = useCallback((cellId: string): string => {
+    const cellValue = inputValues[cellId];
+    // 객체인 경우 quantity 속성 추출, 아니면 그대로 사용
+    return (typeof cellValue === 'object' && cellValue !== null && 'quantity' in cellValue) 
+      ? String((cellValue as any).quantity || '')
+      : String(cellValue || '');
+  }, [inputValues]);
+
   const renderInputValue = useCallback((row: TableRow, index: number) => {
     const cellId = `input-${row.item_id}-${row.option_id || index}`;
-    const value = inputValues[cellId] || '';
+    
+    // getInputValue 로직을 직접 인라인으로 처리
+    const cellValue = inputValues[cellId];
+    const value = (typeof cellValue === 'object' && cellValue !== null && 'quantity' in cellValue) 
+      ? String((cellValue as any).quantity || '')
+      : String(cellValue || '');
+      
     const numValue = parseFloat(value);
     
     if (value && !isNaN(numValue) && numValue > 0) {
@@ -1151,28 +1542,7 @@ function ProductListPage() {
       filtered = filtered.filter(item => rocketInventoryOptionIds.has(String(item.option_id)));
       console.log(`🔍 [디버깅] 로켓그로스 필터링: ${beforeCount}개 → ${filtered.length}개`);
     } else if (sortFilter === '사입보기') {
-      const beforeCount = filtered.length;
-      filtered = filtered.filter(item => {
-        const isRocketGrowth = rocketInventoryOptionIds.has(String(item.option_id));
-        
-        if (isRocketGrowth) {
-          // 로켓그로스는 모두 노출
-          return true;
-        } else {
-          // 일반판매는 '기간' 열에 값이 0보다 큰 경우만 노출
-          // 현재 기간 데이터가 '-'로 하드코딩되어 있으므로, 
-          // 실제 데이터 필드가 추가되면 여기를 수정해야 함
-          // 예시: item.period_value && item.period_value > 0
-          
-          // 임시로 7일 판매량이나 30일 판매량이 있는 경우를 기간 조건으로 사용
-          const sales7Days = rocketInventoryData[String(item.option_id)]?.sales_quantity_last_7_days || 0;
-          const sales30Days = rocketInventoryData[String(item.option_id)]?.sales_quantity_last_30_days || 0;
-          
-          // 7일 또는 30일 판매량이 0보다 큰 경우 표시
-          return sales7Days > 0 || sales30Days > 0;
-        }
-      });
-      console.log(`🔍 [디버깅] 사입보기 필터링: ${beforeCount}개 → ${filtered.length}개`);
+      // 사입보기 필터링은 아래쪽 함수에서 처리됨 (중복 제거)
     }
     
     // 6. 판매방식이 '전체'인 경우에만 정렬 적용
@@ -1546,16 +1916,75 @@ function ProductListPage() {
     setEditingCell(cellId);
   };
 
-  const handleInputChange = (cellId: string, value: string) => {
-    const newInputValues = {
-      ...inputValues,
-      [cellId]: value
-    };
+  // Debouncing을 위한 ref
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleInputChange = (cellId: string, value: string, productInfo?: any) => {
+    console.log('📝 [INPUT] 입력 변경:', { cellId, value, valueLength: value.length });
     
-    setInputValues(newInputValues);
-    
-    // localStorage에 저장
-    localStorage.setItem('productInputValues', JSON.stringify(newInputValues));
+    // 즉시 상태 업데이트 (빠른 UI 반응)
+    if (!value || value.trim() === '' || value === '0') {
+      const newInputValues = { ...inputValues };
+      delete newInputValues[cellId];
+      setInputValues(newInputValues);
+      
+      console.log('🗑️ [INPUT] 빈 값 제거:', cellId);
+    } else {
+      // 상태에는 단순 값만 저장 (기존 로직 유지)
+      const newInputValues = {
+        ...inputValues,
+        [cellId]: value
+      };
+      setInputValues(newInputValues);
+    }
+
+    // localStorage 저장은 debouncing 적용
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(() => {
+      try {
+        if (!value || value.trim() === '' || value === '0') {
+          // 빈 값 처리
+          const currentValues = JSON.parse(localStorage.getItem('productInputValues') || '{}');
+          delete currentValues[cellId];
+          
+          if (Object.keys(currentValues).length === 0) {
+            localStorage.removeItem('productInputValues');
+            console.log('🗑️ [INPUT-DEBOUNCED] localStorage 완전 초기화');
+          } else {
+            localStorage.setItem('productInputValues', JSON.stringify(currentValues));
+            console.log('💾 [INPUT-DEBOUNCED] localStorage 업데이트 (항목 제거)');
+          }
+        } else {
+          // 값 저장 - 상품 정보도 함께 저장
+          const currentValues = JSON.parse(localStorage.getItem('productInputValues') || '{}');
+          
+          // 상품 정보가 있으면 함께 저장
+          if (productInfo) {
+            currentValues[cellId] = {
+              quantity: value,
+              item_name: productInfo.product_name || productInfo.item_name || productInfo.product_title,
+              option_name: productInfo.option_name || '',
+              barcode: productInfo.barcode || '',
+              option_id: productInfo.option_id,
+              item_id: productInfo.item_id
+            };
+          } else {
+            // 상품 정보가 없으면 기존 방식 유지
+            currentValues[cellId] = value;
+          }
+          
+          localStorage.setItem('productInputValues', JSON.stringify(currentValues));
+          console.log('💾 [INPUT-DEBOUNCED] localStorage 업데이트 (값 저장):', { 
+            totalItems: Object.keys(currentValues).length 
+          });
+        }
+      } catch (error) {
+        console.error('❌ [INPUT-DEBOUNCED] localStorage 업데이트 실패:', error);
+      }
+    }, 300); // 300ms debouncing
   };
 
   const handleInputBlur = useCallback(async () => {
@@ -1623,14 +2052,39 @@ function ProductListPage() {
     // 🆕 조회수 데이터 로드 추가
     loadViewsData();
     
-    // localStorage에서 입력값 복구
+    // localStorage에서 입력값 복구 (유효성 검사 포함)
     const savedInputValues = localStorage.getItem('productInputValues');
     if (savedInputValues) {
       try {
         const parsedValues = JSON.parse(savedInputValues);
-        setInputValues(parsedValues);
+        console.log('📂 [LOAD] localStorage에서 복구된 데이터:', {
+          totalItems: Object.keys(parsedValues).length,
+          sample: Object.entries(parsedValues).slice(0, 3)
+        });
+        
+        // 유효한 값만 필터링
+        const validValues: {[key: string]: any} = {};
+        Object.entries(parsedValues).forEach(([cellId, value]) => {
+          if (value && String(value).trim() !== '' && value !== '0') {
+            validValues[cellId] = value;
+          }
+        });
+        
+        console.log('✅ [LOAD] 유효한 데이터만 필터링:', {
+          before: Object.keys(parsedValues).length,
+          after: Object.keys(validValues).length
+        });
+        
+        setInputValues(validValues);
+        
+        // 정리된 데이터로 localStorage 업데이트
+        if (Object.keys(validValues).length === 0) {
+          localStorage.removeItem('productInputValues');
+        } else {
+          localStorage.setItem('productInputValues', JSON.stringify(validValues));
+        }
       } catch (error) {
-        console.error('localStorage 데이터 복구 실패:', error);
+        console.error('❌ [LOAD] localStorage 데이터 복구 실패:', error);
         localStorage.removeItem('productInputValues');
       }
     }
@@ -2011,10 +2465,19 @@ function ProductListPage() {
     } else if (sortFilter === '로켓그로스') {
       filtered = filtered.filter(item => rocketInventoryOptionIds.has(String(item.option_id)));
     } else if (sortFilter === '사입보기') {
+      // 사입보기 로직: 로켓그로스 전체 + 기간(coupang_sales) > 0인 일반판매
       filtered = filtered.filter(item => {
         const isRocketGrowth = rocketInventoryOptionIds.has(String(item.option_id));
-        if (isRocketGrowth) return true;
-        return false; // 일단 간단하게 처리
+        
+        if (isRocketGrowth) {
+          // 로켓그로스는 모두 노출
+          return true;
+        } else {
+          // 일반판매는 '기간' 열에 값이 0보다 큰 경우만 노출
+          const optionId = String(item.option_id);
+          const periodSales = coupangSalesData[optionId] || 0;
+          return periodSales > 0;
+        }
       });
     }
     
@@ -2045,40 +2508,29 @@ function ProductListPage() {
         <h1 className="product-list-page-title">상품 조회/수정</h1>
       </div>
 
-      {/* API 버튼들을 카드 위에 배치 */}
-      <div className="product-list-api-buttons">
-        <button
-          onClick={handleApiLoad2}
-          disabled={isLoadingApi2}
-          className="product-list-button product-list-button-primary"
-        >
-          {isLoadingApi2 ? '처리 중...' : '쿠팡일반 api'}
-        </button>
+      {/* 버튼들 - 카드 위쪽 */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        {/* 왼쪽: API 버튼들 */}
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button
+            onClick={handleApiLoad2}
+            disabled={isLoadingApi2}
+            className="product-list-button product-list-button-primary"
+          >
+            {isLoadingApi2 ? '처리 중...' : '쿠팡일반 api'}
+          </button>
 
-        <button
-          onClick={handleNormalApiLoad}
-          disabled={isLoadingNormalApi}
-          className="product-list-button product-list-button-orange"
-        >
-          {isLoadingNormalApi ? '처리 중...' : '로켓그로스 api'}
-        </button>
-      </div>
-
-      {/* 통계 카드 섹션 */}
-      <div className="product-list-stats-section">
-        <div className="product-list-stats-grid">
-          <DashboardStatsCard title="전체" value={stats.total} color="default" />
-          <DashboardStatsCard title="아이템파너 아님" value={stats.notItemPartner} hasInfo={true} subtitle="쿠팡 배송 성장 20% 상품 中" color="orange" />
-          <DashboardStatsCard title="품절" value={stats.outOfStock} color="red" />
-          <DashboardStatsCard title="승인반려" value={stats.rejected} hasInfo={true} color="red" />
-          <DashboardStatsCard title="판매중" value={stats.selling} color="blue" />
-          <DashboardStatsCard title="임시저장" value={stats.tempSave} color="default" />
+          <button
+            onClick={handleNormalApiLoad}
+            disabled={isLoadingNormalApi}
+            className="product-list-button product-list-button-orange"
+          >
+            {isLoadingNormalApi ? '처리 중...' : '로켓그로스 api'}
+          </button>
         </div>
-      </div>
-
-      {/* 상단 액션 버튼 섹션 */}
-      <div className="product-list-top-actions-section">
-        <div className="product-list-top-actions-buttons">
+        
+        {/* 오른쪽: 액션 버튼들 */}
+        <div style={{ display: 'flex', gap: '12px' }}>
           <button
             onClick={handleDeleteAllData}
             className="product-list-button product-list-button-danger"
@@ -2109,6 +2561,18 @@ function ProductListPage() {
           >
             {isUploadingRocketInventory ? '업로드 중...' : '로켓그로스 xlsx'}
           </button>
+        </div>
+      </div>
+
+      {/* 통계 카드 섹션 */}
+      <div className="product-list-stats-section">
+        <div className="product-list-stats-grid">
+          <DashboardStatsCard title="전체" value={stats.total} color="default" />
+          <DashboardStatsCard title="아이템파너 아님" value={stats.notItemPartner} hasInfo={true} subtitle="쿠팡 배송 성장 20% 상품 中" color="orange" />
+          <DashboardStatsCard title="품절" value={stats.outOfStock} color="red" />
+          <DashboardStatsCard title="승인반려" value={stats.rejected} hasInfo={true} color="red" />
+          <DashboardStatsCard title="판매중" value={stats.selling} color="blue" />
+          <DashboardStatsCard title="임시저장" value={stats.tempSave} color="default" />
         </div>
       </div>
 
@@ -2266,12 +2730,32 @@ function ProductListPage() {
             </div>
           </div>
           
+          
           <div className="product-list-action-buttons">
             <button
               onClick={() => {
-                // TODO: 주문 기능 구현
-                alert('주문 기능이 구현될 예정입니다.');
+                console.log('🔍 [진단] 현재 상태 확인:');
+                console.log('inputValues:', inputValues);
+                console.log('localStorage:', localStorage.getItem('productInputValues'));
+                console.log('테이블 input 필드들:', document.querySelectorAll('input[type="number"]').length);
+                
+                // 실제 input 필드 값들 확인
+                const inputFields = Array.from(document.querySelectorAll('input[type="number"]'));
+                const fieldValues = inputFields.map(input => ({
+                  id: input.getAttribute('data-cell-id') || 'unknown',
+                  value: (input as HTMLInputElement).value
+                }));
+                console.log('실제 input 필드 값들:', fieldValues.filter(f => f.value));
+                
+                alert(`진단 결과:\n- inputValues 개수: ${Object.keys(inputValues).length}\n- localStorage 있음: ${!!localStorage.getItem('productInputValues')}\n- 입력 필드 개수: ${inputFields.length}\n- 값 있는 필드: ${fieldValues.filter(f => f.value).length}`);
               }}
+              className="product-list-button product-list-button-secondary"
+              style={{ marginRight: '8px' }}
+            >
+              진단
+            </button>
+            <button
+              onClick={handleBatchOrderSubmission}
               className="product-list-button product-list-button-primary"
             >
               주문
@@ -2394,8 +2878,8 @@ function ProductListPage() {
                     {editingCell === `input-${row.item_id}-${row.option_id || index}` ? (
                       <input
                         type="text"
-                        value={inputValues[`input-${row.item_id}-${row.option_id || index}`] || ''}
-                        onChange={(e) => handleInputChange(`input-${row.item_id}-${row.option_id || index}`, e.target.value)}
+                        value={getInputValue(`input-${row.item_id}-${row.option_id || index}`)}
+                        onChange={(e) => handleInputChange(`input-${row.item_id}-${row.option_id || index}`, e.target.value, row)}
                         onBlur={() => handleBlurAndSave(row, `input-${row.item_id}-${row.option_id || index}`)}
                         onKeyPress={(e) => handleEnterKeyAndSave(e, row, `input-${row.item_id}-${row.option_id || index}`, index)}
                         autoFocus
