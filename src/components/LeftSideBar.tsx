@@ -128,11 +128,11 @@ const LeftSideBar: React.FC<LeftSideBarProps> = ({ isVisible }) => {
       icon: '🛒',
       path: '/orders',
       children: [
-        { id: 'china-order-list', title: '전체 주문', icon: '📄', path: '/chinaorder/list' },
+        { id: 'china-order-list', title: '전체주문', icon: '📄', path: '/chinaorder/list' },
+        { id: 'order-delivery', title: '신규주문', icon: '📋', path: '/chinaorder/chinaorder-cart' },
+        { id: 'order-return', title: '주문확정', icon: '↩️', path: '/chinaorder/chinaorder-confirm' },
         { id: 'order-delivery-status', title: '출고중', icon: '🚚', path: '/chinaorder/chinaorder-delivery' },
-        { id: 'order-return', title: '주문 확정', icon: '↩️', path: '/chinaorder/chinaorder-confirm' },
-        { id: 'order-delivery', title: '요청 목록', icon: '📋', path: '/chinaorder/chinaorder-cart' },
-        { id: 'order-records', title: '과거 주문', icon: '📚', path: '/chinaorder/chinaorder-records' }
+        { id: 'order-records', title: '출고완료', icon: '📚', path: '/chinaorder/chinaorder-records' }
       ]
     },
     {

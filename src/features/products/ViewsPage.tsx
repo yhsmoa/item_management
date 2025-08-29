@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import DashboardStatsCard from './components/DashboardStatsCard';
+import DashboardStatsCard from './components/StatsCard';
 import { viewsService } from '../../services/viewsService';
 import { getCurrentUserId } from '../../services/authService';
 import * as XLSX from 'xlsx';
-import './ProductListPage.css';
+import './ProductListPage/index.css';
 
 function ViewsPage() {
   // Refs for date inputs

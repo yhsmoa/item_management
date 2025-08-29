@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import DashboardStatsCard from '../products/components/DashboardStatsCard';
+import DashboardStatsCard from '../products/ProductListPage/components/DashboardStatsCard';
 import ActionButton from '../../components/ActionButton';
 import { supabase } from '../../config/supabase';
 import './ChinaorderCart.css';
@@ -790,7 +790,7 @@ function ChinaorderCart() {
     <div className="product-list-container chinaorder-cart-container">
       {/* 페이지 헤더 */}
       <div className="product-list-page-header">
-        <h1 className="product-list-page-title">요청 목록</h1>
+        <h1 className="product-list-page-title">신규주문</h1>
       </div>
 
       {/* 통계 카드 섹션 */}
@@ -930,9 +930,9 @@ function ChinaorderCart() {
         {/* 테이블 컨테이너 */}
         <div className="product-list-table-container">
           <table className="product-list-table chinaorder-cart-table" key={`table-page-${currentPage}`}>
-            <thead className="product-list-table-header">
+            <thead className="chinaorder-table-header">
               <tr>
-                <th className="product-list-table-header-cell product-list-table-header-checkbox" style={{ width: '40px', padding: '1px', textAlign: 'center' }}>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-checkbox">
                   <input
                     type="checkbox"
                     checked={selectAll}
@@ -940,19 +940,18 @@ function ChinaorderCart() {
                     className="product-list-checkbox-large"
                   />
                 </th>
-                <th className="product-list-table-header-cell" style={{ width: '50px' }}>이미지</th>
-                <th className="product-list-table-header-cell" style={{ width: '60px' }}>옵션ID</th>
-                <th className="product-list-table-header-cell" style={{ width: '400px' }}>등록상품명</th>
-                <th className="product-list-table-header-cell" style={{ width: '120px' }}>옵션명</th>
-                <th className="product-list-table-header-cell" style={{ width: '80px' }}>바코드</th>
-                <th className="product-list-table-header-cell" style={{ width: '50px' }}>개수</th>
-                <th className="product-list-table-header-cell" style={{ width: '60px' }}>혼용률</th>
-                <th className="product-list-table-header-cell" style={{ width: '80px' }}>중국옵션1</th>
-                <th className="product-list-table-header-cell" style={{ width: '80px' }}>중국옵션2</th>
-                <th className="product-list-table-header-cell" style={{ width: '50px' }}>위안</th>
-                <th className="product-list-table-header-cell" style={{ width: '60px' }}>총위안</th>
-                <th className="product-list-table-header-cell" style={{ width: '80px' }}>비고</th>
-                <th className="product-list-table-header-cell" style={{ width: '100px' }}>주문링크</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-image">이미지</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-order-number">주문번호</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-item-name">등록상품명/옵션명</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-china-option">중국옵션</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-quantity">수량</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-price">위안</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-status">진행</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-status">확인</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-status">취소</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-status">출고</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-remark">비고</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-confirm">출고번호</th>
               </tr>
             </thead>
             <tbody className="product-list-table-body">

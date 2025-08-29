@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../config/supabase';
-import '../products/ProductListPage.css';
+import '../products/ProductListPage/index.css';
 
 /**
  * 로켓그로스 입고 페이지 컴포넌트

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import DashboardStatsCard from '../products/components/DashboardStatsCard';
+import DashboardStatsCard from '../products/ProductListPage/components/DashboardStatsCard';
 import './ChinaorderDelivery.css';
 
 // 🛠️ 출고중 데이터 구조 정의

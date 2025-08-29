@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../config/supabase';
-import '../products/ProductListPage.css';
+import '../products/ProductListPage/index.css';
 
 /**
  * 재고 스캔 페이지 컴포넌트

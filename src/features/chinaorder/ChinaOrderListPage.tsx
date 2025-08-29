@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import DashboardStatsCard from '../products/components/DashboardStatsCard';
-import '../products/ProductListPage.css';
+import DashboardStatsCard from '../products/ProductListPage/components/DashboardStatsCard';
+import '../products/ProductListPage/index.css';
 import './ChinaOrderListPage.css';
 import { importGoogleSheetsData, ChinaOrderData } from '../../services/googleSheetsService';
 import { supabase } from '../../config/supabase';

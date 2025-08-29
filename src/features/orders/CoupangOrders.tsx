@@ -3,7 +3,7 @@ import './CoupangOrders.css';
 import { processPersonalOrderExcelUpload } from '../../services/excelUploadService';
 import { supabase } from '../../config/supabase';
 import * as XLSX from 'xlsx';
-import DashboardStatsCard from '../products/components/DashboardStatsCard';
+import DashboardStatsCard from '../products/ProductListPage/components/DashboardStatsCard';
 
 /**
  * 쿠팡 주문 데이터 타입
