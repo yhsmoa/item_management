@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DashboardStatsCard from '../products/ProductListPage/components/DashboardStatsCard';
+import ActionButton from '../../components/ActionButton';
+import { useGoogleSheetsImport } from './hooks/useGoogleSheetsImport';
 import { supabase } from '../../config/supabase';
 import './ChinaorderConfirm.css';
 
@@ -12,6 +14,8 @@ interface ChinaOrderData {
   option_name?: string;
   barcode?: string;
   quantity?: number;
+  note?: string;
+  remark?: string;
   // 추가 필드들 (나중에 확장 가능)
   created_at?: string;
   updated_at?: string;
@@ -33,6 +37,9 @@ interface Stats {
 }
 
 function ChinaorderConfirm() {
+  // Google Sheets 가져오기 훅
+  const { isLoading: sheetsLoading, handleGoogleSheetsImport } = useGoogleSheetsImport();
+
   // State 정의
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('전체');
@@ -227,6 +234,14 @@ function ChinaorderConfirm() {
       {/* 페이지 헤더 */}
       <div className="product-list-page-header">
         <h1 className="product-list-page-title">주문 확정</h1>
+        <ActionButton 
+          variant="success" 
+          onClick={handleGoogleSheetsImport}
+          loading={sheetsLoading}
+          loadingText="가져오는 중..."
+        >
+          구글 시트 불러오기
+        </ActionButton>
       </div>
 
       {/* 통계 카드 섹션 */}
@@ -369,10 +384,10 @@ function ChinaorderConfirm() {
 
         {/* 테이블 컨테이너 */}
         <div className="product-list-table-container">
-          <table className="product-list-table" key={`table-page-${currentPage}`}>
-            <thead className="product-list-table-header">
+          <table className="chinaorder-table" key={`table-page-${currentPage}`}>
+            <thead className="chinaorder-table-header">
               <tr>
-                <th className="product-list-table-header-cell product-list-table-header-checkbox" style={{ width: '40px', padding: '1px', textAlign: 'center' }}>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-checkbox">
                   <input
                     type="checkbox"
                     checked={selectAll}
@@ -380,38 +395,31 @@ function ChinaorderConfirm() {
                     className="product-list-checkbox-large"
                   />
                 </th>
-                <th className="product-list-table-header-cell" style={{ width: '50px', padding: '1px', textAlign: 'center' }}>이미지</th>
-                <th className="product-list-table-header-cell" style={{ width: '40px', padding: '1px', textAlign: 'center' }}>주문번호</th>
-                <th className="product-list-table-header-cell" style={{ width: '35px', padding: '1px', textAlign: 'center' }}>날짜</th>
-                <th className="product-list-table-header-cell" style={{ width: '200px', padding: '1px', textAlign: 'left' }}>등록상품명/옵션명</th>
-                <th className="product-list-table-header-cell" style={{ width: '100px', padding: '1px', textAlign: 'left' }}>중국옵션</th>
-                <th className="product-list-table-header-cell" style={{ width: '40px', padding: '1px', textAlign: 'center' }}>주문수량</th>
-                <th className="product-list-table-header-cell" style={{ width: '50px', padding: '1px', textAlign: 'center' }}>위안</th>
-                <th className="product-list-table-header-cell" style={{ width: '30px', padding: '1px', textAlign: 'center' }}>진행</th>
-                <th className="product-list-table-header-cell" style={{ width: '30px', padding: '1px', textAlign: 'center' }}>확인</th>
-                <th className="product-list-table-header-cell" style={{ width: '30px', padding: '1px', textAlign: 'center' }}>취소</th>
-                <th className="product-list-table-header-cell" style={{ width: '30px', padding: '1px', textAlign: 'center' }}>출고</th>
-                <th className="product-list-table-header-cell" style={{ width: '80px', padding: '1px', textAlign: 'left' }}>비고</th>
-                <th className="product-list-table-header-cell" style={{ width: '70px', padding: '1px', textAlign: 'center' }}>주문번호</th>
-                <th className="product-list-table-header-cell" style={{ width: '70px', padding: '1px', textAlign: 'center' }}>출고번호</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-image">이미지</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-order-number">주문번호</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-item-name">등록상품명/옵션명</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-china-option">중국옵션</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-quantity">수량</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-price">위안</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-status">진행</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-status">확인</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-status">취소</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-status">출고</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-remark">비고</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-confirm">출고번호</th>
               </tr>
             </thead>
-            <tbody className="product-list-table-body">
+            <tbody className="chinaorder-table-body">
               {currentTableRows.length === 0 && (
                 <tr>
-                  <td colSpan={16} style={{ 
-                    textAlign: 'center', 
-                    padding: '40px', 
-                    color: '#666',
-                    fontSize: '16px' 
-                  }}>
+                  <td colSpan={13} className="chinaorder-empty-data">
                     {isLoading ? '데이터를 불러오는 중...' : '데이터가 없습니다.'}
                   </td>
                 </tr>
               )}
               {currentTableRows.map((row, index) => (
-                <tr key={row.id} className="product-list-table-row">
-                  <td className="product-list-table-cell" style={{ textAlign: 'center', padding: '1px' }}>
+                <tr key={row.id} className="chinaorder-table-row">
+                  <td className="chinaorder-table-cell-checkbox">
                     <input
                       type="checkbox"
                       checked={selectedItems.includes(row.id)}
@@ -419,28 +427,46 @@ function ChinaorderConfirm() {
                       className="product-list-checkbox-large"
                     />
                   </td>
-                  <td className="product-list-table-cell" style={{ padding: '1px', textAlign: 'center' }}>
-                    -
+                  <td className="chinaorder-table-cell-image">
+                    <div className="chinaorder-image-placeholder">
+                      이미지 없음
+                    </div>
                   </td>
-                  <td className="product-list-table-cell" style={{ padding: '1px', fontSize: '11px', textAlign: 'center' }}>-</td>
-                  <td className="product-list-table-cell" style={{ padding: '1px', fontSize: '11px', textAlign: 'center' }}>{row.date || '-'}</td>
-                  <td className="product-list-table-cell" style={{ padding: '1px', textAlign: 'left' }}>
-                    <div style={{ whiteSpace: 'pre-line', lineHeight: '1.3', fontSize: '13px' }}>
+                  <td className="chinaorder-table-cell-order-number">
+                    <div className="chinaorder-order-info">
+                      {row.date || '-'}<br/>
+                      -
+                    </div>
+                  </td>
+                  <td className="chinaorder-table-cell-item-name">
+                    <div className="chinaorder-item-info">
                       {row.item_name || '-'}
                       {row.option_name && '\n' + row.option_name}
                       {row.barcode && '\n' + row.barcode}
                     </div>
                   </td>
-                  <td className="product-list-table-cell" style={{ padding: '1px', textAlign: 'left' }}>-</td>
-                  <td className="product-list-table-cell" style={{ padding: '1px', fontSize: '12px', textAlign: 'center' }}>-</td>
-                  <td className="product-list-table-cell" style={{ padding: '1px', textAlign: 'center' }}>-</td>
-                  <td className="product-list-table-cell" style={{ textAlign: 'center', padding: '1px' }}>-</td>
-                  <td className="product-list-table-cell" style={{ textAlign: 'center', padding: '1px' }}>-</td>
-                  <td className="product-list-table-cell" style={{ textAlign: 'center', padding: '1px' }}>-</td>
-                  <td className="product-list-table-cell" style={{ textAlign: 'center', padding: '1px' }}>-</td>
-                  <td className="product-list-table-cell" style={{ padding: '1px', fontSize: '12px', textAlign: 'left' }}>-</td>
-                  <td className="product-list-table-cell" style={{ padding: '1px', fontSize: '11px', textAlign: 'center' }}>-</td>
-                  <td className="product-list-table-cell" style={{ padding: '1px', fontSize: '11px', textAlign: 'center' }}>-</td>
+                  <td className="chinaorder-table-cell-china-option">
+                    <div className="chinaorder-china-option-info">
+                      -
+                    </div>
+                  </td>
+                  <td className="chinaorder-table-cell-quantity">{row.quantity || '-'}</td>
+                  <td className="chinaorder-table-cell-price">
+                    <div className="chinaorder-price-info">
+                      -
+                    </div>
+                  </td>
+                  <td className="chinaorder-table-cell-status">-</td>
+                  <td className="chinaorder-table-cell-status">-</td>
+                  <td className="chinaorder-table-cell-status">-</td>
+                  <td className="chinaorder-table-cell-status">-</td>
+                  <td className="chinaorder-table-cell-remark">{row.note || row.remark || '-'}</td>
+                  <td className="chinaorder-table-cell-confirm">
+                    <div className="chinaorder-shipment-info">
+                      -<br/>
+                      -
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

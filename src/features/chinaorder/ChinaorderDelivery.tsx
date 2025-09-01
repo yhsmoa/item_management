@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DashboardStatsCard from '../products/ProductListPage/components/DashboardStatsCard';
+import ActionButton from '../../components/ActionButton';
+import { useGoogleSheetsImport } from './hooks/useGoogleSheetsImport';
 import './ChinaorderDelivery.css';
 
 // 🛠️ 출고중 데이터 구조 정의
@@ -32,6 +34,9 @@ interface Stats {
 }
 
 function ChinaorderDelivery() {
+  // Google Sheets 가져오기 훅
+  const { isLoading: sheetsLoading, handleGoogleSheetsImport } = useGoogleSheetsImport();
+
   // State 정의
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('전체');
@@ -168,6 +173,14 @@ function ChinaorderDelivery() {
       {/* 페이지 헤더 */}
       <div className="product-list-page-header">
         <h1 className="product-list-page-title">출고중</h1>
+        <ActionButton 
+          variant="success" 
+          onClick={handleGoogleSheetsImport}
+          loading={sheetsLoading}
+          loadingText="가져오는 중..."
+        >
+          구글 시트 불러오기
+        </ActionButton>
       </div>
 
       {/* 통계 카드 섹션 */}

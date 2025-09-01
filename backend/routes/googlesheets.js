@@ -303,4 +303,214 @@ router.post('/add-order', async (req, res) => {
   }
 });
 
+/**
+ * Google Sheets에서 데이터를 읽어와 Supabase에 저장하는 API
+ * @route POST /api/googlesheets/import-data
+ * @description '진행' 시트의 데이터를 읽어와서 chinaorder_googlesheet 테이블에 저장
+ */
+router.post('/import-data', async (req, res) => {
+  const startTime = Date.now();
+  
+  try {
+    const { user_id } = req.body;
+    
+    console.log('📥 [IMPORT_DATA] 구글시트 데이터 가져오기 시작:', {
+      user_id,
+      timestamp: new Date().toISOString()
+    });
+    
+    if (!user_id) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'user_id가 필요합니다.',
+        error_code: 'INVALID_INPUT'
+      });
+    }
+
+    // 1. 사용자 정보 조회
+    const { data: userData, error: userError } = await supabase
+      .from('users_api')
+      .select('googlesheet_id')
+      .eq('user_id', user_id)
+      .single();
+
+    if (userError || !userData || !userData.googlesheet_id) {
+      return res.status(404).json({ 
+        success: false, 
+        message: '사용자의 구글시트 정보를 찾을 수 없습니다.',
+        error_code: 'GOOGLESHEET_NOT_FOUND'
+      });
+    }
+
+    // 2. Google Sheets API로 '진행' 및 '신규' 시트 데이터 읽기
+    const auth = getGoogleSheetsAuth();
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    // '진행' 시트 데이터 읽기
+    const progressResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: userData.googlesheet_id,
+      range: '진행!A:S', // A부터 S열까지
+    });
+
+    // '신규' 시트 데이터 읽기
+    const newResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: userData.googlesheet_id,
+      range: '신규!A:S', // A부터 S열까지
+    });
+
+    const progressRows = progressResponse.data.values || [];
+    const newRows = newResponse.data.values || [];
+    
+    if (progressRows.length <= 1 && newRows.length <= 1) {
+      return res.json({
+        success: true,
+        message: '가져올 데이터가 없습니다.',
+        data: { imported_count: 0, progress_count: 0, new_count: 0 }
+      });
+    }
+
+    // 3. 기존 데이터 초기화
+    console.log('🗑️ [IMPORT_DATA] 기존 데이터 초기화 중...');
+    const { error: deleteProgressError } = await supabase
+      .from('chinaorder_googlesheet')
+      .delete()
+      .eq('user_id', user_id);
+
+    const { error: deleteNewError } = await supabase
+      .from('chinaorder_new')
+      .delete()
+      .eq('user_id', user_id);
+
+    if (deleteProgressError || deleteNewError) {
+      console.error('❌ [IMPORT_DATA] 기존 데이터 삭제 실패:', { deleteProgressError, deleteNewError });
+      return res.status(500).json({
+        success: false,
+        message: '기존 데이터 삭제 중 오류가 발생했습니다.',
+        error_code: 'DELETE_ERROR'
+      });
+    }
+
+    // 4. '진행' 시트 데이터 변환 (첫 행은 헤더이므로 제외)
+    const progressDataRows = progressRows.slice(1);
+    const progressTransformedData = progressDataRows.map(row => ({
+      user_id,
+      china_order_number: row[1] || '', // B열
+      order_number: '', // 빈값
+      option_id: row[19] || '', // T열
+      date: row[0] || '', // A열
+      item_name: row[2] || '', // C열
+      option_name: row[3] || '', // D열
+      barcode: row[5] || '', // F열
+      order_qty: row[4] ? parseInt(row[4]) : null, // E열
+      china_option1: row[6] || '', // G열
+      china_option2: row[7] || '', // H열
+      china_price: row[8] || '', // I열
+      china_total_price: row[9] || '', // J열
+      img_url: row[10] || '', // K열
+      china_link: row[11] || '', // L열
+      order_status_ordering: row[12] ? parseInt(row[12]) : null, // M열
+      order_status_import: row[13] ? parseInt(row[13]) : null, // N열
+      order_status_cancel: row[14] ? parseInt(row[14]) : null, // O열
+      order_status_shipment: row[15] ? parseInt(row[15]) : null, // P열
+      note: row[17] || '', // Q열
+      confirm_order_id: row[18] || '', // R열
+      confirm_shipment_id: row[19] || '' // S열
+    }));
+
+    // 5. '신규' 시트 데이터 변환 (첫 행은 헤더이므로 제외)
+    const newDataRows = newRows.slice(1);
+    const newTransformedData = newDataRows.map(row => ({
+      user_id,
+      china_order_number: row[1] || '', // B열
+      order_number: '', // 빈값
+      option_id: row[19] || '', // T열
+      date: row[0] || '', // A열
+      item_name: row[2] || '', // C열
+      option_name: row[3] || '', // D열
+      barcode: row[5] || '', // F열
+      order_qty: row[4] ? parseInt(row[4]) : null, // E열
+      china_option1: row[6] || '', // G열
+      china_option2: row[7] || '', // H열
+      china_price: row[8] || '', // I열
+      china_total_price: row[9] || '', // J열
+      img_url: row[10] || '', // K열
+      china_link: row[11] || '', // L열
+      order_status_ordering: row[12] ? parseInt(row[12]) : null, // M열
+      order_status_import: row[13] ? parseInt(row[13]) : null, // N열
+      order_status_cancel: row[14] ? parseInt(row[14]) : null, // O열
+      order_status_shipment: row[15] ? parseInt(row[15]) : null, // P열
+      note: row[17] || '', // Q열
+      confirm_order_id: row[18] || '', // R열
+      confirm_shipment_id: row[19] || '' // S열
+    }));
+
+    // 6. Supabase에 데이터 저장
+    let progressInsertError = null;
+    let newInsertError = null;
+
+    // '진행' 데이터를 chinaorder_googlesheet에 저장
+    if (progressTransformedData.length > 0) {
+      const { data: progressInsertData, error } = await supabase
+        .from('chinaorder_googlesheet')
+        .insert(progressTransformedData);
+      progressInsertError = error;
+    }
+
+    // '신규' 데이터를 chinaorder_new에 저장  
+    if (newTransformedData.length > 0) {
+      const { data: newInsertData, error } = await supabase
+        .from('chinaorder_new')
+        .insert(newTransformedData);
+      newInsertError = error;
+    }
+
+    if (progressInsertError || newInsertError) {
+      console.error('❌ [IMPORT_DATA] 데이터베이스 저장 실패:', { progressInsertError, newInsertError });
+      return res.status(500).json({
+        success: false,
+        message: '데이터베이스 저장 중 오류가 발생했습니다.',
+        error_code: 'DATABASE_ERROR'
+      });
+    }
+
+    const processingTime = Date.now() - startTime;
+    const totalImported = progressTransformedData.length + newTransformedData.length;
+    
+    console.log('✅ [IMPORT_DATA] 데이터 가져오기 완료:', {
+      progress_count: progressTransformedData.length,
+      new_count: newTransformedData.length,
+      total_imported: totalImported,
+      processing_time_ms: processingTime
+    });
+
+    res.json({
+      success: true,
+      message: `진행: ${progressTransformedData.length}개, 신규: ${newTransformedData.length}개의 데이터를 성공적으로 가져왔습니다.`,
+      data: {
+        progress_count: progressTransformedData.length,
+        new_count: newTransformedData.length,
+        total_imported: totalImported,
+        processing_time_ms: processingTime
+      }
+    });
+
+  } catch (error) {
+    const processingTime = Date.now() - startTime;
+    
+    console.error('❌ [IMPORT_DATA] 데이터 가져오기 실패:', {
+      error: error.message,
+      stack: error.stack,
+      processing_time_ms: processingTime
+    });
+    
+    res.status(500).json({ 
+      success: false, 
+      message: '서버 오류가 발생했습니다.',
+      error_code: 'INTERNAL_SERVER_ERROR',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      processing_time_ms: processingTime
+    });
+  }
+});
+
 module.exports = router;

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DashboardStatsCard from '../products/ProductListPage/components/DashboardStatsCard';
+import ActionButton from '../../components/ActionButton';
+import { useGoogleSheetsImport } from './hooks/useGoogleSheetsImport';
 import '../products/ProductListPage/index.css';
 import './ChinaOrderListPage.css';
 import { importGoogleSheetsData, ChinaOrderData } from '../../services/googleSheetsService';
@@ -13,11 +15,11 @@ interface TableRow extends ChinaOrderData {
 
 interface Stats {
   total: number;
-  notItemPartner: number;
-  outOfStock: number;
-  rejected: number;
-  selling: number;
-  tempSave: number;
+  ordering: number;
+  import: number;
+  cancel: number;
+  shipment: number;
+  note: number;
 }
 
 function ChinaOrderListPage() {
@@ -35,6 +37,9 @@ function ChinaOrderListPage() {
   // 페이지네이션
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
+
+  // 카드 필터링
+  const [activeFilter, setActiveFilter] = useState<string>('');
 
   // 로딩 상태
   const [isLoading, setIsLoading] = useState(false);
@@ -81,8 +86,14 @@ function ChinaOrderListPage() {
         return;
       }
 
-      setOrderData(data || []);
-      setFilteredOrderData(data || []);
+      // img_url을 image_url로 매핑하여 변환
+      const transformedData = data?.map(item => ({
+        ...item,
+        image_url: item.img_url || item.image_url || ''
+      })) || [];
+
+      setOrderData(transformedData);
+      setFilteredOrderData(transformedData);
 
       
 
@@ -93,14 +104,19 @@ function ChinaOrderListPage() {
     }
   };
 
-  // 통계 계산
+  // Google Sheets 가져오기 훅
+  const { isLoading: sheetsLoading, handleGoogleSheetsImport } = useGoogleSheetsImport(() => {
+    loadOrderData(); // 성공 시 데이터 재로드
+  });
+
+  // 통계 계산 - 항상 전체 데이터(orderData) 기준으로 계산
   const stats: Stats = {
-    total: filteredOrderData.length,
-    notItemPartner: 0,
-    outOfStock: 0,
-    rejected: 0,
-    selling: 0,
-    tempSave: 0
+    total: orderData.length,
+    ordering: orderData.filter(item => item.order_status_ordering && item.order_status_ordering.toString().trim() !== '0' && item.order_status_ordering.toString().trim() !== '').length,
+    import: orderData.filter(item => item.order_status_import && item.order_status_import.toString().trim() !== '0' && item.order_status_import.toString().trim() !== '').length,
+    cancel: orderData.filter(item => item.order_status_cancel && item.order_status_cancel.toString().trim() !== '0' && item.order_status_cancel.toString().trim() !== '').length,
+    shipment: orderData.filter(item => item.order_status_shipment && item.order_status_shipment.toString().trim() !== '0' && item.order_status_shipment.toString().trim() !== '').length,
+    note: orderData.filter(item => item.note && item.note.toString().trim() !== '').length
   };
 
   // 데이터를 테이블 행으로 변환
@@ -191,33 +207,46 @@ function ChinaOrderListPage() {
     }
   };
 
-  // 구글 시트 데이터 가져오기 핸들러
-  const handleGoogleSheetsImport = async () => {
-    const userId = getCurrentUserId();
-    if (!userId) {
-      alert('로그인 정보를 찾을 수 없습니다.');
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const result = await importGoogleSheetsData(userId);
+  // 카드 클릭 핸들러
+  const handleCardClick = (filterType: string) => {
+    if (activeFilter === filterType) {
+      // 같은 필터를 다시 클릭하면 필터 해제
+      setActiveFilter('');
+      setFilteredOrderData(orderData);
+    } else {
+      // 새로운 필터 적용
+      setActiveFilter(filterType);
       
-      if (result.success) {
-        alert(`구글 시트 데이터 가져오기 성공!\n저장된 데이터: ${result.savedCount}개`);
-        // 데이터 다시 로드
-        await loadOrderData();
-      } else {
-        alert(`구글 시트 데이터 가져오기 실패:\n${result.error}`);
+      let filtered = [...orderData];
+      
+      switch (filterType) {
+        case 'ordering':
+          filtered = orderData.filter(item => item.order_status_ordering && item.order_status_ordering.toString().trim() !== '0' && item.order_status_ordering.toString().trim() !== '');
+          break;
+        case 'import':
+          filtered = orderData.filter(item => item.order_status_import && item.order_status_import.toString().trim() !== '0' && item.order_status_import.toString().trim() !== '');
+          break;
+        case 'cancel':
+          filtered = orderData.filter(item => item.order_status_cancel && item.order_status_cancel.toString().trim() !== '0' && item.order_status_cancel.toString().trim() !== '');
+          break;
+        case 'shipment':
+          filtered = orderData.filter(item => item.order_status_shipment && item.order_status_shipment.toString().trim() !== '0' && item.order_status_shipment.toString().trim() !== '');
+          break;
+        case 'note':
+          filtered = orderData.filter(item => item.note && item.note.toString().trim() !== '');
+          break;
+        default:
+          filtered = orderData;
       }
-    } catch (error: any) {
-      console.error('❌ 구글 시트 가져오기 에러:', error);
-      alert(`오류가 발생했습니다:\n${error.message}`);
-    } finally {
-      setIsLoading(false);
+      
+      setFilteredOrderData(filtered);
     }
+    
+    setCurrentPage(1);
+    setSelectedItems([]);
+    setSelectAll(false);
   };
+
 
   const totalPages = Math.ceil(filteredOrderData.length / itemsPerPage);
   const currentTableRows = transformDataToTableRows(getCurrentPageData());
@@ -227,16 +256,60 @@ function ChinaOrderListPage() {
       {/* 페이지 헤더 */}
       <div className="product-list-page-header">
         <h1 className="product-list-page-title">주문 목록</h1>
+        <ActionButton 
+          variant="success" 
+          onClick={handleGoogleSheetsImport}
+          loading={sheetsLoading}
+          loadingText="가져오는 중..."
+        >
+          구글 시트 불러오기
+        </ActionButton>
       </div>
 
       {/* 통계 카드 섹션 */}
       <div className="product-list-stats-grid">
-        <DashboardStatsCard title="전체" value={stats.total} color="default" />
-        <DashboardStatsCard title="아이템파너 아님" value={stats.notItemPartner} hasInfo={true} subtitle="쿠팡 배송 성장 20% 상품 中" color="orange" />
-        <DashboardStatsCard title="품절" value={stats.outOfStock} color="red" />
-        <DashboardStatsCard title="승인반려" value={stats.rejected} hasInfo={true} color="red" />
-        <DashboardStatsCard title="판매중" value={stats.selling} color="blue" />
-        <DashboardStatsCard title="임시저장" value={stats.tempSave} color="default" />
+        <DashboardStatsCard 
+          title="전체" 
+          value={stats.total} 
+          color="default" 
+          onClick={() => handleCardClick('')}
+          active={activeFilter === ''}
+        />
+        <DashboardStatsCard 
+          title="진행" 
+          value={stats.ordering} 
+          color="orange" 
+          onClick={() => handleCardClick('ordering')}
+          active={activeFilter === 'ordering'}
+        />
+        <DashboardStatsCard 
+          title="입고" 
+          value={stats.import} 
+          color="blue" 
+          onClick={() => handleCardClick('import')}
+          active={activeFilter === 'import'}
+        />
+        <DashboardStatsCard 
+          title="취소" 
+          value={stats.cancel} 
+          color="red" 
+          onClick={() => handleCardClick('cancel')}
+          active={activeFilter === 'cancel'}
+        />
+        <DashboardStatsCard 
+          title="출고" 
+          value={stats.shipment} 
+          color="blue" 
+          onClick={() => handleCardClick('shipment')}
+          active={activeFilter === 'shipment'}
+        />
+        <DashboardStatsCard 
+          title="비고" 
+          value={stats.note} 
+          color="default" 
+          onClick={() => handleCardClick('note')}
+          active={activeFilter === 'note'}
+        />
       </div>
 
       {/* 검색 및 필터 섹션 */}
@@ -336,34 +409,7 @@ function ChinaOrderListPage() {
           </div>
           
           <div className="product-list-action-buttons">
-            <button
-              onClick={handleGoogleSheetsImport}
-              disabled={isLoading}
-              className="product-list-button product-list-button-success"
-            >
-              {isLoading ? '처리 중...' : '구글시트 주문 api'}
-            </button>
-            
-            <button
-              disabled
-              className="product-list-button product-list-button-primary"
-            >
-              생성 예정
-            </button>
-
-            <button
-              disabled
-              className="product-list-button product-list-button-info"
-            >
-              생성 예정
-            </button>
-            
-            <button
-              disabled
-              className="product-list-button product-list-button-warning"
-            >
-              생성 예정
-            </button>
+            {/* 버튼들 제거됨 */}
           </div>
         </div>
 
@@ -387,7 +433,7 @@ function ChinaOrderListPage() {
                 <th className="chinaorder-table-header-cell chinaorder-table-header-quantity">수량</th>
                 <th className="chinaorder-table-header-cell chinaorder-table-header-price">위안</th>
                 <th className="chinaorder-table-header-cell chinaorder-table-header-status">진행</th>
-                <th className="chinaorder-table-header-cell chinaorder-table-header-status">확인</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-status">입고</th>
                 <th className="chinaorder-table-header-cell chinaorder-table-header-status">취소</th>
                 <th className="chinaorder-table-header-cell chinaorder-table-header-status">출고</th>
                 <th className="chinaorder-table-header-cell chinaorder-table-header-remark">비고</th>
@@ -497,9 +543,9 @@ function ChinaOrderListPage() {
                     ) : '-'}
                   </td>
                   <td className="chinaorder-table-cell-status">
-                    {row.order_status_check ? (
+                    {row.order_status_import ? (
                       <span className="chinaorder-status-badge chinaorder-status-check">
-                        {row.order_status_check}
+                        {row.order_status_import}
                       </span>
                     ) : '-'}
                   </td>
@@ -517,7 +563,7 @@ function ChinaOrderListPage() {
                       </span>
                     ) : '-'}
                   </td>
-                  <td className="chinaorder-table-cell-remark">{row.remark || ''}</td>
+                  <td className="chinaorder-table-cell-remark">{row.note || row.remark || ''}</td>
                   <td className="chinaorder-table-cell-confirm">
                     <div className="chinaorder-shipment-info">
                       {row.confirm_order_id || '-'}<br/>

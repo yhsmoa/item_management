@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import DashboardStatsCard from '../products/ProductListPage/components/DashboardStatsCard';
 import ActionButton from '../../components/ActionButton';
+import { useGoogleSheetsImport } from './hooks/useGoogleSheetsImport';
 import { supabase } from '../../config/supabase';
 import './ChinaorderCart.css';
 
@@ -23,6 +24,7 @@ interface ChinaOrderData {
   order_status_cancel?: string;
   order_status_shipment?: string;
   remark?: string;
+  note?: string;
   confirm_order_id?: string;
   confirm_shipment_id?: string;
   option_id?: string;
@@ -208,11 +210,11 @@ function ChinaorderCart() {
         return;
       }
 
-      console.log('📥 주문 데이터 로드 시작 - 사용자 ID:', currentUserId);
+      console.log('📥 신규주문 데이터 로드 시작 - 사용자 ID:', currentUserId);
 
-      // chinaorder_cart 테이블에서 현재 사용자의 데이터 조회
+      // chinaorder_new 테이블에서 현재 사용자의 데이터 조회
       const { data, error } = await supabase
-        .from('chinaorder_cart')
+        .from('chinaorder_new')
         .select('*')
         .eq('user_id', currentUserId);
 
@@ -224,33 +226,34 @@ function ChinaorderCart() {
       console.log('✅ 주문 데이터 로드 완료:', data?.length || 0, '개');
               console.log('📋 원본 데이터:', data);
         
-        // 📋 DB 컬럼명을 인터페이스에 맞게 변환 - option_id만 우선 표시
+        // 📋 DB 컬럼명을 인터페이스에 맞게 변환
         const transformedData = data?.map(item => ({
-          option_id: item.option_id || '', // 옵션ID만 확실히 표시
+          option_id: item.option_id || '',
           item_name: item.item_name || '',
           option_name: item.option_name || '',
           barcode: item.barcode || '',
-          order_quantity: item.quantity || 0,
+          order_quantity: item.order_qty || 0, // DB: order_qty
           china_option1: item.china_option1 || '',
           china_option2: item.china_option2 || '',
           china_price: item.china_price || '',
           china_total_price: item.china_total_price || '',
           china_link: item.china_link || '',
-          image_url: item.image_url || '', // DB의 image_url 필드 직접 사용
-          remark: item.composition || '', // DB: composition → Interface: remark
+          image_url: item.img_url || '', // DB의 img_url 필드에서 가져오기
+          remark: item.note || item.remark || '', // DB의 note 또는 remark 필드에서 가져오기
+          // 상태 필드들 추가
+          order_status_ordering: item.order_status_ordering || '',
+          order_status_check: item.order_status_import || '', // DB: order_status_import
+          order_status_cancel: item.order_status_cancel || '',
+          order_status_shipment: item.order_status_shipment || '',
           // 추가 필드들
           china_order_number: item.china_order_number || '',
-          date: item.date || ''
+          date: item.date || '',
+          confirm_order_id: item.confirm_order_id || '',
+          confirm_shipment_id: item.confirm_shipment_id || ''
         })) || [];
 
-        // 🔄 중복 데이터 제거 (option_id 기준)
-        const uniqueData = transformedData.filter((item, index, self) => 
-          index === self.findIndex(t => t.option_id === item.option_id)
-        );
-
         console.log('📥 변환된 데이터:', transformedData);
-        console.log('🔄 중복 제거된 데이터:', uniqueData);
-                console.log('📊 원본 데이터 수:', transformedData.length, '중복 제거 후:', uniqueData.length); // 디버깅용
+        console.log('📊 신규주문 데이터 개수:', transformedData.length);
         
         // 🔄 데이터 완전 교체 (기존 데이터 초기화 후 새 데이터 설정)
         console.log('🔄 기존 데이터 초기화 후 새 데이터 설정');
@@ -258,9 +261,9 @@ function ChinaorderCart() {
         setFilteredOrderData([]);
         
         setTimeout(() => {
-          setOrderData(uniqueData);
-          setFilteredOrderData(uniqueData);
-          console.log('✅ 새 데이터 설정 완료:', uniqueData.length, '개');
+          setOrderData(transformedData);
+          setFilteredOrderData(transformedData);
+          console.log('✅ 새 데이터 설정 완료:', transformedData.length, '개');
         }, 100);
 
     } catch (error) {
@@ -272,6 +275,11 @@ function ChinaorderCart() {
       setIsLoading(false);
     }
   };
+
+  // Google Sheets 가져오기 훅
+  const { isLoading: sheetsLoading, handleGoogleSheetsImport } = useGoogleSheetsImport(() => {
+    loadOrderData(); // 성공 시 데이터 재로드
+  });
 
   // 통계 계산
   const stats: Stats = {
@@ -791,6 +799,14 @@ function ChinaorderCart() {
       {/* 페이지 헤더 */}
       <div className="product-list-page-header">
         <h1 className="product-list-page-title">신규주문</h1>
+        <ActionButton
+          variant="success"
+          onClick={handleGoogleSheetsImport}
+          loading={sheetsLoading}
+          loadingText="가져오는 중..."
+        >
+          구글 시트 불러오기
+        </ActionButton>
       </div>
 
       {/* 통계 카드 섹션 */}
@@ -929,7 +945,7 @@ function ChinaorderCart() {
 
         {/* 테이블 컨테이너 */}
         <div className="product-list-table-container">
-          <table className="product-list-table chinaorder-cart-table" key={`table-page-${currentPage}`}>
+          <table className="chinaorder-table chinaorder-cart-table" key={`table-page-${currentPage}`}>
             <thead className="chinaorder-table-header">
               <tr>
                 <th className="chinaorder-table-header-cell chinaorder-table-header-checkbox">
@@ -954,20 +970,15 @@ function ChinaorderCart() {
                 <th className="chinaorder-table-header-cell chinaorder-table-header-confirm">출고번호</th>
               </tr>
             </thead>
-            <tbody className="product-list-table-body">
+            <tbody className="chinaorder-table-body">
               {currentTableRows.length === 0 && (
                 <tr>
-                  <td colSpan={14} style={{ 
-                    textAlign: 'center', 
-                    padding: '40px', 
-                    color: '#666',
-                    fontSize: '16px' 
-                  }}>
+                  <td colSpan={13} className="chinaorder-empty-data">
                     {isLoading ? '데이터를 불러오는 중...' : '데이터가 없습니다.'}
                   </td>
                 </tr>
               )}
-{currentTableRows.map((row, index) => {
+              {currentTableRows.map((row, index) => {
                 // 편집 가능한 셀을 렌더링하는 함수
                 const renderEditableCell = (field: string, value: any, style: any, isNumeric = false) => {
                   const isEditing = editingCell?.rowId === row.option_id && editingCell?.field === field;
@@ -1021,8 +1032,8 @@ function ChinaorderCart() {
                 };
 
                 return (
-                  <tr key={row.id} className="product-list-table-row">
-                    <td className="product-list-table-cell">
+                  <tr key={row.id} className="chinaorder-table-row">
+                    <td className="chinaorder-table-cell-checkbox">
                       <input
                         type="checkbox"
                         checked={selectedItems.includes(row.id)}
@@ -1030,89 +1041,141 @@ function ChinaorderCart() {
                         className="product-list-checkbox-large"
                       />
                     </td>
-                    <td className="product-list-table-cell">
-                      {row.image_url ? (
-                        <div style={{ width: '60px', height: '60px', position: 'relative', backgroundColor: '#f5f5f5', borderRadius: '4px', overflow: 'hidden' }}>
+                    <td className="chinaorder-table-cell-image">
+                      {row.image_url && row.image_url !== row.china_link && !row.image_url.includes('placeholder') ? (
+                        row.china_link ? (
+                          <a href={row.china_link} target="_blank" rel="noopener noreferrer">
+                            <img 
+                              src={row.image_url} 
+                              alt="상품 이미지" 
+                              className="chinaorder-product-image"
+                              referrerPolicy="no-referrer"
+                              onLoad={() => console.log(`✅ SUCCESS [${index}]:`, row.image_url)}
+                              onError={(e) => {
+                                console.log(`❌ FAILED [${index}]:`, row.image_url);
+                                // 에러 시 이미지 숨기고 대체 텍스트 표시
+                                e.currentTarget.style.display = 'none';
+                                const parent = e.currentTarget.parentElement?.parentElement;
+                                if (parent && !parent.querySelector('.chinaorder-error-placeholder')) {
+                                  const errorDiv = document.createElement('div');
+                                  errorDiv.className = 'chinaorder-error-placeholder';
+                                  errorDiv.textContent = '이미지 없음';
+                                  parent.appendChild(errorDiv);
+                                }
+                              }}
+                            />
+                          </a>
+                        ) : (
                           <img 
                             src={row.image_url} 
                             alt="상품 이미지" 
-                            style={{ 
-                              width: '100%', 
-                              height: '100%', 
-                              objectFit: 'cover',
-                              display: 'block'
-                            }}
+                            className="chinaorder-product-image"
+                            referrerPolicy="no-referrer"
+                            onLoad={() => console.log(`✅ SUCCESS [${index}]:`, row.image_url)}
                             onError={(e) => {
+                              console.log(`❌ FAILED [${index}]:`, row.image_url);
                               // 에러 시 이미지 숨기고 대체 텍스트 표시
                               e.currentTarget.style.display = 'none';
                               const parent = e.currentTarget.parentElement;
-                              if (parent && !parent.querySelector('.error-text')) {
+                              if (parent && !parent.querySelector('.chinaorder-error-placeholder')) {
                                 const errorDiv = document.createElement('div');
-                                errorDiv.className = 'error-text';
-                                errorDiv.style.cssText = 'position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #999;';
+                                errorDiv.className = 'chinaorder-error-placeholder';
                                 errorDiv.textContent = '이미지 없음';
                                 parent.appendChild(errorDiv);
                               }
                             }}
                           />
-                        </div>
+                        )
                       ) : (
-                        <div style={{ width: '60px', height: '60px', backgroundColor: '#f5f5f5', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#999' }}>
+                        <div className="chinaorder-image-placeholder">
                           이미지 없음
                         </div>
                       )}
                     </td>
-                    <td className="product-list-table-cell">
-                      {renderEditableCell('option_id', row.option_id, { fontSize: '11px' })}
+                    <td className="chinaorder-table-cell-order-number">
+                      <div className="chinaorder-order-info">
+                        {row.date || '-'}<br/>
+                        {row.china_order_number || '-'}
+                      </div>
                     </td>
-                    <td className="product-list-table-cell">
-                      {renderEditableCell('item_name', row.item_name, { fontSize: '13px' })}
+                    <td className="chinaorder-table-cell-item-name">
+                      <div className="chinaorder-item-info" 
+                           onClick={() => handleCellClick(row.option_id!, 'item_name', row.item_name)}
+                           style={{ cursor: 'pointer' }}
+                           title="클릭하여 편집">
+                        {editingCell?.rowId === row.option_id && editingCell?.field === 'item_name' ? (
+                          <input
+                            type="text"
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onKeyPress={handleEditKeyPress}
+                            onBlur={handleEditBlur}
+                            autoFocus
+                            style={{
+                              width: '100%',
+                              border: 'none',
+                              outline: 'none',
+                              fontSize: '13px',
+                              backgroundColor: 'transparent',
+                              fontFamily: 'inherit'
+                            }}
+                          />
+                        ) : (
+                          <>
+                            {row.item_name || '-'}
+                            {row.option_name && '\n' + row.option_name}
+                            {row.barcode && '\n' + row.barcode}
+                          </>
+                        )}
+                      </div>
                     </td>
-                    <td className="product-list-table-cell">
-                      {renderEditableCell('option_name', row.option_name, { fontSize: '12px' })}
+                    <td className="chinaorder-table-cell-china-option">
+                      <div className="chinaorder-china-option-info">
+                        {row.china_option1 || '-'}
+                        {row.china_option2 && '\n' + row.china_option2}
+                      </div>
                     </td>
-                    <td className="product-list-table-cell">
-                      {renderEditableCell('barcode', row.barcode, { fontSize: '11px' })}
+                    <td className="chinaorder-table-cell-quantity">{row.order_quantity || '-'}</td>
+                    <td className="chinaorder-table-cell-price">
+                      <div className="chinaorder-price-info">
+                        {row.china_price || '-'}
+                        {row.china_total_price && '\n' + row.china_total_price}
+                      </div>
                     </td>
-                    <td className="product-list-table-cell">
-                      {renderEditableCell('order_quantity', row.order_quantity, { fontSize: '12px' }, true)}
-                    </td>
-                    <td className="product-list-table-cell">
-                      {renderEditableCell('remark', row.remark, { fontSize: '11px' })}
-                    </td>
-                    <td className="product-list-table-cell">
-                      {renderEditableCell('china_option1', row.china_option1, { fontSize: '12px' })}
-                    </td>
-                    <td className="product-list-table-cell">
-                      {renderEditableCell('china_option2', row.china_option2, { fontSize: '12px' })}
-                    </td>
-                    <td className="product-list-table-cell">
-                      {renderEditableCell('china_price', row.china_price, { fontSize: '11px' })}
-                    </td>
-                    <td className="product-list-table-cell">
-                      {renderEditableCell('china_total_price', row.china_total_price, { fontSize: '11px' })}
-                    </td>
-                    <td className="product-list-table-cell">-</td>
-                    <td className="product-list-table-cell">
-                      {row.china_link ? (
-                        <a 
-                          href={row.china_link} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          style={{ 
-                            color: '#3b82f6', 
-                            textDecoration: 'underline',
-                            display: 'block',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            maxWidth: '100px'
-                          }}
-                          title={row.china_link}
-                        >
-                          주문링크
-                        </a>
+                    <td className="chinaorder-table-cell-status">
+                      {row.order_status_ordering ? (
+                        <span className="chinaorder-status-badge chinaorder-status-ordering">
+                          {row.order_status_ordering}
+                        </span>
                       ) : '-'}
+                    </td>
+                    <td className="chinaorder-table-cell-status">
+                      {row.order_status_check ? (
+                        <span className="chinaorder-status-badge chinaorder-status-check">
+                          {row.order_status_check}
+                        </span>
+                      ) : '-'}
+                    </td>
+                    <td className="chinaorder-table-cell-status">
+                      {row.order_status_cancel ? (
+                        <span className="chinaorder-status-badge chinaorder-status-cancel">
+                          {row.order_status_cancel}
+                        </span>
+                      ) : '-'}
+                    </td>
+                    <td className="chinaorder-table-cell-status">
+                      {row.order_status_shipment ? (
+                        <span className="chinaorder-status-badge chinaorder-status-shipment">
+                          {row.order_status_shipment}
+                        </span>
+                      ) : '-'}
+                    </td>
+                    <td className="chinaorder-table-cell-remark">{row.note || row.remark || ''}</td>
+                    <td className="chinaorder-table-cell-confirm">
+                      <div className="chinaorder-shipment-info">
+                        {row.confirm_order_id || '-'}<br/>
+                        {row.confirm_shipment_id || '-'}
+                      </div>
                     </td>
                   </tr>
                 );

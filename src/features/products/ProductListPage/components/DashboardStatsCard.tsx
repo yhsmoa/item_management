@@ -7,6 +7,8 @@ interface DashboardStatsCardProps {
   hasInfo?: boolean;
   subtitle?: string;
   color?: 'default' | 'orange' | 'red' | 'blue';
+  onClick?: () => void;
+  active?: boolean;
 }
 
 const DashboardStatsCard: React.FC<DashboardStatsCardProps> = ({ 
@@ -14,7 +16,9 @@ const DashboardStatsCard: React.FC<DashboardStatsCardProps> = ({
   value, 
   hasInfo = false, 
   subtitle, 
-  color = 'default' 
+  color = 'default',
+  onClick,
+  active = false
 }) => {
   const getValueColor = () => {
     switch (color) {
@@ -43,7 +47,7 @@ const DashboardStatsCard: React.FC<DashboardStatsCardProps> = ({
   };
 
   return (
-    <StatsCard>
+    <StatsCard onClick={onClick} active={active} clickable={!!onClick}>
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         {hasInfo && (
@@ -70,16 +74,22 @@ const DashboardStatsCard: React.FC<DashboardStatsCardProps> = ({
  * - 각각의 지표를 표시하는 카드
  * - 그림자와 호버 효과
  */
-const StatsCard = styled.div`
+const StatsCard = styled.div<{ active?: boolean; clickable?: boolean }>`
   background: white;
   border-radius: 12px;
   padding: 24px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: all 0.2s ease;
-  border: 1px solid #E5E7EB;
+  border: 1px solid ${props => props.active ? '#3B82F6' : '#E5E7EB'};
+  cursor: ${props => props.clickable ? 'pointer' : 'default'};
+  
+  ${props => props.active && `
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+    background: #F8FAFF;
+  `}
   
   &:hover {
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    box-shadow: ${props => props.active ? '0 8px 24px rgba(59, 130, 246, 0.3)' : '0 8px 24px rgba(0, 0, 0, 0.15)'};
     transform: translateY(-4px);
   }
 `;

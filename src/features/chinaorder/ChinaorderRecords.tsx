@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DashboardStatsCard from '../products/ProductListPage/components/DashboardStatsCard';
+import ActionButton from '../../components/ActionButton';
+import { useGoogleSheetsImport } from './hooks/useGoogleSheetsImport';
 import './ChinaorderRecords.css';
 import { supabase } from '../../config/supabase';
 
@@ -27,6 +29,7 @@ interface ChinaOrderData {
   order_status_cancel?: string;
   order_status_shipment?: string;
   remark?: string;
+  note?: string;
   confirm_order_id?: string;
   confirm_shipment_id?: string;
 }
@@ -47,6 +50,9 @@ interface Stats {
 }
 
 function ChinaorderRecords() {
+  // Google Sheets 가져오기 훅
+  const { isLoading: sheetsLoading, handleGoogleSheetsImport } = useGoogleSheetsImport();
+
   // State 정의
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('전체');
@@ -228,6 +234,14 @@ function ChinaorderRecords() {
       {/* 페이지 헤더 */}
       <div className="product-list-page-header">
         <h1 className="product-list-page-title">과거 주문</h1>
+        <ActionButton 
+          variant="success" 
+          onClick={handleGoogleSheetsImport}
+          loading={sheetsLoading}
+          loadingText="가져오는 중..."
+        >
+          구글 시트 불러오기
+        </ActionButton>
       </div>
 
       {/* 통계 카드 섹션 */}
@@ -339,10 +353,10 @@ function ChinaorderRecords() {
 
         {/* 테이블 컨테이너 */}
         <div className="product-list-table-container">
-          <table className="product-list-table" key={`table-page-${currentPage}`}>
-            <thead className="product-list-table-header">
+          <table className="chinaorder-table" key={`table-page-${currentPage}`}>
+            <thead className="chinaorder-table-header">
               <tr>
-                <th className="product-list-table-header-cell product-list-table-header-checkbox" style={{ width: '40px', padding: '1px', textAlign: 'center' }}>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-checkbox">
                   <input
                     type="checkbox"
                     checked={selectAll}
@@ -350,38 +364,31 @@ function ChinaorderRecords() {
                     className="product-list-checkbox-large"
                   />
                 </th>
-                <th className="product-list-table-header-cell" style={{ width: '50px', padding: '1px', textAlign: 'center' }}>이미지</th>
-                <th className="product-list-table-header-cell" style={{ width: '40px', padding: '1px', textAlign: 'center' }}>주문번호</th>
-                <th className="product-list-table-header-cell" style={{ width: '35px', padding: '1px', textAlign: 'center' }}>날짜</th>
-                <th className="product-list-table-header-cell" style={{ width: '200px', padding: '1px', textAlign: 'left' }}>등록상품명/옵션명</th>
-                <th className="product-list-table-header-cell" style={{ width: '100px', padding: '1px', textAlign: 'left' }}>중국옵션</th>
-                <th className="product-list-table-header-cell" style={{ width: '40px', padding: '1px', textAlign: 'center' }}>주문수량</th>
-                <th className="product-list-table-header-cell" style={{ width: '50px', padding: '1px', textAlign: 'center' }}>위안</th>
-                <th className="product-list-table-header-cell" style={{ width: '30px', padding: '1px', textAlign: 'center' }}>진행</th>
-                <th className="product-list-table-header-cell" style={{ width: '30px', padding: '1px', textAlign: 'center' }}>확인</th>
-                <th className="product-list-table-header-cell" style={{ width: '30px', padding: '1px', textAlign: 'center' }}>취소</th>
-                <th className="product-list-table-header-cell" style={{ width: '30px', padding: '1px', textAlign: 'center' }}>출고</th>
-                <th className="product-list-table-header-cell" style={{ width: '80px', padding: '1px', textAlign: 'left' }}>비고</th>
-                <th className="product-list-table-header-cell" style={{ width: '70px', padding: '1px', textAlign: 'center' }}>주문번호</th>
-                <th className="product-list-table-header-cell" style={{ width: '70px', padding: '1px', textAlign: 'center' }}>출고번호</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-image">이미지</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-order-number">주문번호</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-item-name">등록상품명/옵션명</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-china-option">중국옵션</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-quantity">수량</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-price">위안</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-status">진행</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-status">확인</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-status">취소</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-status">출고</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-remark">비고</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-confirm">출고번호</th>
               </tr>
             </thead>
-            <tbody className="product-list-table-body">
+            <tbody className="chinaorder-table-body">
               {currentTableRows.length === 0 && (
                 <tr>
-                  <td colSpan={15} style={{ 
-                    textAlign: 'center', 
-                    padding: '40px', 
-                    color: '#666',
-                    fontSize: '16px' 
-                  }}>
+                  <td colSpan={13} className="chinaorder-empty-data">
                     {isLoading ? '데이터를 불러오는 중...' : '과거 주문이 없습니다.'}
                   </td>
                 </tr>
               )}
               {currentTableRows.map((row, index) => (
-                <tr key={row.id} className="product-list-table-row">
-                  <td className="product-list-table-cell" style={{ textAlign: 'center', padding: '1px' }}>
+                <tr key={row.id} className="chinaorder-table-row">
+                  <td className="chinaorder-table-cell-checkbox">
                     <input
                       type="checkbox"
                       checked={selectedItems.includes(row.id)}
@@ -389,22 +396,21 @@ function ChinaorderRecords() {
                       className="product-list-checkbox-large"
                     />
                   </td>
-                  <td className="product-list-table-cell" style={{ padding: '1px', textAlign: 'center' }}>
+                  <td className="chinaorder-table-cell-image">
                     {row.image_url && row.image_url !== row.china_link && !row.image_url.includes('placeholder') ? (
                       row.china_link ? (
                         <a href={row.china_link} target="_blank" rel="noopener noreferrer">
                           <img 
                             src={row.image_url} 
                             alt="상품 이미지" 
-                            style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '4px' }}
+                            className="chinaorder-product-image"
+                            referrerPolicy="no-referrer"
                             onError={(e) => {
-                              // 에러 시 이미지 숨기고 대체 텍스트 표시
                               e.currentTarget.style.display = 'none';
                               const parent = e.currentTarget.parentElement?.parentElement;
-                              if (parent && !parent.querySelector('.error-placeholder')) {
+                              if (parent && !parent.querySelector('.chinaorder-error-placeholder')) {
                                 const errorDiv = document.createElement('div');
-                                errorDiv.className = 'error-placeholder';
-                                errorDiv.style.cssText = 'width: 60px; height: 60px; backgroundColor: #f5f5f5; borderRadius: 4px; display: flex; alignItems: center; justifyContent: center; fontSize: 10px; color: #999; border: 1px solid #e0e0e0; margin: 0 auto; boxSizing: border-box;';
+                                errorDiv.className = 'chinaorder-error-placeholder';
                                 errorDiv.textContent = '이미지 없음';
                                 parent.appendChild(errorDiv);
                               }
@@ -415,15 +421,14 @@ function ChinaorderRecords() {
                         <img 
                           src={row.image_url} 
                           alt="상품 이미지" 
-                          style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '4px' }}
+                          className="chinaorder-product-image"
+                          referrerPolicy="no-referrer"
                           onError={(e) => {
-                            // 에러 시 이미지 숨기고 대체 텍스트 표시
                             e.currentTarget.style.display = 'none';
                             const parent = e.currentTarget.parentElement;
-                            if (parent && !parent.querySelector('.error-placeholder')) {
+                            if (parent && !parent.querySelector('.chinaorder-error-placeholder')) {
                               const errorDiv = document.createElement('div');
-                              errorDiv.className = 'error-placeholder';
-                              errorDiv.style.cssText = 'width: 60px; height: 60px; backgroundColor: #f5f5f5; borderRadius: 4px; display: flex; alignItems: center; justifyContent: center; fontSize: 10px; color: #999; border: 1px solid #e0e0e0; margin: 0 auto; boxSizing: border-box;';
+                              errorDiv.className = 'chinaorder-error-placeholder';
                               errorDiv.textContent = '이미지 없음';
                               parent.appendChild(errorDiv);
                             }
@@ -431,121 +436,72 @@ function ChinaorderRecords() {
                         />
                       )
                     ) : (
-                      <div style={{ 
-                        width: '60px', 
-                        height: '60px', 
-                        backgroundColor: '#f5f5f5', 
-                        borderRadius: '4px', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center', 
-                        fontSize: '10px', 
-                        color: '#999', 
-                        border: '1px solid #e0e0e0',
-                        margin: '0 auto',
-                        boxSizing: 'border-box'
-                      }}>
+                      <div className="chinaorder-image-placeholder">
                         이미지 없음
                       </div>
                     )}
                   </td>
-                  <td className="product-list-table-cell" style={{ padding: '1px', fontSize: '11px', textAlign: 'center' }}>{row.china_order_number || '-'}</td>
-                  <td className="product-list-table-cell" style={{ padding: '1px', fontSize: '11px', textAlign: 'center' }}>{row.date || '-'}</td>
-                  <td className="product-list-table-cell" style={{ padding: '1px', textAlign: 'left' }}>
-                    <div style={{ whiteSpace: 'pre-line', lineHeight: '1.3', fontSize: '13px' }}>
+                  <td className="chinaorder-table-cell-order-number">
+                    <div className="chinaorder-order-info">
+                      {row.date || '-'}<br/>
+                      {row.china_order_number || '-'}
+                    </div>
+                  </td>
+                  <td className="chinaorder-table-cell-item-name">
+                    <div className="chinaorder-item-info">
                       {row.item_name || '-'}
                       {row.option_name && '\n' + row.option_name}
                       {row.barcode && '\n' + row.barcode}
                     </div>
                   </td>
-                  <td className="product-list-table-cell" style={{ padding: '1px', textAlign: 'left' }}>
-                    <div style={{ whiteSpace: 'pre-line', lineHeight: '1.3', fontSize: '12px' }}>
+                  <td className="chinaorder-table-cell-china-option">
+                    <div className="chinaorder-china-option-info">
                       {row.china_option1 || '-'}
                       {row.china_option2 && '\n' + row.china_option2}
                     </div>
                   </td>
-                  <td className="product-list-table-cell" style={{ padding: '1px', fontSize: '12px', textAlign: 'center' }}>{row.order_quantity || '-'}</td>
-                  <td className="product-list-table-cell" style={{ padding: '1px', textAlign: 'center' }}>
-                    <div style={{ whiteSpace: 'pre-line', lineHeight: '1.2', fontSize: '11px' }}>
+                  <td className="chinaorder-table-cell-quantity">{row.order_quantity || '-'}</td>
+                  <td className="chinaorder-table-cell-price">
+                    <div className="chinaorder-price-info">
                       {row.china_price || '-'}
                       {row.china_total_price && '\n' + row.china_total_price}
                     </div>
                   </td>
-                  <td className="product-list-table-cell" style={{ textAlign: 'center', padding: '1px' }}>
+                  <td className="chinaorder-table-cell-status">
                     {row.order_status_ordering ? (
-                      <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minWidth: '18px',
-                        height: '18px',
-                        borderRadius: '50%',
-                        backgroundColor: '#fbbf24',
-                        color: 'white',
-                        fontSize: '10px',
-                        fontWeight: 'bold'
-                      }}>
+                      <span className="chinaorder-status-badge chinaorder-status-ordering">
                         {row.order_status_ordering}
                       </span>
                     ) : '-'}
                   </td>
-                  <td className="product-list-table-cell" style={{ textAlign: 'center', padding: '1px' }}>
+                  <td className="chinaorder-table-cell-status">
                     {row.order_status_check ? (
-                      <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minWidth: '18px',
-                        height: '18px',
-                        borderRadius: '50%',
-                        backgroundColor: '#3b82f6',
-                        color: 'white',
-                        fontSize: '10px',
-                        fontWeight: 'bold'
-                      }}>
+                      <span className="chinaorder-status-badge chinaorder-status-check">
                         {row.order_status_check}
                       </span>
                     ) : '-'}
                   </td>
-                  <td className="product-list-table-cell" style={{ textAlign: 'center', padding: '1px' }}>
+                  <td className="chinaorder-table-cell-status">
                     {row.order_status_cancel ? (
-                      <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minWidth: '18px',
-                        height: '18px',
-                        borderRadius: '50%',
-                        backgroundColor: '#ef4444',
-                        color: 'white',
-                        fontSize: '10px',
-                        fontWeight: 'bold'
-                      }}>
+                      <span className="chinaorder-status-badge chinaorder-status-cancel">
                         {row.order_status_cancel}
                       </span>
                     ) : '-'}
                   </td>
-                  <td className="product-list-table-cell" style={{ textAlign: 'center', padding: '1px' }}>
+                  <td className="chinaorder-table-cell-status">
                     {row.order_status_shipment ? (
-                      <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minWidth: '18px',
-                        height: '18px',
-                        borderRadius: '50%',
-                        backgroundColor: '#10b981',
-                        color: 'white',
-                        fontSize: '10px',
-                        fontWeight: 'bold'
-                      }}>
+                      <span className="chinaorder-status-badge chinaorder-status-shipment">
                         {row.order_status_shipment}
                       </span>
                     ) : '-'}
                   </td>
-                  <td className="product-list-table-cell" style={{ padding: '1px', fontSize: '12px', textAlign: 'left' }}>{row.remark || '-'}</td>
-                  <td className="product-list-table-cell" style={{ padding: '1px', fontSize: '11px', textAlign: 'center' }}>{row.confirm_order_id || '-'}</td>
-                  <td className="product-list-table-cell" style={{ padding: '1px', fontSize: '11px', textAlign: 'center' }}>{row.confirm_shipment_id || '-'}</td>
+                  <td className="chinaorder-table-cell-remark">{row.note || row.remark || ''}</td>
+                  <td className="chinaorder-table-cell-confirm">
+                    <div className="chinaorder-shipment-info">
+                      {row.confirm_order_id || '-'}<br/>
+                      {row.confirm_shipment_id || '-'}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

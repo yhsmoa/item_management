@@ -29,6 +29,7 @@ interface CoupangOrderData {
   sequence?: number;
   total_qty?: number;
   stock_qty?: number;
+  purchase_qty?: number;
   // 엑셀 다운로드용 전체 필드들
   number?: string;
   bundle_shipping_number?: string;
@@ -96,32 +97,50 @@ const CoupangOrders: React.FC = () => {
   const [orderData, setOrderData] = useState<CoupangOrderData[]>([]);
   const [filteredOrderData, setFilteredOrderData] = useState<CoupangOrderData[]>([]);
   const [stockData, setStockData] = useState<Map<string, number>>(new Map());
+  const [purchaseData, setPurchaseData] = useState<Map<string, number>>(new Map());
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ stage: '', current: 0, total: 100 });
   const [multiFileProgress, setMultiFileProgress] = useState({ currentFile: 0, totalFiles: 0, fileName: '' });
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<string>('');
   const [showRecipientModal, setShowRecipientModal] = useState(false);
   const [selectedRecipient, setSelectedRecipient] = useState<CoupangOrderData | null>(null);
   const [clearDataBeforeUpload, setClearDataBeforeUpload] = useState(true);
 
-  // 통계 데이터 계산
+  // 통계 데이터 계산 - 전체 orderData 기준으로 계산
   const stats = React.useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    let overdueCount = 0;
-    let todayCount = 0;
-    let threeDaysCount = 0;
-    let normalCount = 0;
-    let barcodeFilledCount = 0;
+    let overdueCount = 0;        // 출고지연
+    let upcomingCount = 0;       // 출고임박 (3일 남은 것)
+    let readyToShipCount = 0;    // 바로출고 (창고 > 0)
+    let noOrderCount = 0;        // 미주문 (사입 = 0 또는 "")
+    let barcodeErrorCount = 0;   // 바코드 오류 (barcode = "")
     
-    filteredOrderData.forEach(order => {
-      if (order.barcode) {
-        barcodeFilledCount++;
+    orderData.forEach(order => {
+      // 바코드 오류 체크
+      if (!order.barcode || order.barcode.trim() === '') {
+        barcodeErrorCount++;
       }
       
+      // 미주문 체크 (사입이 0이거나 없는 경우)
+      const purchaseQty = Number(order.purchase_qty) || 0;
+      if (purchaseQty === 0) {
+        noOrderCount++;
+        console.log(`미주문 항목 발견: ${order.item_name}, 사입수량: ${purchaseQty}`);
+      }
+      
+      // 출고가능 체크 (창고 재고 > 0)
+      const stockQty = Number(order.stock_qty) || 0;
+      if (stockQty > 0) {
+        readyToShipCount++;
+        console.log(`출고가능 항목 발견: ${order.item_name}, 창고수량: ${stockQty}`);
+      }
+      
+      // 출고 날짜 관련 체크
       if (order.order_expected_shipping_date) {
         const orderDateObj = new Date(order.order_expected_shipping_date);
         orderDateObj.setHours(0, 0, 0, 0);
@@ -129,27 +148,26 @@ const CoupangOrders: React.FC = () => {
         const diffTime = orderDateObj.getTime() - today.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         
+        // 출고지연 (출고예정일이 지난 경우)
         if (diffDays < 0) {
           overdueCount++;
-        } else if (diffDays === 0) {
-          todayCount++;
-        } else if (diffDays <= 3) {
-          threeDaysCount++;
-        } else {
-          normalCount++;
+        } 
+        // 출고임박 (3일 이하 남은 경우, 하지만 지나지 않은 경우)
+        else if (diffDays <= 3) {
+          upcomingCount++;
         }
       }
     });
     
     return {
-      total: filteredOrderData.length,
+      total: orderData.length,
       overdue: overdueCount,
-      today: todayCount,
-      threeDays: threeDaysCount,
-      normal: normalCount,
-      barcodeFilled: barcodeFilledCount
+      upcoming: upcomingCount,
+      readyToShip: readyToShipCount,
+      noOrder: noOrderCount,
+      barcodeError: barcodeErrorCount
     };
-  }, [filteredOrderData]);
+  }, [orderData]);
   
   // File input ref
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -245,11 +263,15 @@ const CoupangOrders: React.FC = () => {
       // 창고 재고 계산
       const stock_qty = barcode ? stockData.get(barcode) || 0 : 0;
 
+      // 사입 수량 계산
+      const purchase_qty = barcode ? purchaseData.get(barcode) || 0 : 0;
+
       return {
         ...order,
         sequence,
         total_qty,
-        stock_qty
+        stock_qty,
+        purchase_qty
       };
     });
   };
@@ -303,6 +325,11 @@ const CoupangOrders: React.FC = () => {
 
       setOrderData(processedData);
       setFilteredOrderData(processedData);
+
+      // 사입 수량 계산 (비동기적으로 실행)
+      setTimeout(() => {
+        calculatePurchaseQuantities();
+      }, 100);
     } catch (error) {
       console.error('데이터 로드 오류:', error);
       alert('주문 데이터를 불러오는 중 오류가 발생했습니다.');
@@ -316,13 +343,82 @@ const CoupangOrders: React.FC = () => {
     loadOrderData();
   }, []);
 
-  // stockData가 변경될 때마다 계산된 필드 업데이트
+  // stockData나 purchaseData가 변경될 때마다 계산된 필드 업데이트
   useEffect(() => {
-    if (orderData.length > 0 && stockData.size > 0) {
+    if (orderData.length > 0) {
       const processedData = calculateOrderFields(orderData);
       setFilteredOrderData(processedData);
     }
-  }, [orderData, stockData]);
+  }, [orderData, stockData, purchaseData]);
+
+  // 카드 클릭 핸들러
+  const handleCardClick = (filterType: string) => {
+    if (activeFilter === filterType) {
+      // 같은 필터를 다시 클릭하면 필터 해제
+      setActiveFilter('');
+      const processedData = calculateOrderFields(orderData);
+      setFilteredOrderData(processedData);
+    } else {
+      // 새로운 필터 적용
+      setActiveFilter(filterType);
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      let filtered = [...orderData];
+      
+      switch (filterType) {
+        case 'overdue':
+          // 출고지연: 출고예정일이 지난 건들
+          filtered = orderData.filter(order => {
+            if (!order.order_expected_shipping_date) return false;
+            const orderDateObj = new Date(order.order_expected_shipping_date);
+            orderDateObj.setHours(0, 0, 0, 0);
+            const diffTime = orderDateObj.getTime() - today.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            return diffDays < 0;
+          });
+          break;
+        case 'upcoming':
+          // 출고임박: 출고예정일이 3일 이하 남은 것 (하지만 지나지 않은 것)
+          filtered = orderData.filter(order => {
+            if (!order.order_expected_shipping_date) return false;
+            const orderDateObj = new Date(order.order_expected_shipping_date);
+            orderDateObj.setHours(0, 0, 0, 0);
+            const diffTime = orderDateObj.getTime() - today.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            return diffDays >= 0 && diffDays <= 3;
+          });
+          break;
+        case 'readyToShip':
+          // 출고가능: 창고 재고 > 0
+          filtered = orderData.filter(order => {
+            const stockQty = Number(order.stock_qty) || 0;
+            return stockQty > 0;
+          });
+          break;
+        case 'noOrder':
+          // 미주문: 사입이 0이거나 없는 경우
+          filtered = orderData.filter(order => {
+            const purchaseQty = Number(order.purchase_qty) || 0;
+            return purchaseQty === 0;
+          });
+          break;
+        case 'barcodeError':
+          // 바코드 오류: barcode가 빈 문자열인 경우
+          filtered = orderData.filter(order => !order.barcode || order.barcode.trim() === '');
+          break;
+        default:
+          filtered = orderData;
+      }
+      
+      const processedData = calculateOrderFields(filtered);
+      setFilteredOrderData(processedData);
+    }
+    
+    setCurrentPage(1);
+    setSelectedOrders(new Set());
+  };
 
   // 수취인 정보 모달 열기
   const handleRecipientClick = (order: CoupangOrderData) => {
@@ -555,6 +651,107 @@ const CoupangOrders: React.FC = () => {
       newSelected.delete(orderId);
     }
     setSelectedOrders(newSelected);
+  };
+
+  /**
+   * 사입 수량 계산 함수
+   * - 각 바코드별로 chinaorder_googlesheet에서 order_status_ordering 합계 - order_status_cancel 합계를 계산
+   */
+  const calculatePurchaseQuantities = async () => {
+    const userId = getCurrentUserId();
+    if (!userId) return;
+
+    try {
+      console.log('🔄 사입 수량 계산 시작...');
+      
+      // 현재 주문 데이터에서 바코드 목록 추출
+      const currentData = filteredOrderData.length > 0 ? filteredOrderData : orderData;
+      const barcodeSet = new Set<string>();
+      currentData.forEach(order => {
+        if (order.barcode && order.barcode.trim() !== '') {
+          barcodeSet.add(order.barcode);
+        }
+      });
+      const barcodes = Array.from(barcodeSet);
+
+      if (barcodes.length === 0) {
+        console.log('⚠️ 바코드가 있는 주문 데이터가 없습니다.');
+        return;
+      }
+
+      console.log(`📋 처리할 바코드 개수: ${barcodes.length}개`);
+
+      const purchaseMap = new Map<string, number>();
+
+      // 배치 처리로 chinaorder_googlesheet 데이터 조회
+      const BATCH_SIZE = 100;
+      
+      for (let i = 0; i < barcodes.length; i += BATCH_SIZE) {
+        const batchBarcodes = barcodes.slice(i, i + BATCH_SIZE);
+        
+        console.log(`📦 배치 ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(barcodes.length / BATCH_SIZE)} 처리 중...`);
+        
+        // 모든 데이터를 가져오기 위해 페이징 처리
+        let allData: any[] = [];
+        let page = 0;
+        let hasMore = true;
+        const pageSize = 1000; // 한 번에 1000개씩 조회
+        
+        while (hasMore) {
+          const from = page * pageSize;
+          const to = from + pageSize - 1;
+          
+          const { data: batch, error } = await supabase
+            .from('chinaorder_googlesheet')
+            .select('barcode, order_status_ordering, order_status_cancel')
+            .eq('user_id', userId)
+            .in('barcode', batchBarcodes)
+            .not('barcode', 'is', null)
+            .neq('barcode', '')
+            .range(from, to);
+
+          if (error) {
+            console.error('❌ chinaorder_googlesheet 조회 오류:', error);
+            throw error;
+          }
+
+          if (batch && batch.length > 0) {
+            allData = [...allData, ...batch];
+            hasMore = batch.length === pageSize;
+            page++;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        // 각 바코드별로 사입 수량 계산
+        for (const barcode of batchBarcodes) {
+          const barcodeData = allData.filter(item => item.barcode === barcode);
+          
+          let totalOrdering = 0;
+          let totalCancel = 0;
+          
+          for (const item of barcodeData) {
+            const ordering = parseFloat(item.order_status_ordering || '0') || 0;
+            const cancel = parseFloat(item.order_status_cancel || '0') || 0;
+            
+            totalOrdering += ordering;
+            totalCancel += cancel;
+          }
+          
+          const purchaseQty = Math.max(0, totalOrdering - totalCancel);
+          purchaseMap.set(barcode, purchaseQty);
+          
+          console.log(`📊 ${barcode}: 진행(${totalOrdering}) - 취소(${totalCancel}) = 사입(${purchaseQty})`);
+        }
+      }
+
+      setPurchaseData(purchaseMap);
+      console.log('✅ 사입 수량 계산 완료');
+
+    } catch (error) {
+      console.error('❌ 사입 수량 계산 실패:', error);
+    }
   };
 
   /**
@@ -810,40 +1007,87 @@ const CoupangOrders: React.FC = () => {
       {/* 페이지 헤더 */}
       <div className="coupang-orders-page-header">
         <h1 className="coupang-orders-page-title">쿠팡 주문 관리</h1>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px' }}>
-          <button 
-            className="coupang-orders-button coupang-orders-button-secondary"
-            onClick={handleXlsxDownload}
-            disabled={isUploading || isLoading}
-          >
-            xlsx 다운로드
-          </button>
-          <button 
-            className="coupang-orders-button coupang-orders-button-primary"
-            onClick={handleXlsxUpload}
-            disabled={isUploading}
-          >
-            {isUploading ? '업로드 중...' : 'xlsx 업로드'}
-          </button>
-          <button 
-            className="coupang-orders-button coupang-orders-button-secondary"
-            onClick={handleBarcodeSearch}
-            disabled={isLoading || isUploading}
-          >
-            {isLoading ? '조회 중...' : '바코드 조회'}
-          </button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '12px' }}>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button 
+              className="coupang-orders-button coupang-orders-button-secondary"
+              onClick={handleXlsxDownload}
+              disabled={isUploading || isLoading}
+            >
+              xlsx 다운로드
+            </button>
+            <button 
+              className="coupang-orders-button coupang-orders-button-primary"
+              onClick={handleXlsxUpload}
+              disabled={isUploading}
+            >
+              {isUploading ? '업로드 중...' : 'xlsx 업로드'}
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button 
+              className="coupang-orders-button coupang-orders-button-secondary"
+              onClick={handleBarcodeSearch}
+              disabled={isLoading || isUploading}
+            >
+              {isLoading ? '조회 중...' : '바코드 조회'}
+            </button>
+            <button 
+              className="coupang-orders-button coupang-orders-button-info"
+              onClick={calculatePurchaseQuantities}
+              disabled={isLoading || isUploading}
+            >
+              사입 조회
+            </button>
+          </div>
         </div>
       </div>
 
       {/* 통계 카드 섹션 */}
       <div className="coupang-orders-stats-section">
         <div className="coupang-orders-stats-grid">
-          <DashboardStatsCard title="전체 주문" value={stats.total} color="default" />
-          <DashboardStatsCard title="연체" value={stats.overdue} color="red" />
-          <DashboardStatsCard title="오늘 출고" value={stats.today} color="orange" />
-          <DashboardStatsCard title="3일 이내" value={stats.threeDays} color="orange" />
-          <DashboardStatsCard title="여유" value={stats.normal} color="blue" />
-          <DashboardStatsCard title="바코드 완료" value={stats.barcodeFilled} color="blue" />
+          <DashboardStatsCard 
+            title="전체주문" 
+            value={stats.total} 
+            color="default" 
+            onClick={() => handleCardClick('')}
+            active={activeFilter === ''}
+          />
+          <DashboardStatsCard 
+            title="출고지연" 
+            value={stats.overdue} 
+            color="red" 
+            onClick={() => handleCardClick('overdue')}
+            active={activeFilter === 'overdue'}
+          />
+          <DashboardStatsCard 
+            title="출고임박" 
+            value={stats.upcoming} 
+            color="orange" 
+            onClick={() => handleCardClick('upcoming')}
+            active={activeFilter === 'upcoming'}
+          />
+          <DashboardStatsCard 
+            title="출고가능" 
+            value={stats.readyToShip} 
+            color="blue" 
+            onClick={() => handleCardClick('readyToShip')}
+            active={activeFilter === 'readyToShip'}
+          />
+          <DashboardStatsCard 
+            title="미주문" 
+            value={stats.noOrder} 
+            color="orange" 
+            onClick={() => handleCardClick('noOrder')}
+            active={activeFilter === 'noOrder'}
+          />
+          <DashboardStatsCard 
+            title="바코드 오류" 
+            value={stats.barcodeError} 
+            color="red" 
+            onClick={() => handleCardClick('barcodeError')}
+            active={activeFilter === 'barcodeError'}
+          />
         </div>
       </div>
 
@@ -978,7 +1222,7 @@ const CoupangOrders: React.FC = () => {
                     </td>
                     <td style={{ textAlign: 'center' }}>{order.sequence || ''}</td>
                     <td style={{ textAlign: 'center' }}>{order.total_qty || ''}</td>
-                    <td style={{ textAlign: 'center' }}></td>
+                    <td style={{ textAlign: 'center' }}>{order.purchase_qty || ''}</td>
                     <td style={{ textAlign: 'center' }}>{order.stock_qty || ''}</td>
                   </tr>
                 ))

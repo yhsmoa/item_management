@@ -47,13 +47,16 @@ export interface ChinaOrderData {
   china_price?: string;               // P열
   china_total_price?: string;         // Q열
   image_url?: string;                 // R열
+  img_url?: string;                   // 백엔드에서 사용하는 컬럼명
   china_link?: string;                // S열
   china_offer_id?: string;            // S열에서 추출한 offer ID
   order_status_ordering?: string;     // T열
-  order_status_check?: string;        // U열
+  order_status_check?: string;        // U열 (기존)
+  order_status_import?: string;       // U열 (입고 상태)
   order_status_cancel?: string;       // V열
   order_status_shipment?: string;     // W열
-  remark?: string;                    // Y열
+  remark?: string;                    // Y열 (기존)
+  note?: string;                      // 백엔드에서 사용하는 비고 컬럼
   confirm_order_id?: string;          // AB열
   confirm_shipment_id?: string;       // AC열
 }

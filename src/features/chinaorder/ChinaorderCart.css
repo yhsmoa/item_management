@@ -432,123 +432,6 @@
   white-space: nowrap;
 }
 
-/* ⚠️ ChinaorderCart 전용 테이블 스타일 - 다른 페이지 절대 영향 없음 ⚠️ */
-.chinaorder-cart-container .chinaorder-cart-table .product-list-table-cell {
-  text-align: center;
-  vertical-align: middle;
-  padding: 1px;
-  font-size: 12px;
-}
-
-/* ⚠️ ChinaorderCart 전용 - 각 컬럼 너비 강제 설정 ⚠️ */
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(1),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(1) {
-  width: 40px !important;
-  min-width: 40px !important;
-  max-width: 40px !important;
-}
-
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(2),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(2) {
-  width: 50px !important;
-  min-width: 50px !important;
-  max-width: 50px !important;
-}
-
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(3),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(3) {
-  width: 60px !important;
-  min-width: 60px !important;
-  max-width: 60px !important;
-}
-
-/* 등록상품명 - 280px로 설정 */
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(4),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(4) {
-  width: 280px !important;
-  min-width: 280px !important;
-  max-width: 280px !important;
-}
-
-/* 옵션명 - 240px로 설정 (2배로 증가) */
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(5),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(5) {
-  width: 240px !important;
-  min-width: 240px !important;
-  max-width: 240px !important;
-}
-
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(6),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(6) {
-  width: 80px !important;
-  min-width: 80px !important;
-  max-width: 80px !important;
-}
-
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(7),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(7) {
-  width: 50px !important;
-  min-width: 50px !important;
-  max-width: 50px !important;
-}
-
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(8),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(8) {
-  width: 60px !important;
-  min-width: 60px !important;
-  max-width: 60px !important;
-}
-
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(9),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(9) {
-  width: 80px !important;
-  min-width: 80px !important;
-  max-width: 80px !important;
-}
-
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(10),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(10) {
-  width: 80px !important;
-  min-width: 80px !important;
-  max-width: 80px !important;
-}
-
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(11),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(11) {
-  width: 50px !important;
-  min-width: 50px !important;
-  max-width: 50px !important;
-}
-
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(12),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(12) {
-  width: 60px !important;
-  min-width: 60px !important;
-  max-width: 60px !important;
-}
-
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(13),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(13) {
-  width: 80px !important;
-  min-width: 80px !important;
-  max-width: 80px !important;
-}
-
-.chinaorder-cart-container .chinaorder-cart-table th:nth-child(14),
-.chinaorder-cart-container .chinaorder-cart-table td:nth-child(14) {
-  width: 100px !important;
-  min-width: 100px !important;
-  max-width: 100px !important;
-}
-
-/* ⚠️ ChinaorderCart 전용 - 등록상품명과 옵션명 컬럼 줄바꿈 허용 ⚠️ */
-.chinaorder-cart-container .chinaorder-cart-table .product-list-table-cell:nth-child(4),
-.chinaorder-cart-container .chinaorder-cart-table .product-list-table-cell:nth-child(5),
-.chinaorder-cart-container .chinaorder-cart-table .product-list-table-cell:nth-child(9),
-.chinaorder-cart-container .chinaorder-cart-table .product-list-table-cell:nth-child(10) {
-  white-space: pre-wrap;
-  word-break: break-all;
-}
 
 /* 편집 가능한 셀 스타일 */
 .product-list-editable-cell {
@@ -777,4 +660,221 @@
 
 .product-list-table-row-green-bg:hover {
   background-color: #90ee90 !important; /* 호버 시 라이트그린 */
+}
+
+/* ===== 신규주문 페이지 전용 테이블 스타일 (전체주문과 동일) ===== */
+/* chinaorder-table 클래스 스타일 - 전체주문과 동일하게 적용 */
+.chinaorder-cart-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.chinaorder-cart-table .chinaorder-table-header {
+  background-color: #f9fafb;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.chinaorder-cart-table .chinaorder-table-header-cell {
+  padding: 8px 4px;
+  text-align: center;
+  font-size: 11px !important;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 1px solid #e5e7eb;
+  white-space: nowrap;
+  line-height: 1.1;
+  background-color: #f9fafb;
+}
+
+.chinaorder-cart-table .chinaorder-table-body {
+  background-color: white;
+}
+
+.chinaorder-cart-table .chinaorder-table-row {
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.chinaorder-cart-table .chinaorder-table-row:hover {
+  background-color: #f9fafb;
+}
+
+.chinaorder-cart-table .chinaorder-table-cell {
+  padding: 1px;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: middle;
+  font-size: 13px;
+}
+
+/* 각 컬럼별 너비 및 정렬 설정 - 전체주문과 동일 */
+.chinaorder-cart-table .chinaorder-table-header-checkbox,
+.chinaorder-cart-table .chinaorder-table-cell-checkbox {
+  width: 40px;
+  text-align: center;
+}
+
+.chinaorder-cart-table .chinaorder-table-header-image,
+.chinaorder-cart-table .chinaorder-table-cell-image {
+  width: 50px;
+  text-align: center;
+}
+
+.chinaorder-cart-table .chinaorder-table-header-order-number,
+.chinaorder-cart-table .chinaorder-table-cell-order-number {
+  width: 75px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.chinaorder-cart-table .chinaorder-table-header-item-name,
+.chinaorder-cart-table .chinaorder-table-cell-item-name {
+  width: 300px;
+  text-align: left;
+}
+
+.chinaorder-cart-table .chinaorder-table-header-china-option,
+.chinaorder-cart-table .chinaorder-table-cell-china-option {
+  width: 100px;
+  text-align: left;
+}
+
+.chinaorder-cart-table .chinaorder-table-header-quantity,
+.chinaorder-cart-table .chinaorder-table-cell-quantity {
+  width: 40px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.chinaorder-cart-table .chinaorder-table-header-price,
+.chinaorder-cart-table .chinaorder-table-cell-price {
+  width: 50px;
+  text-align: center;
+}
+
+.chinaorder-cart-table .chinaorder-table-header-status,
+.chinaorder-cart-table .chinaorder-table-cell-status {
+  width: 30px;
+  text-align: center;
+}
+
+.chinaorder-cart-table .chinaorder-table-header-remark,
+.chinaorder-cart-table .chinaorder-table-cell-remark {
+  width: 200px;
+  text-align: left;
+  font-size: 13px;
+}
+
+.chinaorder-cart-table .chinaorder-table-header-confirm,
+.chinaorder-cart-table .chinaorder-table-cell-confirm {
+  width: 70px;
+  text-align: center;
+  font-size: 13px;
+}
+
+/* 상품 이미지 스타일 */
+.chinaorder-cart-table .chinaorder-product-image {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.chinaorder-cart-table .chinaorder-image-placeholder {
+  width: 60px;
+  height: 60px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #999;
+  border: 1px solid #e0e0e0;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.chinaorder-cart-table .chinaorder-error-placeholder {
+  width: 60px;
+  height: 60px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #999;
+  border: 1px solid #e0e0e0;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* 텍스트 컨테이너 스타일 */
+.chinaorder-cart-table .chinaorder-item-info {
+  white-space: pre-line;
+  line-height: 1.3;
+  font-size: 13px;
+}
+
+.chinaorder-cart-table .chinaorder-order-info {
+  white-space: pre-line;
+  line-height: 1.3;
+  font-size: 13px;
+}
+
+.chinaorder-cart-table .chinaorder-shipment-info {
+  white-space: pre-line;
+  line-height: 1.3;
+  font-size: 13px;
+}
+
+.chinaorder-cart-table .chinaorder-china-option-info {
+  white-space: pre-line;
+  line-height: 1.3;
+  font-size: 13px;
+}
+
+.chinaorder-cart-table .chinaorder-price-info {
+  white-space: pre-line;
+  line-height: 1.2;
+  font-size: 13px;
+}
+
+/* 상태 배지 스타일 */
+.chinaorder-cart-table .chinaorder-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.chinaorder-cart-table .chinaorder-status-ordering {
+  background-color: #fbbf24;
+}
+
+.chinaorder-cart-table .chinaorder-status-check {
+  background-color: #3b82f6;
+}
+
+.chinaorder-cart-table .chinaorder-status-cancel {
+  background-color: #ef4444;
+}
+
+.chinaorder-cart-table .chinaorder-status-shipment {
+  background-color: #10b981;
+}
+
+/* 빈 데이터 스타일 */
+.chinaorder-cart-table .chinaorder-empty-data {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+  font-size: 16px;
 } 
