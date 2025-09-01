@@ -89,7 +89,8 @@ export async function appendOrderDataToGoogleSheets(
     // 3. 백엔드 API를 통해 Google Sheets에 일괄 추가
     console.log('🌐 백엔드 API를 통한 Google Sheets 데이터 추가...');
     
-    const response = await fetch('http://localhost:3001/api/googlesheets/batch-orders', {
+    const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001';
+    const response = await fetch(`${backendUrl}/api/googlesheets/batch-orders`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

@@ -11,6 +11,10 @@ interface ViewsDocument {
 }
 
 export class ViewsService {
+  private getBackendUrl(): string {
+    return process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001';
+  }
+
   async saveViewsData(viewsDataArray: ViewsData[], date: string, userId?: string) {
     try {
       const documentToInsert = {
@@ -21,7 +25,7 @@ export class ViewsService {
 
       console.log('전송할 데이터:', documentToInsert);
 
-      const response = await fetch('http://localhost:3001/api/views/save', {
+      const response = await fetch(`${this.getBackendUrl()}/api/views/save`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -54,7 +58,7 @@ export class ViewsService {
 
   async getViewsData(userId: string, date: string) {
     try {
-      const response = await fetch(`http://localhost:3001/api/views/get/${userId}/${date}`, {
+      const response = await fetch(`${this.getBackendUrl()}/api/views/get/${userId}/${date}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -84,7 +88,7 @@ export class ViewsService {
 
   async getRecentViewsData(userId: string) {
     try {
-      const response = await fetch(`http://localhost:3001/api/views/get-recent/${userId}`, {
+      const response = await fetch(`${this.getBackendUrl()}/api/views/get-recent/${userId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -114,7 +118,7 @@ export class ViewsService {
 
   async getViewsDateRange(userId: string, startDate: string, endDate: string) {
     try {
-      const response = await fetch(`http://localhost:3001/api/views/get-date-range/${userId}/${startDate}/${endDate}`, {
+      const response = await fetch(`${this.getBackendUrl()}/api/views/get-date-range/${userId}/${startDate}/${endDate}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -144,7 +148,7 @@ export class ViewsService {
 
   async getAvailableDates(userId: string, startDate: string, endDate: string) {
     try {
-      const response = await fetch(`http://localhost:3001/api/views/get-available-dates/${userId}/${startDate}/${endDate}`, {
+      const response = await fetch(`${this.getBackendUrl()}/api/views/get-available-dates/${userId}/${startDate}/${endDate}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -174,7 +178,7 @@ export class ViewsService {
 
   async deleteViewsData(userId: string, date: string) {
     try {
-      const response = await fetch(`http://localhost:3001/api/views/delete/${userId}/${date}`, {
+      const response = await fetch(`${this.getBackendUrl()}/api/views/delete/${userId}/${date}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -203,7 +207,7 @@ export class ViewsService {
 
   async deleteAllViewsData(userId: string) {
     try {
-      const response = await fetch(`http://localhost:3001/api/views/delete-all/${userId}`, {
+      const response = await fetch(`${this.getBackendUrl()}/api/views/delete-all/${userId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
