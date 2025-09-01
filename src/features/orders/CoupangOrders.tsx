@@ -109,7 +109,7 @@ const CoupangOrders: React.FC = () => {
   const [selectedRecipient, setSelectedRecipient] = useState<CoupangOrderData | null>(null);
   const [clearDataBeforeUpload, setClearDataBeforeUpload] = useState(true);
 
-  // 통계 데이터 계산 - 전체 orderData 기준으로 계산
+  // 통계 데이터 계산 - 실시간으로 업데이트되는 데이터 기준
   const stats = React.useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -121,23 +121,27 @@ const CoupangOrders: React.FC = () => {
     let barcodeErrorCount = 0;   // 바코드 오류 (barcode = "")
     
     orderData.forEach(order => {
+      const barcode = order.barcode || '';
+      
       // 바코드 오류 체크
       if (!order.barcode || order.barcode.trim() === '') {
         barcodeErrorCount++;
       }
       
+      // 실시간 사입 수량 계산
+      const purchaseQty = barcode ? (purchaseData.get(barcode) || 0) : 0;
+      
       // 미주문 체크 (사입이 0이거나 없는 경우)
-      const purchaseQty = Number(order.purchase_qty) || 0;
       if (purchaseQty === 0) {
         noOrderCount++;
-        console.log(`미주문 항목 발견: ${order.item_name}, 사입수량: ${purchaseQty}`);
       }
       
+      // 실시간 창고 재고 계산
+      const stockQty = barcode ? (stockData.get(barcode) || 0) : 0;
+      
       // 출고가능 체크 (창고 재고 > 0)
-      const stockQty = Number(order.stock_qty) || 0;
       if (stockQty > 0) {
         readyToShipCount++;
-        console.log(`출고가능 항목 발견: ${order.item_name}, 창고수량: ${stockQty}`);
       }
       
       // 출고 날짜 관련 체크
@@ -167,7 +171,7 @@ const CoupangOrders: React.FC = () => {
       noOrder: noOrderCount,
       barcodeError: barcodeErrorCount
     };
-  }, [orderData]);
+  }, [orderData, stockData, purchaseData]);
   
   // File input ref
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -393,14 +397,16 @@ const CoupangOrders: React.FC = () => {
         case 'readyToShip':
           // 출고가능: 창고 재고 > 0
           filtered = orderData.filter(order => {
-            const stockQty = Number(order.stock_qty) || 0;
+            const barcode = order.barcode || '';
+            const stockQty = barcode ? (stockData.get(barcode) || 0) : 0;
             return stockQty > 0;
           });
           break;
         case 'noOrder':
           // 미주문: 사입이 0이거나 없는 경우
           filtered = orderData.filter(order => {
-            const purchaseQty = Number(order.purchase_qty) || 0;
+            const barcode = order.barcode || '';
+            const purchaseQty = barcode ? (purchaseData.get(barcode) || 0) : 0;
             return purchaseQty === 0;
           });
           break;
