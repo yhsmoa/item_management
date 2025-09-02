@@ -19,7 +19,8 @@ import {
   loadCoupangSalesData,
   loadWarehouseStockData,
   loadViewsData,
-  loadItemViewsData
+  loadItemViewsData,
+  loadPurchaseStatusData
 } from './services/dataService';
 import {
   handleDeleteAllData,
@@ -66,13 +67,16 @@ function ProductListPage() {
     rocketInventoryData,
     orderQuantityData,
     warehouseStockData,
+    purchaseStatusData,
     setRocketInventoryOptionIds,
     setRocketInventoryData,
     setOrderQuantityData,
     setWarehouseStockData,
+    setPurchaseStatusData,
     renderOrderableQuantity,
     renderOrderQuantity,
     renderWarehouseStock,
+    renderPurchaseStatus,
     renderRecommendedQuantity,
     renderStorageFee,
     render7DaysSales,
@@ -285,6 +289,11 @@ function ProductListPage() {
     return value && value !== '-' ? <span className="stock-warehouse">{value}</span> : '-';
   }, [renderWarehouseStock]);
 
+  const renderPurchaseStatusWithStyle = useCallback((row: TableRow) => {
+    const value = renderPurchaseStatus(row);
+    return value && value !== '-' ? <span className="purchase-status">{value}</span> : '-';
+  }, [renderPurchaseStatus]);
+
   const renderPeriodSalesWithStyle = useCallback((row: TableRow) => {
     const value = renderPeriodSales(row);
     return value && value !== '-' ? <span className="product-list-highlight-blue-border">{value}</span> : '-';
@@ -328,6 +337,16 @@ function ProductListPage() {
       setOrderQuantityData(quantityMap);
     } catch (error) {
       console.error('❌ 사입상태 데이터 로드 실패:', error);
+    }
+  };
+
+  // 🆕 구매 상태 데이터 로드 (chinaorder_googlesheet에서 바코드별 주문+배송 상태 합계)
+  const loadPurchaseStatusDataWrapper = async () => {
+    try {
+      const purchaseStatusMap = await loadPurchaseStatusData();
+      setPurchaseStatusData(purchaseStatusMap);
+    } catch (error) {
+      console.error('❌ 구매상태 데이터 로드 실패:', error);
     }
   };
 
@@ -623,6 +642,8 @@ function ProductListPage() {
     loadItemViewsDataWrapper();
     // 🆕 사입상태 데이터 로드 추가
     loadOrderQuantityDataWrapper();
+    // 🆕 구매상태 데이터 로드 추가  
+    loadPurchaseStatusDataWrapper();
     // 🆕 쿠팡 판매량 데이터 로드 추가
     loadCoupangSalesDataWrapper();
     // 🆕 창고재고 데이터 로드 추가
@@ -1234,6 +1255,7 @@ function ProductListPage() {
           render30DaysSalesWithStyle={render30DaysSalesWithStyle}
           renderRecommendedQuantityWithStyle={renderRecommendedQuantityWithStyle}
           renderWarehouseStockWithStyle={renderWarehouseStockWithStyle}
+          renderPurchaseStatusWithStyle={renderPurchaseStatusWithStyle}
           renderStorageFeeWithStyle={renderStorageFeeWithStyle}
           shouldHighlightRow={shouldHighlightRow}
           getViewCountColor={getViewCountColor}

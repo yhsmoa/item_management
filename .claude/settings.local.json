@@ -27,7 +27,9 @@
       "Bash(npm run:*)",
       "Bash(npx react-scripts:*)",
       "Bash(mongod:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(netstat:*)",
+      "Bash(cmd /c:*)"
     ],
     "deny": [],
     "ask": [],

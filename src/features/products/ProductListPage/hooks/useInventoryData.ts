@@ -7,6 +7,7 @@ export const useInventoryData = () => {
   const [rocketInventoryData, setRocketInventoryData] = useState<{[key: string]: any}>({});
   const [orderQuantityData, setOrderQuantityData] = useState<{[key: string]: number}>({});
   const [warehouseStockData, setWarehouseStockData] = useState<{[key: string]: number}>({});
+  const [purchaseStatusData, setPurchaseStatusData] = useState<{[key: string]: number}>({});
 
   // Render functions for inventory-related data
   const renderOrderableQuantity = useCallback((row: any) => {
@@ -28,6 +29,14 @@ export const useInventoryData = () => {
     
     return numValue > 0 ? numValue : '-';
   }, [warehouseStockData]);
+
+  const renderPurchaseStatus = useCallback((row: any) => {
+    const barcode = String(row.barcode || '').trim();
+    const value = barcode && purchaseStatusData[barcode];
+    const numValue = typeof value === 'number' ? value : 0;
+    
+    return numValue > 0 ? numValue : '-';
+  }, [purchaseStatusData]);
 
   const renderRecommendedQuantity = useCallback((row: any) => {
     const value = row.option_id && rocketInventoryData[row.option_id]?.recommanded_inboundquantity;
@@ -66,17 +75,20 @@ export const useInventoryData = () => {
     rocketInventoryData,
     orderQuantityData,
     warehouseStockData,
+    purchaseStatusData,
     
     // Setters
     setRocketInventoryOptionIds,
     setRocketInventoryData,
     setOrderQuantityData,
     setWarehouseStockData,
+    setPurchaseStatusData,
     
     // Functions
     renderOrderableQuantity,
     renderOrderQuantity,
     renderWarehouseStock,
+    renderPurchaseStatus,
     renderRecommendedQuantity,
     renderStorageFee,
     render7DaysSales,

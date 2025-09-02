@@ -30,6 +30,7 @@ interface ProductTableProps {
   render30DaysSalesWithStyle: (row: any) => React.ReactNode;
   renderRecommendedQuantityWithStyle: (row: any) => React.ReactNode;
   renderWarehouseStockWithStyle: (row: any) => React.ReactNode;
+  renderPurchaseStatusWithStyle: (row: any) => React.ReactNode;
   renderStorageFeeWithStyle: (row: any) => React.ReactNode;
   
   // Utility functions
@@ -64,6 +65,7 @@ export const ProductTable: React.FC<ProductTableProps> = ({
   render30DaysSalesWithStyle,
   renderRecommendedQuantityWithStyle,
   renderWarehouseStockWithStyle,
+  renderPurchaseStatusWithStyle,
   renderStorageFeeWithStyle,
   shouldHighlightRow,
   getViewCountColor,
@@ -189,10 +191,13 @@ export const ProductTable: React.FC<ProductTableProps> = ({
                 {renderOrderableQuantityWithStyle(row)}
               </td>
               <td className="product-list-table-cell">
-                {/* 🆕 사입상태: 바코드별 주문 수량 합계 표시 */}
-                {renderOrderQuantityWithStyle(row)}
+                {/* 🆕 사입상태: 바코드별 주문+배송 상태 합계 표시 */}
+                {renderPurchaseStatusWithStyle(row)}
               </td>
-              <td className="product-list-table-cell">-</td>
+              <td className="product-list-table-cell">
+                {/* 🆕 개인주문: 현재 사용하지 않음 (사입상태만 표시) */}
+                -
+              </td>
               <td className="product-list-table-cell">
                 {/* 🆕 기간 열: 쿠팡 판매량 데이터 표시 */}
                 {renderPeriodSalesWithStyle(row)}

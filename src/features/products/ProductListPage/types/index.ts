@@ -14,6 +14,7 @@ export interface TableRow {
   category?: string;
   brand?: string;
   barcode?: string;
+  purchase_status?: number;
   [key: string]: any;
 }
 

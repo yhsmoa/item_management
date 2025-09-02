@@ -89,10 +89,10 @@ export const loadOrderQuantityData = async (): Promise<{[key: string]: number}> 
       return {};
     }
 
-    // chinaorder_googlesheet 테이블에서 데이터 로드
+    // chinaorder_googlesheet 테이블에서 데이터 로드 (order_qty가 올바른 컬럼명)
     const { data: orderData, error } = await supabase
       .from('chinaorder_googlesheet')
-      .select('barcode, order_quantity')
+      .select('barcode, order_qty')
       .eq('user_id', userId);
 
     if (error) {
@@ -105,7 +105,7 @@ export const loadOrderQuantityData = async (): Promise<{[key: string]: number}> 
     
     orderData?.forEach((order: any) => {
       const barcode = String(order.barcode || '').trim();
-      const quantity = parseInt(order.order_quantity) || 0;
+      const quantity = parseInt(order.order_qty) || 0;
       
       if (barcode && quantity > 0) {
         quantityMap[barcode] = (quantityMap[barcode] || 0) + quantity;
@@ -264,6 +264,61 @@ export const loadViewsData = async (): Promise<Array<{[key: string]: string}>> =
   } catch (error) {
     console.error('❌ 조회수 데이터 로드 실패:', error);
     return [];
+  }
+};
+
+export const loadPurchaseStatusData = async (): Promise<{[key: string]: number}> => {
+  try {
+    console.log('🔄 사입상태 데이터 로딩 시작...');
+    
+    // 현재 로그인한 사용자 ID 가져오기
+    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    const userId = currentUser.id;
+    
+    if (!userId) {
+      console.error('❌ 사입상태 데이터 로드: 사용자 ID를 찾을 수 없습니다.');
+      return {};
+    }
+    
+    // chinaorder_googlesheet 테이블에서 barcode별로 order_status_ordering + order_status_shipment 합계 계산
+    const { data, error } = await supabase
+      .from('chinaorder_googlesheet')
+      .select('barcode, order_status_ordering, order_status_shipment')
+      .eq('user_id', userId);
+    
+    if (error) {
+      console.error('❌ 사입상태 데이터 로드 실패:', error);
+      return {};
+    }
+    
+    if (!data || data.length === 0) {
+      console.log('⚠️ 사입상태 데이터가 없습니다.');
+      return {};
+    }
+    
+    // barcode별로 order_status_ordering + order_status_shipment 합계 계산
+    const purchaseStatusMap: {[key: string]: number} = {};
+    
+    data.forEach((item: any) => {
+      if (item.barcode) {
+        const ordering = parseInt(item.order_status_ordering) || 0;
+        const shipment = parseInt(item.order_status_shipment) || 0;
+        const total = ordering + shipment;
+        
+        if (purchaseStatusMap[item.barcode]) {
+          purchaseStatusMap[item.barcode] += total;
+        } else {
+          purchaseStatusMap[item.barcode] = total;
+        }
+      }
+    });
+    
+    console.log(`✅ 사입상태 데이터 로드 완료: ${Object.keys(purchaseStatusMap).length}개 바코드`);
+    return purchaseStatusMap;
+    
+  } catch (error) {
+    console.error('❌ 사입상태 데이터 로드 실패:', error);
+    return {};
   }
 };
 

@@ -48,7 +48,13 @@ const LeftSideBar: React.FC<LeftSideBarProps> = ({ isVisible }) => {
     const currentPath = location.pathname;
     
     // 현재 경로에 따라 활성 메뉴와 확장된 메뉴 설정
-    if (currentPath.includes('/products')) {
+    if (currentPath.includes('/products/add')) {
+      setSelectedMenu('product-add');
+      setExpandedMenus(['products']);
+    } else if (currentPath.includes('/products/views')) {
+      setSelectedMenu('product-views');
+      setExpandedMenus(['products']);
+    } else if (currentPath.includes('/products')) {
       setSelectedMenu('product-list');
       setExpandedMenus(['products']);
     } else if (currentPath.includes('/order-management/coupang')) {
@@ -60,6 +66,18 @@ const LeftSideBar: React.FC<LeftSideBarProps> = ({ isVisible }) => {
     } else if (currentPath.includes('/order-management')) {
       setSelectedMenu('order-management');
       setExpandedMenus(['order-management']);
+    } else if (currentPath.includes('/chinaorder/chinaorder-cart')) {
+      setSelectedMenu('order-delivery');
+      setExpandedMenus(['orders']);
+    } else if (currentPath.includes('/chinaorder/chinaorder-confirm')) {
+      setSelectedMenu('order-return');
+      setExpandedMenus(['orders']);
+    } else if (currentPath.includes('/chinaorder/chinaorder-delivery')) {
+      setSelectedMenu('order-delivery-status');
+      setExpandedMenus(['orders']);
+    } else if (currentPath.includes('/chinaorder/chinaorder-records')) {
+      setSelectedMenu('order-records');
+      setExpandedMenus(['orders']);
     } else if (currentPath.includes('/chinaorder')) {
       setSelectedMenu('china-order-list');
       setExpandedMenus(['orders']);
@@ -138,7 +156,7 @@ const LeftSideBar: React.FC<LeftSideBarProps> = ({ isVisible }) => {
     {
       id: 'stocks',
       title: '재고관리',
-      icon: '📦',
+      icon: '📋',
       path: '/stocks',
       children: [
         { id: 'stock-list', title: '재고 목록', icon: '📋', path: '/stocks/management' },
