@@ -28,6 +28,12 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// 요청 로깅 미들웨어
+app.use((req, res, next) => {
+  console.log(`🌐 [REQUEST] ${req.method} ${req.path} - Body:`, req.body);
+  next();
+});
+
 // 암호화/복호화 함수
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32);
 const IV_LENGTH = 16; // AES의 IV는 16바이트
