@@ -17,6 +17,7 @@ import ChinaorderRecords from '../features/chinaorder/ChinaorderRecords';
 import CoupangOrders from '../features/orders/CoupangOrders';
 import SmartstoreOrders from '../features/orders/SmartstoreOrders';
 import ReturnItems from '../features/service/ReturnItems';
+import RocketgrowthShipment from '../features/service/RocketgrowthShipment';
 import MainLayout from '../layouts/MainLayout';
 
 /**
@@ -234,6 +235,16 @@ const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <ReturnItems />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* 로켓그로스 입고 페이지 - 로그인 필요 */}
+        <Route 
+          path="/marketing/promotion" 
+          element={
+            <ProtectedRoute>
+              <RocketgrowthShipment />
             </ProtectedRoute>
           } 
         />

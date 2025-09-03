@@ -29,7 +29,8 @@
       "Bash(mongod:*)",
       "Bash(git checkout:*)",
       "Bash(netstat:*)",
-      "Bash(cmd /c:*)"
+      "Bash(cmd /c:*)",
+      "Bash(start http://localhost:3000/marketing/promotion)"
     ],
     "deny": [],
     "ask": [],
