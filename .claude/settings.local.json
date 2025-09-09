@@ -30,7 +30,15 @@
       "Bash(git checkout:*)",
       "Bash(netstat:*)",
       "Bash(cmd /c:*)",
-      "Bash(start http://localhost:3000/marketing/promotion)"
+      "Bash(start http://localhost:3000/marketing/promotion)",
+      "Read(/D:\\project\\item_management\\src\\features\\products/**)",
+      "Read(/D:\\project\\item_management\\src\\features\\products/**)",
+      "Read(/D:\\project\\item_management\\src\\features\\products\\ProductListPage/**)",
+      "Read(/D:\\project\\item_management\\src\\features\\products/**)",
+      "Read(/D:\\project\\item_management\\src\\features\\products\\ProductListPage/**)",
+      "Read(/D:\\project\\item_management\\src/**)",
+      "Read(/D:\\project\\item_management\\src\\features\\products\\ProductListPage/**)",
+      "Read(/D:\\project\\item_management\\src\\features\\products\\ProductListPage/**)"
     ],
     "deny": [],
     "ask": [],

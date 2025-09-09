@@ -435,6 +435,24 @@
   transform: translateY(-1px);
 }
 
+.product-list-button-info {
+  background-color: #3b82f6;
+}
+
+.product-list-button-info:hover:not(:disabled) {
+  background-color: #2563eb;
+  transform: translateY(-1px);
+}
+
+.product-list-button-secondary {
+  background-color: #6b7280;
+}
+
+.product-list-button-secondary:hover:not(:disabled) {
+  background-color: #4b5563;
+  transform: translateY(-1px);
+}
+
 .product-list-progress-section {
   padding: 20px 24px;
   border-bottom: 1px solid #e5e7eb;
