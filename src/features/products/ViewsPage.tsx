@@ -533,29 +533,154 @@ function ViewsPage() {
       {/* 페이지 헤더 */}
       <div className="product-list-page-header">
         <h1 className="product-list-page-title">쿠팡 조회수 관리</h1>
-        
-        {/* 버튼들을 다음 줄 오른쪽 끝에 배치 */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
-          <button 
-            className="product-list-button product-list-button-info"
-            onClick={() => setShowExcelModal(true)}
-          >
-            조회수 xlsx 저장
-          </button>
-          <button 
-            className="product-list-button"
-            onClick={() => setShowDeleteAllModal(true)}
-            style={{
-              backgroundColor: '#dc2626',
-              color: 'white',
-              border: '1px solid #dc2626'
+      </div>
+      
+      {/* 버튼 전용 영역 - CoupangOrders와 동일한 구조 */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        gap: '12px', 
+        marginTop: '12px',
+        marginBottom: '24px',
+        padding: '0 24px'
+      }}>
+        {/* 왼쪽 그룹: 데이터 관리 버튼들 */}
+        <div style={{ 
+          display: 'flex', 
+          gap: '8px'
+        }}>
+            <button 
+              className="product-list-button product-list-button-info"
+              onClick={() => setShowExcelModal(true)}
+            >
+              조회수 xlsx 저장
+            </button>
+            <button 
+              className="product-list-button"
+              onClick={() => setShowDeleteAllModal(true)}
+              style={{
+                backgroundColor: '#dc2626',
+                color: 'white',
+                border: '1px solid #dc2626'
+              }}
+            >
+              전체 조회수 제거
+            </button>
+            <button 
+              className="product-list-button product-list-button-secondary"
+              onClick={async () => {
+              // Supabase에서 상품ID 복사 기능
+              setIsLoading(true);
+              try {
+                const currentUserId = getCurrentUserId();
+                if (!currentUserId) {
+                  alert('로그인이 필요합니다.');
+                  return;
+                }
+
+                // extract_coupang_item_all 테이블에서 해당 user_id의 모든 item_id 조회 (배치 처리)
+                const { supabase } = await import('../../config/supabase');
+                
+                let allData: any[] = [];
+                let page = 0;
+                const pageSize = 1000;
+                let hasMore = true;
+
+                while (hasMore) {
+                  const from = page * pageSize;
+                  const to = from + pageSize - 1;
+                  
+                  const { data: batch, error } = await supabase
+                    .from('extract_coupang_item_all')
+                    .select('item_id')
+                    .eq('user_id', currentUserId)
+                    .not('item_id', 'is', null)
+                    .neq('item_id', '')
+                    .range(from, to);
+
+                  if (error) {
+                    console.error('데이터 조회 오류:', error);
+                    alert('데이터 조회 중 오류가 발생했습니다.');
+                    return;
+                  }
+
+                  if (batch && batch.length > 0) {
+                    allData = [...allData, ...batch];
+                    hasMore = batch.length === pageSize;
+                    page++;
+                  } else {
+                    hasMore = false;
+                  }
+                }
+
+                const data = allData;
+
+                // 중복 제거 및 정렬
+                const itemIds = data.map(item => item.item_id);
+                const uniqueItemIds = Array.from(new Set(itemIds)).sort();
+                
+                if (uniqueItemIds.length > 0) {
+                  // 'item_id1', 'item_id2', 'item_id3' 형태로 복사
+                  const formattedIds = uniqueItemIds.map(id => `'${id}'`).join(', ');
+                  
+                  // HTTPS 환경과 HTTP 환경 모두 지원하는 Fallback 방식
+                  if (navigator.clipboard && navigator.clipboard.writeText) {
+                    // HTTPS 환경 - Clipboard API 사용
+                    navigator.clipboard.writeText(formattedIds).then(() => {
+                      alert(`${uniqueItemIds.length}개의 상품ID가 복사되었습니다.`);
+                    }).catch(() => {
+                      alert('복사에 실패했습니다.');
+                    });
+                  } else {
+                    // HTTP 환경 - 구식 방법 사용
+                    const textarea = document.createElement('textarea');
+                    textarea.value = formattedIds;
+                    textarea.style.position = 'fixed';
+                    textarea.style.top = '-999px';
+                    textarea.style.left = '-999px';
+                    document.body.appendChild(textarea);
+                    textarea.focus();
+                    textarea.select();
+                    
+                    try {
+                      const successful = document.execCommand('copy');
+                      if (successful) {
+                        alert(`${uniqueItemIds.length}개의 상품ID가 복사되었습니다.`);
+                      } else {
+                        alert('복사에 실패했습니다.');
+                      }
+                    } catch (err) {
+                      console.error('복사 실패:', err);
+                      alert('복사에 실패했습니다.');
+                    } finally {
+                      document.body.removeChild(textarea);
+                    }
+                  }
+                } else {
+                  alert('복사할 상품ID가 없습니다.');
+                }
+              } catch (error) {
+                console.error('상품ID 복사 오류:', error);
+                alert('상품ID 복사 중 오류가 발생했습니다.');
+              } finally {
+                setIsLoading(false);
+              }
             }}
+            disabled={isLoading}
           >
-            전체 조회수 제거
+            상품id 복사
           </button>
-          <button 
-            className="product-list-button product-list-button-warning"
-            onClick={async () => {
+          </div>
+        
+        {/* 오른쪽 그룹: 액션 버튼들 */}
+        <div style={{ 
+          display: 'flex', 
+          gap: '8px'
+        }}>
+            <button 
+              className="product-list-button product-list-button-warning"
+              onClick={async () => {
                 // 콘솔 스크립트 복사 기능
                 setIsLoading(true);
                 try {
@@ -721,116 +846,12 @@ searchProductIDs(productIDs);`;
             >
               콘솔 복사
             </button>
-          <button 
-            className="product-list-button product-list-button-secondary"
-            onClick={async () => {
-              // Supabase에서 상품ID 복사 기능
-              setIsLoading(true);
-              try {
-                const currentUserId = getCurrentUserId();
-                if (!currentUserId) {
-                  alert('로그인이 필요합니다.');
-                  return;
-                }
-
-                // extract_coupang_item_all 테이블에서 해당 user_id의 모든 item_id 조회 (배치 처리)
-                const { supabase } = await import('../../config/supabase');
-                
-                let allData: any[] = [];
-                let page = 0;
-                const pageSize = 1000;
-                let hasMore = true;
-
-                while (hasMore) {
-                  const from = page * pageSize;
-                  const to = from + pageSize - 1;
-                  
-                  const { data: batch, error } = await supabase
-                    .from('extract_coupang_item_all')
-                    .select('item_id')
-                    .eq('user_id', currentUserId)
-                    .not('item_id', 'is', null)
-                    .neq('item_id', '')
-                    .range(from, to);
-
-                  if (error) {
-                    console.error('데이터 조회 오류:', error);
-                    alert('데이터 조회 중 오류가 발생했습니다.');
-                    return;
-                  }
-
-                  if (batch && batch.length > 0) {
-                    allData = [...allData, ...batch];
-                    hasMore = batch.length === pageSize;
-                    page++;
-                  } else {
-                    hasMore = false;
-                  }
-                }
-
-                const data = allData;
-
-                // 중복 제거 및 정렬
-                const itemIds = data.map(item => item.item_id);
-                const uniqueItemIds = Array.from(new Set(itemIds)).sort();
-                
-                if (uniqueItemIds.length > 0) {
-                  // 'item_id1', 'item_id2', 'item_id3' 형태로 복사
-                  const formattedIds = uniqueItemIds.map(id => `'${id}'`).join(', ');
-                  
-                  // HTTPS 환경과 HTTP 환경 모두 지원하는 Fallback 방식
-                  if (navigator.clipboard && navigator.clipboard.writeText) {
-                    // HTTPS 환경 - Clipboard API 사용
-                    navigator.clipboard.writeText(formattedIds).then(() => {
-                      alert(`${uniqueItemIds.length}개의 상품ID가 복사되었습니다.`);
-                    }).catch(() => {
-                      alert('복사에 실패했습니다.');
-                    });
-                  } else {
-                    // HTTP 환경 - 구식 방법 사용
-                    const textarea = document.createElement('textarea');
-                    textarea.value = formattedIds;
-                    textarea.style.position = 'fixed';
-                    textarea.style.top = '-999px';
-                    textarea.style.left = '-999px';
-                    document.body.appendChild(textarea);
-                    textarea.focus();
-                    textarea.select();
-                    
-                    try {
-                      const successful = document.execCommand('copy');
-                      if (successful) {
-                        alert(`${uniqueItemIds.length}개의 상품ID가 복사되었습니다.`);
-                      } else {
-                        alert('복사에 실패했습니다.');
-                      }
-                    } catch (err) {
-                      console.error('복사 실패:', err);
-                      alert('복사에 실패했습니다.');
-                    } finally {
-                      document.body.removeChild(textarea);
-                    }
-                  }
-                } else {
-                  alert('복사할 상품ID가 없습니다.');
-                }
-              } catch (error) {
-                console.error('상품ID 복사 오류:', error);
-                alert('상품ID 복사 중 오류가 발생했습니다.');
-              } finally {
-                setIsLoading(false);
-              }
-            }}
-            disabled={isLoading}
-          >
-            상품id 복사
-          </button>
-          <button 
-            className="product-list-button product-list-button-primary"
-            onClick={() => setShowModal(true)}
-          >
-            조회수 저장
-          </button>
+            <button 
+              className="product-list-button product-list-button-primary"
+              onClick={() => setShowModal(true)}
+            >
+              조회수 저장
+            </button>
         </div>
       </div>
 

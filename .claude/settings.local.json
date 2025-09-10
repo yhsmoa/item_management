@@ -38,7 +38,14 @@
       "Read(/D:\\project\\item_management\\src\\features\\products\\ProductListPage/**)",
       "Read(/D:\\project\\item_management\\src/**)",
       "Read(/D:\\project\\item_management\\src\\features\\products\\ProductListPage/**)",
-      "Read(/D:\\project\\item_management\\src\\features\\products\\ProductListPage/**)"
+      "Read(/D:\\project\\item_management\\src\\features\\products\\ProductListPage/**)",
+      "Bash(git config:*)",
+      "Read(/D:\\project\\item_management\\src\\features\\products/**)",
+      "Read(/D:\\project\\item_management\\src\\features\\products/**)",
+      "Read(/D:\\project\\item_management\\src/**)",
+      "Read(/D:\\project\\item_management\\src\\routes/**)",
+      "Read(/D:\\project\\item_management\\src\\features\\orders/**)",
+      "Read(/D:\\project\\item_management\\src\\features\\orders/**)"
     ],
     "deny": [],
     "ask": [],
