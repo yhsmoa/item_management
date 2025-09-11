@@ -1068,14 +1068,14 @@ const CoupangOrders: React.FC = () => {
               onClick={handleXlsxDownload}
               disabled={isUploading || isLoading}
             >
-              ⬇️ xlsx 다운로드
+              ▼ xlsx 다운로드
             </button>
             <button 
               className="coupang-orders-button coupang-orders-button-success"
               onClick={handleXlsxUpload}
               disabled={isUploading}
             >
-              {isUploading ? '업로드 중...' : '⬆️ xlsx 업로드'}
+              {isUploading ? '업로드 중...' : '▲ xlsx 업로드'}
             </button>
           </div>
           <div style={{ display: 'flex', gap: '12px' }}>
