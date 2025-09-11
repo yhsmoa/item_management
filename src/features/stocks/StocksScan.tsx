@@ -38,6 +38,7 @@ function StocksScan() {
   const [isSelectingOptionName, setIsSelectingOptionName] = useState(false);
   const [isSelectingNote, setIsSelectingNote] = useState(false);
   const [dataStartRow, setDataStartRow] = useState<number>(2);
+  const [excelType, setExcelType] = useState<'stock' | 'deliveryList'>('stock');
   
   // 재고 관리 테이블 데이터
   const [stockManagementData, setStockManagementData] = useState<any[]>([]);
@@ -266,6 +267,7 @@ function StocksScan() {
     setIsSelectingOptionName(false);
     setIsSelectingNote(false);
     setDataStartRow(2);
+    setExcelType('stock');
   };
 
   // 컬럼 인덱스를 엑셀 스타일 문자로 변환 (0->A, 1->B, ..., 25->Z, 26->AA)
@@ -363,10 +365,134 @@ function StocksScan() {
     setIsSelectingNote(false);
   };
 
+  /**
+   * deliveryList 데이터 처리 함수
+   * R열(바코드), K열(상품명), L열(옵션명), AO열(창고) 사용
+   */
+  const handleDeliveryListData = async () => {
+    // 선택된 시작 행부터 데이터 처리
+    const dataRows = excelData.slice(dataStartRow - 1);
+    
+    // R=17, K=10, L=11, AO=40 (0-based index)
+    const barcodeIndex = 17; // R열
+    const productNameIndex = 10; // K열
+    const optionNameIndex = 11; // L열  
+    const warehouseIndex = 40; // AO열
+    
+    const newStockData: any[] = [];
+
+    /**
+     * 창고 데이터 파싱 함수
+     * "[MBOX106 -> 1]\n[MBOX35 -> 1]" 형태의 텍스트를 파싱하여 location과 stock 배열 반환
+     */
+    const parseWarehouseData = (warehouseText: string): Array<{location: string, stock: number}> => {
+      if (!warehouseText || warehouseText.trim() === '') return [];
+      
+      const results: Array<{location: string, stock: number}> = [];
+      
+      // 줄바꿈으로 분리
+      const lines = warehouseText.split(/\n/).filter(line => line.trim() !== '');
+      
+      for (const line of lines) {
+        // [LOCATION -> STOCK] 패턴 매칭
+        const match = line.match(/\[([^[\]]+)\s*->\s*(\d+)\]/);
+        if (match) {
+          const location = match[1].trim();
+          const stock = parseInt(match[2]) || 0;
+          if (location && stock > 0) {
+            results.push({ location, stock });
+          }
+        }
+      }
+      
+      return results;
+    };
+
+    for (let i = 0; i < dataRows.length; i++) {
+      const row = dataRows[i];
+      const barcode = row[barcodeIndex] || '';
+      const productName = row[productNameIndex] || '';
+      const optionName = row[optionNameIndex] || '';
+      const warehouseData = row[warehouseIndex] || '';
+      
+      if (!barcode.trim()) continue; // 빈 바코드 건너뛰기
+      
+      // 상품명 조합
+      let fullProductName = '';
+      if (productName && optionName) {
+        fullProductName = `${productName}, ${optionName}`;
+      } else if (productName) {
+        fullProductName = productName;
+      } else {
+        fullProductName = `상품 ${barcode}`;
+      }
+      
+      // 창고 데이터 파싱
+      const warehouseItems = parseWarehouseData(warehouseData.toString());
+      
+      if (warehouseItems.length > 0) {
+        // 파싱된 각 창고 위치별로 개별 아이템 생성
+        for (const warehouseItem of warehouseItems) {
+          const { location, stock } = warehouseItem;
+          
+          const itemId = `${location}=${barcode}`;
+          
+          // 동일한 ID가 이미 있는지 확인
+          const existingItemIndex = newStockData.findIndex(item => item.id === itemId);
+          
+          if (existingItemIndex >= 0) {
+            // 기존 항목이 있으면 수량만 합산
+            newStockData[existingItemIndex].quantity += stock;
+          } else {
+            // 새 항목 추가
+            newStockData.push({
+              id: itemId,
+              barcode: barcode,
+              productName: fullProductName,
+              quantity: stock,
+              location: location,
+              note: '', // 비고는 비워두기
+              timestamp: new Date().toLocaleString()
+            });
+          }
+        }
+      }
+    }
+
+    // 재고 관리 테이블에 데이터 추가
+    setStockManagementData(prev => {
+      const updated = [...prev];
+      
+      newStockData.forEach(newItem => {
+        const existingIndex = updated.findIndex(item => item.id === newItem.id);
+        if (existingIndex >= 0) {
+          // 기존 항목이 있으면 수량 합산
+          updated[existingIndex].quantity += newItem.quantity;
+        } else {
+          // 새 항목 추가
+          updated.unshift(newItem);
+        }
+      });
+      
+      return updated;
+    });
+    
+    // 모달 닫기
+    handleModalClose();
+  };
+
   // 엑셀 데이터 추가 확인
   const handleAddExcelData = async () => {
-    if (!selectedBarcodeColumn || !selectedQuantityColumn) {
-      alert('바코드와 개수 컬럼을 모두 선택해주세요.');
+    if (excelType === 'stock') {
+      if (!selectedBarcodeColumn || !selectedQuantityColumn) {
+        alert('바코드와 개수 컬럼을 모두 선택해주세요.');
+        return;
+      }
+    }
+    
+    // deliveryList 처리
+    if (excelType === 'deliveryList') {
+      await handleDeliveryListData();
       return;
     }
 
@@ -479,8 +605,8 @@ function StocksScan() {
     handleModalClose();
   };
 
-  // 추가 버튼 활성화 조건 (바코드와 개수만 필수, 위치는 선택사항)
-  const isAddButtonEnabled = selectedBarcodeColumn && selectedQuantityColumn;
+  // 추가 버튼 활성화 조건
+  const isAddButtonEnabled = excelType === 'deliveryList' || (selectedBarcodeColumn && selectedQuantityColumn);
 
   // 현재 사용자 ID 가져오기
   const getCurrentUserId = async () => {
@@ -1629,15 +1755,43 @@ function StocksScan() {
               </div>
             </div>
 
-            {/* 데이터 시작 행 선택 및 컬럼 선택 버튼 */}
+            {/* 엑셀 타입 선택 및 데이터 시작 행 선택 */}
             <div style={{
               padding: '16px 20px',
               borderBottom: '1px solid #e2e8f0',
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'center',
-              gap: '12px'
+              gap: '20px'
             }}>
+              {/* 라디오 옵션 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="excelType"
+                    value="stock"
+                    checked={excelType === 'stock'}
+                    onChange={(e) => setExcelType(e.target.value as 'stock' | 'deliveryList')}
+                    style={{ width: '16px', height: '16px' }}
+                  />
+                  <span style={{ fontSize: '14px', color: '#374151' }}>재고 엑셀</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="excelType"
+                    value="deliveryList"
+                    checked={excelType === 'deliveryList'}
+                    onChange={(e) => setExcelType(e.target.value as 'stock' | 'deliveryList')}
+                    style={{ width: '16px', height: '16px' }}
+                  />
+                  <span style={{ fontSize: '14px', color: '#374151' }}>deliveryList</span>
+                </label>
+              </div>
+              
+              <div style={{ width: '1px', height: '30px', backgroundColor: '#d1d5db' }}></div>
+              
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <label style={{ fontSize: '14px', color: '#374151' }}>데이터 시작 행:</label>
                 <select
@@ -1658,90 +1812,109 @@ function StocksScan() {
               
               <div style={{ width: '1px', height: '30px', backgroundColor: '#d1d5db' }}></div>
               
-              <button
-                onClick={handleBarcodeMode}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: isSelectingBarcode ? '#3b82f6' : '#e5e7eb',
-                  color: isSelectingBarcode ? 'white' : '#374151',
-                  border: 'none',
-                  borderRadius: '4px',
+              {/* deliveryList가 아닌 경우에만 컬럼 선택 버튼 표시 */}
+              {excelType === 'stock' && (
+                <>
+                  <button
+                    onClick={handleBarcodeMode}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: isSelectingBarcode ? '#3b82f6' : '#e5e7eb',
+                      color: isSelectingBarcode ? 'white' : '#374151',
+                      border: 'none',
+                      borderRadius: '4px',
+                      fontSize: '14px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    바코드 {selectedBarcodeColumn && `(${selectedBarcodeColumn})`}
+                  </button>
+                  <button
+                    onClick={handleQuantityMode}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: !isSelectingBarcode && !isSelectingLocation && !isSelectingProductName && !isSelectingOptionName && !isSelectingNote ? '#3b82f6' : '#e5e7eb',
+                      color: !isSelectingBarcode && !isSelectingLocation && !isSelectingProductName && !isSelectingOptionName && !isSelectingNote ? 'white' : '#374151',
+                      border: 'none',
+                      borderRadius: '4px',
+                      fontSize: '14px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    개수 {selectedQuantityColumn && `(${selectedQuantityColumn})`}
+                  </button>
+                  <button
+                    onClick={handleLocationMode}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: isSelectingLocation ? '#3b82f6' : '#e5e7eb',
+                      color: isSelectingLocation ? 'white' : '#374151',
+                      border: 'none',
+                      borderRadius: '4px',
+                      fontSize: '14px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    위치 {selectedLocationColumn && `(${selectedLocationColumn})`}
+                  </button>
+                  <button
+                    onClick={handleNoteMode}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: isSelectingNote ? '#3b82f6' : '#e5e7eb',
+                      color: isSelectingNote ? 'white' : '#374151',
+                      border: 'none',
+                      borderRadius: '4px',
+                      fontSize: '14px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    비고 {selectedNoteColumn && `(${selectedNoteColumn})`}
+                  </button>
+                  <button
+                    onClick={handleProductNameMode}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: isSelectingProductName ? '#3b82f6' : '#e5e7eb',
+                      color: isSelectingProductName ? 'white' : '#374151',
+                      border: 'none',
+                      borderRadius: '4px',
+                      fontSize: '14px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    상품명 {selectedProductNameColumn && `(${selectedProductNameColumn})`}
+                  </button>
+                  <button
+                    onClick={handleOptionNameMode}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: isSelectingOptionName ? '#3b82f6' : '#e5e7eb',
+                      color: isSelectingOptionName ? 'white' : '#374151',
+                      border: 'none',
+                      borderRadius: '4px',
+                      fontSize: '14px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    옵션명 {selectedOptionNameColumn && `(${selectedOptionNameColumn})`}
+                  </button>
+                </>
+              )}
+              
+              {/* deliveryList인 경우 설명 텍스트 표시 */}
+              {excelType === 'deliveryList' && (
+                <div style={{
+                  padding: '12px',
+                  backgroundColor: '#f0f9ff',
+                  borderRadius: '6px',
+                  border: '1px solid #0ea5e9',
                   fontSize: '14px',
-                  cursor: 'pointer'
-                }}
-              >
-                바코드 {selectedBarcodeColumn && `(${selectedBarcodeColumn})`}
-              </button>
-              <button
-                onClick={handleQuantityMode}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: !isSelectingBarcode && !isSelectingLocation && !isSelectingProductName && !isSelectingOptionName && !isSelectingNote ? '#3b82f6' : '#e5e7eb',
-                  color: !isSelectingBarcode && !isSelectingLocation && !isSelectingProductName && !isSelectingOptionName && !isSelectingNote ? 'white' : '#374151',
-                  border: 'none',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  cursor: 'pointer'
-                }}
-              >
-                개수 {selectedQuantityColumn && `(${selectedQuantityColumn})`}
-              </button>
-              <button
-                onClick={handleLocationMode}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: isSelectingLocation ? '#3b82f6' : '#e5e7eb',
-                  color: isSelectingLocation ? 'white' : '#374151',
-                  border: 'none',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  cursor: 'pointer'
-                }}
-              >
-                위치 {selectedLocationColumn && `(${selectedLocationColumn})`}
-              </button>
-              <button
-                onClick={handleNoteMode}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: isSelectingNote ? '#3b82f6' : '#e5e7eb',
-                  color: isSelectingNote ? 'white' : '#374151',
-                  border: 'none',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  cursor: 'pointer'
-                }}
-              >
-                비고 {selectedNoteColumn && `(${selectedNoteColumn})`}
-              </button>
-              <button
-                onClick={handleProductNameMode}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: isSelectingProductName ? '#3b82f6' : '#e5e7eb',
-                  color: isSelectingProductName ? 'white' : '#374151',
-                  border: 'none',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  cursor: 'pointer'
-                }}
-              >
-                상품명 {selectedProductNameColumn && `(${selectedProductNameColumn})`}
-              </button>
-              <button
-                onClick={handleOptionNameMode}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: isSelectingOptionName ? '#3b82f6' : '#e5e7eb',
-                  color: isSelectingOptionName ? 'white' : '#374151',
-                  border: 'none',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  cursor: 'pointer'
-                }}
-              >
-                옵션명 {selectedOptionNameColumn && `(${selectedOptionNameColumn})`}
-              </button>
+                  color: '#0c4a6e'
+                }}>
+                  deliveryList 모드: R열(바코드), K열(상품명), L열(옵션명), AO열(창고) 자동 처리
+                </div>
+              )}
             </div>
 
             {/* 미리보기 테이블 */}

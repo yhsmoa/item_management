@@ -97,6 +97,7 @@ const CoupangOrders: React.FC = () => {
   const [orderData, setOrderData] = useState<CoupangOrderData[]>([]);
   const [filteredOrderData, setFilteredOrderData] = useState<CoupangOrderData[]>([]);
   const [stockData, setStockData] = useState<Map<string, number>>(new Map());
+  const [stockDetailData, setStockDetailData] = useState<Map<string, Array<{location: string, stock: number}>>>(new Map());
   const [purchaseData, setPurchaseData] = useState<Map<string, number>>(new Map());
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
@@ -177,6 +178,58 @@ const CoupangOrders: React.FC = () => {
   // File input ref
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  /**
+   * 창고 위치 표시 텍스트 생성 함수
+   * @param barcode 바코드
+   * @param qty 주문 수량
+   * @returns 창고 위치 표시 텍스트
+   */
+  const generateWarehouseText = (barcode: string, qty: number): string => {
+    if (!barcode || qty <= 0) return '';
+    
+    const stockDetails = stockDetailData.get(barcode) || [];
+    if (stockDetails.length === 0) return '';
+    
+    // 재고량 기준으로 내림차순 정렬
+    const sortedStocks = [...stockDetails].sort((a, b) => b.stock - a.stock);
+    
+    if (sortedStocks.length === 0) return '';
+    
+    // 전체 재고 합계 계산
+    const totalStock = sortedStocks.reduce((sum, item) => sum + item.stock, 0);
+    
+    // qty만큼 필요한 재고를 어떻게 분배할지 계산
+    let remainingQty = qty;
+    const selectedStocks: Array<{location: string, stock: number, usedQty: number}> = [];
+    
+    for (const stockItem of sortedStocks) {
+      if (remainingQty <= 0) break;
+      
+      const usedQty = Math.min(stockItem.stock, remainingQty);
+      selectedStocks.push({
+        location: stockItem.location,
+        stock: stockItem.stock,
+        usedQty: usedQty
+      });
+      remainingQty -= usedQty;
+    }
+    
+    // 결과 텍스트 생성
+    const result = selectedStocks.map(item => {
+      if (item.stock === item.usedQty && item.usedQty < qty) {
+        // 해당 위치의 모든 재고를 사용하는 경우 (그리고 qty보다 작은 경우)
+        return `[${item.location} -> ${item.stock}]`;
+      } else if (item.stock > item.usedQty || item.usedQty === qty) {
+        // 해당 위치에 여분이 있거나, 이 위치에서 모든 qty를 충족하는 경우
+        return `[${item.location} -> ${item.stock}]`;
+      } else {
+        return `[${item.location} -> ${item.stock}]`;
+      }
+    });
+    
+    return result.join('\n');
+  };
+
   // 재고 데이터 로드 함수
   const loadStockData = async () => {
     const userId = getCurrentUserId();
@@ -197,7 +250,7 @@ const CoupangOrders: React.FC = () => {
         
         const { data: batch, error } = await supabase
           .from('stocks_management')
-          .select('barcode, stock')
+          .select('barcode, stock, location')
           .eq('user_id', userId)
           .not('barcode', 'is', null)
           .neq('barcode', '')
@@ -217,14 +270,29 @@ const CoupangOrders: React.FC = () => {
         }
       }
 
-      // 바코드별 재고 합계 계산
+      // 바코드별 재고 합계 및 상세 정보 계산
       const stockMap = new Map<string, number>();
+      const stockDetailMap = new Map<string, Array<{location: string, stock: number}>>();
+      
       allStockData.forEach(item => {
-        const currentStock = stockMap.get(item.barcode) || 0;
-        stockMap.set(item.barcode, currentStock + (item.stock || 0));
+        const barcode = item.barcode;
+        const stock = item.stock || 0;
+        const location = item.location || '';
+        
+        // 재고 합계 계산
+        const currentStock = stockMap.get(barcode) || 0;
+        stockMap.set(barcode, currentStock + stock);
+        
+        // 재고 상세 정보 저장 (stock이 0보다 큰 경우만)
+        if (stock > 0) {
+          const currentDetails = stockDetailMap.get(barcode) || [];
+          currentDetails.push({ location, stock });
+          stockDetailMap.set(barcode, currentDetails);
+        }
       });
 
       setStockData(stockMap);
+      setStockDetailData(stockDetailMap);
     } catch (error) {
       console.error('재고 데이터 로드 오류:', error);
     }
@@ -354,7 +422,7 @@ const CoupangOrders: React.FC = () => {
       const processedData = calculateOrderFields(orderData);
       setFilteredOrderData(processedData);
     }
-  }, [orderData, stockData, purchaseData]);
+  }, [orderData, stockData, stockDetailData, purchaseData]);
 
   // 카드 클릭 핸들러
   const handleCardClick = (filterType: string) => {
@@ -513,7 +581,7 @@ const CoupangOrders: React.FC = () => {
     }
 
     try {
-      // 컬럼 헤더를 A~AN 순서로 정의
+      // 컬럼 헤더를 A~AO 순서로 정의
       const headers = [
         '번호', // A
         '묶음배송번호', // B
@@ -554,10 +622,11 @@ const CoupangOrders: React.FC = () => {
         '통관용수취인전화번호', // AK
         '기타', // AL
         '결제위치', // AM
-        '배송유형' // AN
+        '배송유형', // AN
+        '창고' // AO
       ];
 
-      // 데이터 준비 (각 행마다 A~AN 컬럼 순서대로)
+      // 데이터 준비 (각 행마다 A~AO 컬럼 순서대로)
       const excelData = dataToDownload.map(order => [
         order.number || '', // A
         order.bundle_shipping_number || '', // B
@@ -598,7 +667,8 @@ const CoupangOrders: React.FC = () => {
         order.customs_recipient_phone || '', // AK
         order.etc || '', // AL
         order.payment_location || '', // AM
-        order.delivery_type || '' // AN
+        order.delivery_type || '', // AN
+        generateWarehouseText(order.barcode || '', order.qty) // AO
       ]);
 
       // 헤더를 첫 번째 행으로 추가
@@ -1223,7 +1293,7 @@ const CoupangOrders: React.FC = () => {
                 <th style={{ width: '40px', textAlign: 'center' }}>순서</th>
                 <th style={{ width: '40px', textAlign: 'center' }}>전체</th>
                 <th style={{ width: '40px', textAlign: 'center' }}>사입</th>
-                <th style={{ width: '40px', textAlign: 'center' }}>창고</th>
+                <th style={{ width: '100px', textAlign: 'left' }}>창고</th>
               </tr>
             </thead>
             <tbody>
@@ -1290,7 +1360,15 @@ const CoupangOrders: React.FC = () => {
                     <td style={{ textAlign: 'center' }}>{order.sequence || ''}</td>
                     <td style={{ textAlign: 'center' }}>{order.total_qty || ''}</td>
                     <td style={{ textAlign: 'center' }}>{order.purchase_qty || ''}</td>
-                    <td style={{ textAlign: 'center' }}>{order.stock_qty || ''}</td>
+                    <td style={{ 
+                      textAlign: 'left', 
+                      whiteSpace: 'pre-line',
+                      fontSize: '12px',
+                      lineHeight: '1.2',
+                      padding: '4px'
+                    }}>
+                      {generateWarehouseText(order.barcode || '', order.qty)}
+                    </td>
                   </tr>
                 ))
               )}
