@@ -108,6 +108,7 @@ const CoupangOrders: React.FC = () => {
   const [showRecipientModal, setShowRecipientModal] = useState(false);
   const [selectedRecipient, setSelectedRecipient] = useState<CoupangOrderData | null>(null);
   const [clearDataBeforeUpload, setClearDataBeforeUpload] = useState(true);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // 통계 데이터 계산 - 실시간으로 업데이트되는 데이터 기준
   const stats = React.useMemo(() => {
@@ -659,6 +660,53 @@ const CoupangOrders: React.FC = () => {
     setSelectedOrders(newSelected);
   };
 
+  // 선택된 주문 삭제 핸들러
+  const handleDeleteSelected = () => {
+    if (selectedOrders.size === 0) {
+      alert('삭제할 주문을 선택해주세요.');
+      return;
+    }
+    setShowDeleteModal(true);
+  };
+
+  // 삭제 확인 핸들러
+  const handleConfirmDelete = async () => {
+    const userId = getCurrentUserId();
+    if (!userId) {
+      alert('로그인한 사용자 정보를 찾을 수 없습니다.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const selectedIds = Array.from(selectedOrders);
+      
+      // 배치 삭제 수행
+      const { error } = await supabase
+        .from('coupang_personal_order')
+        .delete()
+        .in('id', selectedIds)
+        .eq('user_id', userId);
+
+      if (error) {
+        throw new Error(`삭제 실패: ${error.message}`);
+      }
+
+      alert(`${selectedOrders.size}건의 주문이 삭제되었습니다.`);
+      
+      // 선택 해제 및 데이터 새로고침
+      setSelectedOrders(new Set());
+      setShowDeleteModal(false);
+      await loadOrderData();
+      
+    } catch (error) {
+      console.error('삭제 오류:', error);
+      alert(`삭제 중 오류 발생: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   /**
    * 사입 수량 계산 함수
    * - 각 바코드별로 chinaorder_googlesheet에서 order_status_ordering 합계 - order_status_cancel 합계를 계산
@@ -1016,18 +1064,18 @@ const CoupangOrders: React.FC = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '12px' }}>
           <div style={{ display: 'flex', gap: '12px' }}>
             <button 
-              className="coupang-orders-button coupang-orders-button-secondary"
+              className="coupang-orders-button coupang-orders-button-success"
               onClick={handleXlsxDownload}
               disabled={isUploading || isLoading}
             >
-              xlsx 다운로드
+              ⬇️ xlsx 다운로드
             </button>
             <button 
-              className="coupang-orders-button coupang-orders-button-primary"
+              className="coupang-orders-button coupang-orders-button-success"
               onClick={handleXlsxUpload}
               disabled={isUploading}
             >
-              {isUploading ? '업로드 중...' : 'xlsx 업로드'}
+              {isUploading ? '업로드 중...' : '⬆️ xlsx 업로드'}
             </button>
           </div>
           <div style={{ display: 'flex', gap: '12px' }}>
@@ -1138,6 +1186,19 @@ const CoupangOrders: React.FC = () => {
             <div className="coupang-orders-data-count">
               총 {filteredOrderData.length}개 주문
             </div>
+          </div>
+          <div className="coupang-orders-table-actions">
+            <button 
+              className="coupang-orders-button coupang-orders-button-danger"
+              onClick={handleDeleteSelected}
+              disabled={isLoading || selectedOrders.size === 0}
+              style={{ 
+                opacity: selectedOrders.size === 0 ? 0.5 : 1,
+                cursor: selectedOrders.size === 0 ? 'not-allowed' : 'pointer'
+              }}
+            >
+              삭제 ({selectedOrders.size})
+            </button>
           </div>
         </div>
 
@@ -1357,6 +1418,47 @@ const CoupangOrders: React.FC = () => {
                   onClick={() => setShowRecipientModal(false)}
                 >
                   닫기
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 삭제 확인 모달 */}
+      {showDeleteModal && (
+        <div className="coupang-orders-modal-overlay" onClick={() => setShowDeleteModal(false)}>
+          <div className="coupang-orders-modal coupang-orders-delete-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="coupang-orders-modal-header">
+              <h3>주문 삭제 확인</h3>
+              <button 
+                className="coupang-orders-modal-close"
+                onClick={() => setShowDeleteModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="coupang-orders-modal-content">
+              <div className="coupang-orders-delete-message">
+                <p>선택된 <strong>{selectedOrders.size}건</strong>의 주문을 삭제하시겠습니까?</p>
+                <p className="coupang-orders-delete-warning">삭제된 데이터는 복구할 수 없습니다.</p>
+              </div>
+              
+              <div className="coupang-orders-delete-actions">
+                <button 
+                  className="coupang-orders-button coupang-orders-button-secondary"
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={isLoading}
+                >
+                  취소
+                </button>
+                <button 
+                  className="coupang-orders-button coupang-orders-button-danger"
+                  onClick={handleConfirmDelete}
+                  disabled={isLoading}
+                >
+                  {isLoading ? '삭제 중...' : '삭제'}
                 </button>
               </div>
             </div>

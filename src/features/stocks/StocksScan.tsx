@@ -624,8 +624,8 @@ function StocksScan() {
       // 🧹 메모리 정리: Map 객체 명시적 해제
       groupedData.clear();
 
-      // 🚀 간단한 처리: location=barcode를 ID로 사용
-      setStockAddProgress({ current: 1, total: 3 });
+      // 🚀 배치 처리로 성능 최적화
+      setStockAddProgress({ current: 10, total: 100 });
       
       // 변수 초기화
       let successCount = 0;
@@ -634,61 +634,75 @@ function StocksScan() {
       let errorCount = 0;
       let errorDetails: string[] = [];
       
-      // 각 아이템 처리
-      for (const item of groupedItems) {
+      // 🔍 1단계: 기존 재고 데이터 일괄 조회
+      const BATCH_SIZE = 100;
+      const allIds = groupedItems.map(item => item.id);
+      const existingStockMap = new Map();
+      
+      for (let i = 0; i < allIds.length; i += BATCH_SIZE) {
+        const batchIds = allIds.slice(i, i + BATCH_SIZE);
+        
+        try {
+          const { data: existingStocks, error: batchError } = await supabase
+            .from('stocks_management')
+            .select('id, stock, item_name')
+            .eq('user_id', userId)
+            .in('id', batchIds);
+
+          if (batchError) {
+            console.error('배치 조회 오류:', batchError);
+            continue;
+          }
+
+          existingStocks?.forEach(stock => {
+            existingStockMap.set(stock.id, stock);
+          });
+        } catch (err) {
+          console.error('배치 조회 예외:', err);
+        }
+        
+        // 진행률 업데이트 (10% ~ 50% 구간)
+        const progressPercent = Math.round(10 + ((i + BATCH_SIZE) / allIds.length * 40));
+        setStockAddProgress({ current: progressPercent, total: 100 });
+      }
+
+      // 🔄 2단계: 업데이트/삽입 데이터 준비
+      setStockAddProgress({ current: 50, total: 100 });
+      
+      const toUpdate: any[] = [];
+      const toInsert: any[] = [];
+      
+      groupedItems.forEach(item => {
         const { id, barcode, location, itemName, note, totalQuantity } = item;
         
-        // 바코드나 수량이 없는 경우 건너뛰기
-        if (!barcode || isNaN(totalQuantity) || totalQuantity <= 0) {
+        // 바코드가 없는 경우만 오류로 처리
+        if (!barcode) {
           errorCount++;
-          const errorMsg = `바코드: ${barcode || '비어있음'}, 위치: ${location}, 수량: ${totalQuantity} (오류: 잘못된 데이터)`;
+          const errorMsg = `바코드: ${barcode || '비어있음'}, 위치: ${location} (오류: 바코드 누락)`;
           errorDetails.push(errorMsg);
-          continue;
+          return;
+        }
+        
+        // 수량이 0이거나 잘못된 경우 조용히 건너뛰기 (pass)
+        if (isNaN(totalQuantity) || totalQuantity <= 0) {
+          return;
         }
 
-        // 동일한 ID(location=barcode)로 기존 재고 조회
-        const { data: existingStock, error: selectError } = await supabase
-          .from('stocks_management')
-          .select('*')
-          .eq('user_id', userId)
-          .eq('barcode', barcode)
-          .eq('location', location)
-          .maybeSingle();
-
-        if (selectError && selectError.code !== 'PGRST116') {
-          console.error('기존 재고 조회 오류:', selectError);
-          errorDetails.push(`ID:${id} (오류: 기존 재고 조회 실패)`);
-          errorCount++;
-          continue;
-        }
-
+        const existingStock = existingStockMap.get(id);
+        
         if (existingStock) {
-          // 기존 재고가 있으면 수량만 합산 (note는 건드리지 않음 - pass)
+          // 기존 재고 업데이트
           const newStock = (existingStock.stock || 0) + totalQuantity;
-          
-          const updateData: any = {
+          toUpdate.push({
+            id: id,
             stock: newStock,
             item_name: itemName
-          };
-          // 기존 데이터의 note는 변경하지 않음 (pass)
-          
-          const { error: updateError } = await supabase
-            .from('stocks_management')
-            .update(updateData)
-            .eq('id', existingStock.id);
-
-          if (updateError) {
-            console.error('재고 업데이트 오류:', updateError);
-            errorDetails.push(`ID:${id} (오류: 데이터베이스 업데이트 실패)`);
-            errorCount++;
-          } else {
-            updateCount++;
-            successCount++;
-          }
+          });
+          updateCount++;
         } else {
-          // 새 재고 데이터 삽입 - id는 location=barcode 형태
+          // 새 재고 삽입
           const insertData: any = {
-            id: id,  // location=barcode 형태의 id 사용
+            id: id,
             user_id: userId,
             item_name: itemName,
             barcode: barcode,
@@ -696,52 +710,101 @@ function StocksScan() {
             location: location
           };
           
-          // 새 데이터 추가 시 note가 있으면 포함
           if (note && note.trim() !== '') {
             insertData.note = note;
           }
           
-          const { error: insertError } = await supabase
-            .from('stocks_management')
-            .insert(insertData);
+          toInsert.push(insertData);
+          insertCount++;
+        }
+      });
 
-          if (insertError) {
-            console.error('재고 삽입 오류:', insertError);
-            console.error('삽입 시도한 데이터:', insertData);
-            
-            // note 컬럼이 없어서 오류가 발생한 경우 note 제외하고 재시도
-            if (insertError.message?.includes('note')) {
-              delete insertData.note;
-              const { error: retryError } = await supabase
-                .from('stocks_management')
-                .insert(insertData);
-              
-              if (retryError) {
-                console.error('재시도 오류:', retryError);
-                errorDetails.push(`ID:${id} (오류: ${retryError.message})`);
+      // 🚀 3단계: 배치 업데이트 및 삽입
+      setStockAddProgress({ current: 70, total: 100 });
+      
+      // 배치 업데이트 실행
+      if (toUpdate.length > 0) {
+        for (let i = 0; i < toUpdate.length; i += BATCH_SIZE) {
+          const batch = toUpdate.slice(i, i + BATCH_SIZE);
+          
+          try {
+            const { error: updateError } = await supabase
+              .from('stocks_management')
+              .upsert(batch, { onConflict: 'id' });
+
+            if (updateError) {
+              console.error('배치 업데이트 오류:', updateError);
+              batch.forEach(item => {
+                errorDetails.push(`ID: ${item.id} (업데이트 실패)`);
                 errorCount++;
-              } else {
-                insertCount++;
-                successCount++;
-              }
-            } else {
-              errorDetails.push(`ID:${id} (오류: ${insertError.message})`);
-              errorCount++;
+                updateCount--;
+              });
             }
-          } else {
-            insertCount++;
-            successCount++;
+          } catch (err) {
+            console.error('배치 업데이트 예외:', err);
+            batch.forEach(item => {
+              errorDetails.push(`ID: ${item.id} (업데이트 예외)`);
+              errorCount++;
+              updateCount--;
+            });
           }
         }
-        
-        // 진행상황 업데이트
-        setStockAddProgress({ 
-          current: Math.min(2, 1 + (groupedItems.indexOf(item) / groupedItems.length)), 
-          total: 3 
-        });
       }
 
-      setStockAddProgress({ current: 3, total: 3 });
+      // 배치 삽입 실행
+      if (toInsert.length > 0) {
+        for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
+          const batch = toInsert.slice(i, i + BATCH_SIZE);
+          
+          try {
+            const { error: insertError } = await supabase
+              .from('stocks_management')
+              .insert(batch);
+
+            if (insertError) {
+              console.error('배치 삽입 오류:', insertError);
+              
+              // note 컬럼 문제인 경우 note 제거 후 재시도
+              if (insertError.message?.includes('note')) {
+                const batchWithoutNote = batch.map(item => {
+                  const { note, ...itemWithoutNote } = item;
+                  return itemWithoutNote;
+                });
+                
+                const { error: retryError } = await supabase
+                  .from('stocks_management')
+                  .insert(batchWithoutNote);
+                
+                if (retryError) {
+                  console.error('배치 재시도 오류:', retryError);
+                  batch.forEach(item => {
+                    errorDetails.push(`ID: ${item.id} (삽입 재시도 실패)`);
+                    errorCount++;
+                    insertCount--;
+                  });
+                }
+              } else {
+                batch.forEach(item => {
+                  errorDetails.push(`ID: ${item.id} (삽입 실패)`);
+                  errorCount++;
+                  insertCount--;
+                });
+              }
+            }
+          } catch (err) {
+            console.error('배치 삽입 예외:', err);
+            batch.forEach(item => {
+              errorDetails.push(`ID: ${item.id} (삽입 예외)`);
+              errorCount++;
+              insertCount--;
+            });
+          }
+        }
+      }
+
+      successCount = updateCount + insertCount;
+
+      setStockAddProgress({ current: 100, total: 100 });
 
       if (errorCount > 0) {
         const errorMessage = `처리 완료!\n성공: ${successCount}개\n오류: ${errorCount}개\n\n오류 상세 (최대 10개만 표시):\n${errorDetails.slice(0, 10).join('\n')}${errorDetails.length > 10 ? '\n\n... 및 기타 ' + (errorDetails.length - 10) + '개 오류' : ''}`;
@@ -826,7 +889,7 @@ function StocksScan() {
       groupedData.clear();
 
       // 🚀 배치 처리: 기존 데이터를 청크 단위로 조회 (URL 길이 제한 방지)
-      setStockSubtractProgress({ current: 1, total: 3 });
+      setStockSubtractProgress({ current: 10, total: 100 });
       
       const CHUNK_SIZE = 50; // 한번에 50개씩 처리
       const allIds = groupedItems.map(item => item.id);
@@ -856,16 +919,24 @@ function StocksScan() {
       // 📝 업데이트할 데이터 준비
       const toUpdate: any[] = [];
 
-      setStockSubtractProgress({ current: 2, total: 3 });
+      setStockSubtractProgress({ current: 50, total: 100 });
 
+      let processedSubtractCount = 0;
       groupedItems.forEach((item, index) => {
         const { id, barcode, totalQuantity } = item;
         
-        // 바코드나 수량이 없는 경우 건너뛰기
-        if (!barcode || isNaN(totalQuantity) || totalQuantity <= 0) {
+        // 바코드가 없는 경우만 오류로 처리
+        if (!barcode) {
           errorCount++;
-          const errorMsg = `바코드: ${barcode || '비어있음'}, 수량: ${totalQuantity} (오류: 잘못된 데이터)`;
+          const errorMsg = `바코드: ${barcode || '비어있음'} (오류: 바코드 누락)`;
           errorDetails.push(errorMsg);
+          processedSubtractCount++;
+          return;
+        }
+        
+        // 수량이 0이거나 잘못된 경우 조용히 건너뛰기 (pass)
+        if (isNaN(totalQuantity) || totalQuantity <= 0) {
+          processedSubtractCount++;
           return;
         }
 
@@ -883,10 +954,15 @@ function StocksScan() {
           notFoundCount++;
           errorDetails.push(`바코드: ${barcode}, ID: ${id} (오류: 기존 재고 데이터 없음)`);
         }
+        
+        processedSubtractCount++;
+        // 진행률 업데이트 (50% ~ 70% 구간)
+        const progressPercent = Math.round(50 + (processedSubtractCount / groupedItems.length * 20));
+        setStockSubtractProgress({ current: progressPercent, total: 100 });
       });
 
       // 🚀 배치 업데이트 실행 (청크 단위)
-      setStockSubtractProgress({ current: 3, total: 3 });
+      setStockSubtractProgress({ current: 80, total: 100 });
       
       if (toUpdate.length > 0) {
         for (let i = 0; i < toUpdate.length; i += CHUNK_SIZE) {
@@ -906,6 +982,8 @@ function StocksScan() {
           }
         }
       }
+
+      setStockSubtractProgress({ current: 100, total: 100 });
 
       if (errorCount > 0 || notFoundCount > 0) {
         const errorMessage = `차감 완료!\n성공: ${successCount}개\n재고없음: ${notFoundCount}개\n오류: ${errorCount}개\n\n오류 상세 (최대 10개만 표시):\n${errorDetails.slice(0, 10).join('\n')}${errorDetails.length > 10 ? '\n\n... 및 기타 ' + (errorDetails.length - 10) + '개 오류' : ''}`;
@@ -1837,7 +1915,7 @@ function StocksScan() {
               fontSize: '14px',
               color: '#6b7280'
             }}>
-              {stockAddProgress.current} / {stockAddProgress.total}
+              {stockAddProgress.current}%
             </div>
           </div>
         </div>
@@ -1894,7 +1972,7 @@ function StocksScan() {
               fontSize: '14px',
               color: '#6b7280'
             }}>
-              {stockSubtractProgress.current} / {stockSubtractProgress.total}
+              {stockSubtractProgress.current}%
             </div>
           </div>
         </div>
