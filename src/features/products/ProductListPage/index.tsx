@@ -542,11 +542,19 @@ function ProductListPage() {
   // Order management hook
   const {
     inputValues,
+    shippingValues,
+    returnValues,
     editingCell,
     setInputValues,
+    setShippingValues,
+    setReturnValues,
     setEditingCell,
     getInputValue,
+    getShippingValue,
+    getReturnValue,
     renderInputValue,
+    renderShippingValue,
+    renderReturnValue,
     renderPendingInbounds,
     handleCellClick,
     handleInputChange,
@@ -1217,15 +1225,36 @@ function ProductListPage() {
                 }
               }}
               variant="info"
-              className="me-2"
+              className="small-button"
             >
               초기화
             </ActionButton>
             <ActionButton
               onClick={handleBatchOrderSubmission}
-              variant="primary"
+              variant="warning"
+              className="small-button"
             >
               주문
+            </ActionButton>
+            <ActionButton
+              onClick={() => {
+                // 출고 버튼 기능은 나중에 구현
+                console.log('출고 버튼 클릭');
+              }}
+              variant="primary"
+              className="small-button"
+            >
+              출고
+            </ActionButton>
+            <ActionButton
+              onClick={() => {
+                // 반출 버튼 기능은 나중에 구현
+                console.log('반출 버튼 클릭');
+              }}
+              variant="danger"
+              className="small-button"
+            >
+              반출
             </ActionButton>
           </div>
         </div>
@@ -1243,10 +1272,14 @@ function ProductListPage() {
           editingCell={editingCell}
           handleCellClick={handleCellClick}
           getInputValue={getInputValue}
+          getShippingValue={getShippingValue}
+          getReturnValue={getReturnValue}
           handleInputChange={handleInputChange}
           handleBlurAndSave={handleBlurAndSave}
           handleEnterKeyAndSave={handleEnterKeyAndSave}
           renderInputValue={renderInputValue}
+          renderShippingValue={renderShippingValue}
+          renderReturnValue={renderReturnValue}
           renderPendingInbounds={renderPendingInbounds}
           renderOrderableQuantityWithStyle={renderOrderableQuantityWithStyle}
           renderOrderQuantityWithStyle={renderOrderQuantityWithStyle}

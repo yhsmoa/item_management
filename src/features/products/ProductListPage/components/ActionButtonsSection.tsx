@@ -61,27 +61,6 @@ export const ActionButtonsSection: React.FC<ActionButtonsSectionProps> = ({
         로켓그로스 xlsx
       </ActionButton>
 
-      <ActionButton
-        onClick={() => {
-          console.log('🔍 [진단] 현재 상태 확인:');
-          console.log('inputValues:', inputValues);
-          console.log('localStorage:', localStorage.getItem('productInputValues'));
-          console.log('테이블 input 필드들:', document.querySelectorAll('input[type="number"]').length);
-          
-          const inputFields = Array.from(document.querySelectorAll('input[type="text"]'));
-          const fieldValues = inputFields.map(input => ({
-            id: (input as HTMLInputElement).id || 'no-id',
-            value: (input as HTMLInputElement).value
-          }));
-          
-          console.log('실제 input 필드 값들:', fieldValues.filter(f => f.value));
-          
-          alert(`진단 결과:\n- inputValues 개수: ${Object.keys(inputValues).length}\n- localStorage 있음: ${!!localStorage.getItem('productInputValues')}\n- 입력 필드 개수: ${inputFields.length}\n- 값 있는 필드: ${fieldValues.filter(f => f.value).length}`);
-        }}
-        variant="info"
-      >
-        진단
-      </ActionButton>
       
       <ActionButton
         onClick={onBatchOrderSubmission}

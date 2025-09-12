@@ -13,6 +13,8 @@ export const useOrderManagement = (props: UseOrderManagementProps = {}) => {
 
   // State management
   const [inputValues, setInputValues] = useState<{[key: string]: string}>({});
+  const [shippingValues, setShippingValues] = useState<{[key: string]: string}>({});
+  const [returnValues, setReturnValues] = useState<{[key: string]: string}>({});
   const [editingCell, setEditingCell] = useState<string | null>(null);
 
   // Refs for optimization
@@ -26,6 +28,18 @@ export const useOrderManagement = (props: UseOrderManagementProps = {}) => {
       ? String((cellValue as any).quantity || '')
       : String(cellValue || '');
   }, [inputValues]);
+
+  // Get shipping value helper function
+  const getShippingValue = useCallback((cellId: string): string => {
+    const cellValue = shippingValues[cellId];
+    return String(cellValue || '');
+  }, [shippingValues]);
+
+  // Get return value helper function
+  const getReturnValue = useCallback((cellId: string): string => {
+    const cellValue = returnValues[cellId];
+    return String(cellValue || '');
+  }, [returnValues]);
 
   // Render input value
   const renderInputValue = useCallback((row: any, index: number) => {
@@ -44,6 +58,30 @@ export const useOrderManagement = (props: UseOrderManagementProps = {}) => {
     return value || '-';
   }, [inputValues]);
 
+  // Render shipping value
+  const renderShippingValue = useCallback((row: any, index: number) => {
+    const cellId = `shipping-${row.item_id}-${row.option_id || index}`;
+    const value = shippingValues[cellId];
+    
+    if (value && value !== '0') {
+      const numValue = parseFloat(value);
+      return isNaN(numValue) ? value : numValue.toLocaleString();
+    }
+    return value || '-';
+  }, [shippingValues]);
+
+  // Render return value
+  const renderReturnValue = useCallback((row: any, index: number) => {
+    const cellId = `return-${row.item_id}-${row.option_id || index}`;
+    const value = returnValues[cellId];
+    
+    if (value && value !== '0') {
+      const numValue = parseFloat(value);
+      return isNaN(numValue) ? value : numValue.toLocaleString();
+    }
+    return value || '-';
+  }, [returnValues]);
+
   // Render pending inbounds
   const renderPendingInbounds = useCallback((row: any) => {
     const value = row.option_id && rocketInventoryData[row.option_id]?.pending_inbounds;
@@ -60,22 +98,42 @@ export const useOrderManagement = (props: UseOrderManagementProps = {}) => {
   const handleInputChange = useCallback((cellId: string, value: string, productInfo?: any) => {
     console.log('📝 [INPUT] 입력 변경:', { cellId, value, valueLength: value.length });
     
-    // 즉시 상태 업데이트 (빠른 UI 반응)
-    if (!value || value.trim() === '' || value === '0') {
-      const newInputValues = { ...inputValues };
-      delete newInputValues[cellId];
-      setInputValues(newInputValues);
-      console.log('🗑️ [INPUT] 빈 값으로 인한 삭제:', cellId);
+    // 셀 타입에 따라 다른 state 업데이트
+    if (cellId.startsWith('shipping-')) {
+      // 출고 관련 입력
+      if (!value || value.trim() === '' || value === '0') {
+        const newShippingValues = { ...shippingValues };
+        delete newShippingValues[cellId];
+        setShippingValues(newShippingValues);
+      } else {
+        setShippingValues(prev => ({ ...prev, [cellId]: value }));
+      }
+    } else if (cellId.startsWith('return-')) {
+      // 반출 관련 입력
+      if (!value || value.trim() === '' || value === '0') {
+        const newReturnValues = { ...returnValues };
+        delete newReturnValues[cellId];
+        setReturnValues(newReturnValues);
+      } else {
+        setReturnValues(prev => ({ ...prev, [cellId]: value }));
+      }
     } else {
-      // 상태에는 단순 값만 저장 (기존 로직 유지)
-      const newInputValues = {
-        ...inputValues,
-        [cellId]: value
-      };
-      setInputValues(newInputValues);
-      console.log('💾 [INPUT] 상태 업데이트:', { cellId, value });
+      // 기존 입력 로직
+      if (!value || value.trim() === '' || value === '0') {
+        const newInputValues = { ...inputValues };
+        delete newInputValues[cellId];
+        setInputValues(newInputValues);
+        console.log('🗑️ [INPUT] 빈 값으로 인한 삭제:', cellId);
+      } else {
+        const newInputValues = {
+          ...inputValues,
+          [cellId]: value
+        };
+        setInputValues(newInputValues);
+        console.log('💾 [INPUT] 상태 업데이트:', { cellId, value });
+      }
     }
-  }, [inputValues]);
+  }, [inputValues, shippingValues, returnValues]);
 
   // Handle input key press
   const handleInputKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>, currentRowIndex: number) => {
@@ -206,15 +264,23 @@ export const useOrderManagement = (props: UseOrderManagementProps = {}) => {
   return {
     // State
     inputValues,
+    shippingValues,
+    returnValues,
     editingCell,
     
     // Setters
     setInputValues,
+    setShippingValues,
+    setReturnValues,
     setEditingCell,
     
     // Functions
     getInputValue,
+    getShippingValue,
+    getReturnValue,
     renderInputValue,
+    renderShippingValue,
+    renderReturnValue,
     renderPendingInbounds,
     handleCellClick,
     handleInputChange,

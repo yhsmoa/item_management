@@ -6,6 +6,24 @@
   100% { transform: rotate(360deg); }
 }
 
+/* 작은 버튼 스타일 */
+.small-button {
+  padding-left: 30px !important;
+  padding-right: 30px !important;
+  min-width: auto !important;
+  width: auto !important;
+}
+
+/* 출고 열 배경색 (부드러운 연 파랑) */
+.shipping-cell {
+  background-color: #e6f3ff !important;
+}
+
+/* 반출 열 배경색 (부드러운 연 빨강) */
+.return-cell {
+  background-color: #ffe6e6 !important;
+}
+
 .product-list-container {
   padding: 24px;
   background-color: #f9fafb;

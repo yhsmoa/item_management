@@ -16,12 +16,16 @@ interface ProductTableProps {
   editingCell: string | null;
   handleCellClick: (cellId: string) => void;
   getInputValue: (cellId: string) => string;
+  getShippingValue: (cellId: string) => string;
+  getReturnValue: (cellId: string) => string;
   handleInputChange: (cellId: string, value: string, row: any) => void;
   handleBlurAndSave: (row: any, cellId: string) => void;
   handleEnterKeyAndSave: (e: React.KeyboardEvent<HTMLInputElement>, row: any, cellId: string, index: number) => void;
   
   // Render functions
   renderInputValue: (row: any, index: number) => React.ReactNode;
+  renderShippingValue: (row: any, index: number) => React.ReactNode;
+  renderReturnValue: (row: any, index: number) => React.ReactNode;
   renderPendingInbounds: (row: any) => React.ReactNode;
   renderOrderableQuantityWithStyle: (row: any) => React.ReactNode;
   renderOrderQuantityWithStyle: (row: any) => React.ReactNode;
@@ -53,10 +57,14 @@ export const ProductTable: React.FC<ProductTableProps> = ({
   editingCell,
   handleCellClick,
   getInputValue,
+  getShippingValue,
+  getReturnValue,
   handleInputChange,
   handleBlurAndSave,
   handleEnterKeyAndSave,
   renderInputValue,
+  renderShippingValue,
+  renderReturnValue,
   renderPendingInbounds,
   renderOrderableQuantityWithStyle,
   renderOrderQuantityWithStyle,
@@ -243,8 +251,44 @@ export const ProductTable: React.FC<ProductTableProps> = ({
                 {row.sale_price ? new Intl.NumberFormat('ko-KR').format(row.sale_price) + '원' : '-'}
               </td>
               <td className="product-list-table-cell">-</td>
-              <td className="product-list-table-cell">-</td>
-              <td className="product-list-table-cell">-</td>
+              <td 
+                className="product-list-table-cell product-list-editable-cell shipping-cell" 
+                onClick={() => handleCellClick(`shipping-${row.item_id}-${row.option_id || index}`)}
+                style={{ cursor: 'pointer', backgroundColor: editingCell === `shipping-${row.item_id}-${row.option_id || index}` ? '#d6ebff' : undefined }}
+              >
+                {editingCell === `shipping-${row.item_id}-${row.option_id || index}` ? (
+                  <input
+                    type="text"
+                    value={getShippingValue(`shipping-${row.item_id}-${row.option_id || index}`)}
+                    onChange={(e) => handleInputChange(`shipping-${row.item_id}-${row.option_id || index}`, e.target.value, row)}
+                    onBlur={() => handleBlurAndSave(row, `shipping-${row.item_id}-${row.option_id || index}`)}
+                    onKeyPress={(e) => handleEnterKeyAndSave(e, row, `shipping-${row.item_id}-${row.option_id || index}`, index)}
+                    autoFocus
+                    style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', textAlign: 'center' }}
+                  />
+                ) : (
+                  renderShippingValue(row, index)
+                )}
+              </td>
+              <td 
+                className="product-list-table-cell product-list-editable-cell return-cell" 
+                onClick={() => handleCellClick(`return-${row.item_id}-${row.option_id || index}`)}
+                style={{ cursor: 'pointer', backgroundColor: editingCell === `return-${row.item_id}-${row.option_id || index}` ? '#ffd6d6' : undefined }}
+              >
+                {editingCell === `return-${row.item_id}-${row.option_id || index}` ? (
+                  <input
+                    type="text"
+                    value={getReturnValue(`return-${row.item_id}-${row.option_id || index}`)}
+                    onChange={(e) => handleInputChange(`return-${row.item_id}-${row.option_id || index}`, e.target.value, row)}
+                    onBlur={() => handleBlurAndSave(row, `return-${row.item_id}-${row.option_id || index}`)}
+                    onKeyPress={(e) => handleEnterKeyAndSave(e, row, `return-${row.item_id}-${row.option_id || index}`, index)}
+                    autoFocus
+                    style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', textAlign: 'center' }}
+                  />
+                ) : (
+                  renderReturnValue(row, index)
+                )}
+              </td>
               <td className="product-list-table-cell">-</td>
             </tr>
             );
