@@ -136,35 +136,48 @@ export const useOrderManagement = (props: UseOrderManagementProps = {}) => {
   }, [inputValues, shippingValues, returnValues]);
 
   // Handle input key press
-  const handleInputKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>, currentRowIndex: number) => {
+  const handleInputKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>, currentRowIndex: number, cellType: string = 'input') => {
     if (e.key === 'Enter') {
       setEditingCell(null);
       
-      // 다음 행의 입력 셀로 이동
+      // 다음 행의 같은 타입 셀로 이동
       const nextRowIndex = currentRowIndex + 1;
       if (getCurrentPageData) {
         const currentPageData = getCurrentPageData();
         if (nextRowIndex < currentPageData.length) {
           const nextRow = currentPageData[nextRowIndex];
-          const nextCellId = `input-${nextRow.item_id}-${nextRow.option_id || nextRowIndex}`;
+          let nextCellId: string;
+          
+          // 셀 타입에 따라 다음 행의 같은 타입 셀로 이동
+          if (cellType === 'shipping') {
+            nextCellId = `shipping-${nextRow.item_id}-${nextRow.option_id || nextRowIndex}`;
+          } else if (cellType === 'return') {
+            nextCellId = `return-${nextRow.item_id}-${nextRow.option_id || nextRowIndex}`;
+          } else {
+            nextCellId = `input-${nextRow.item_id}-${nextRow.option_id || nextRowIndex}`;
+          }
           
           setTimeout(() => {
-            const nextInput = document.querySelector(`input[value="${getInputValue(nextCellId)}"]`) as HTMLInputElement;
-            if (nextInput) {
-              nextInput.focus();
-              setEditingCell(nextCellId);
-            }
+            setEditingCell(nextCellId);
           }, 50);
         }
       }
     }
-  }, [getCurrentPageData, getInputValue]);
+  }, [getCurrentPageData]);
 
   // Handle enter key and save
   const handleEnterKeyAndSave = useCallback(async (e: React.KeyboardEvent<HTMLInputElement>, row: any, cellId: string, currentRowIndex: number) => {
     if (e.key === 'Enter') {
+      // 셀 타입 결정
+      let cellType = 'input';
+      if (cellId.startsWith('shipping-')) {
+        cellType = 'shipping';
+      } else if (cellId.startsWith('return-')) {
+        cellType = 'return';
+      }
+      
       // 다음 행으로 이동만 (DB 저장 안함)
-      handleInputKeyPress(e, currentRowIndex);
+      handleInputKeyPress(e, currentRowIndex, cellType);
     }
   }, [handleInputKeyPress]);
 
