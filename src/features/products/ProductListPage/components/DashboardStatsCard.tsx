@@ -81,17 +81,17 @@ const DashboardStatsCard: React.FC<DashboardStatsCardProps> = ({
 const StatsCard = styled.div<{ active?: boolean; clickable?: boolean }>`
   background: white;
   border-radius: 12px;
-  padding: 24px;
+  padding: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: all 0.2s ease;
   border: 1px solid ${props => props.active ? '#3B82F6' : '#E5E7EB'};
   cursor: ${props => props.clickable ? 'pointer' : 'default'};
-  
+
   ${props => props.active && `
     box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
     background: #F8FAFF;
   `}
-  
+
   &:hover {
     box-shadow: ${props => props.active ? '0 8px 24px rgba(59, 130, 246, 0.3)' : '0 8px 24px rgba(0, 0, 0, 0.15)'};
     transform: translateY(-4px);

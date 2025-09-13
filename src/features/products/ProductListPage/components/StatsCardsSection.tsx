@@ -32,12 +32,10 @@ export const StatsCardsSection: React.FC<StatsCardsSectionProps> = ({
           onClick={() => handleCardClick('all')}
           active={activeFilter === 'all' || !activeFilter}
         />
-        <DashboardStatsCard 
-          title="로켓그로스 재고" 
-          value={stats.rocketInventory} 
-          hasInfo={true} 
-          subtitle="쿠팡재고 > 0" 
-          color="orange" 
+        <DashboardStatsCard
+          title="로켓그로스 재고"
+          value={stats.rocketInventory}
+          color="orange"
           onClick={() => handleCardClick('rocketInventory')}
           active={activeFilter === 'rocketInventory'}
         />
@@ -48,11 +46,10 @@ export const StatsCardsSection: React.FC<StatsCardsSectionProps> = ({
           onClick={() => handleCardClick('personalOrder')}
           active={activeFilter === 'personalOrder'}
         />
-        <DashboardStatsCard 
-          title="창고재고" 
-          value={stats.warehouseStock} 
-          hasInfo={true} 
-          color="green" 
+        <DashboardStatsCard
+          title="창고재고"
+          value={stats.warehouseStock}
+          color="green"
           onClick={() => handleCardClick('warehouseStock')}
           active={activeFilter === 'warehouseStock'}
         />

@@ -507,7 +507,7 @@ function ProductListPage() {
   // 🛠️ 4단계 최적화: 데이터 변환 함수 캐싱 - 필터링 로직 제거하고 순수 변환만 담당
   const transformDataToTableRows = useCallback((data: any[]): TableRow[] => {
     const rows: TableRow[] = [];
-    
+
     data.forEach((item) => {
       // 상품명 생성: item_name + 줄바꿈 + option_name + 줄바꿈 + option_id | barcode
       const optionLine = item.option_name ? '\n' + item.option_name : '';
