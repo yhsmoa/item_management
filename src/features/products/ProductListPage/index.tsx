@@ -134,18 +134,6 @@ function ProductListPage() {
   // 🛠️ 5단계 최적화: 타이머 추적을 위한 ref 추가 (메모리 누수 방지)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 📊 통계 계산 최적화 - useMemo로 매 렌더링마다 재계산 방지
-  const stats: Stats = useMemo(() => {
-    return calculateStats(
-      data, 
-      rocketInventoryData, 
-      orderQuantityData, 
-      warehouseStockData, 
-      rocketInventoryData, // storage fee는 rocketInventoryData에서 가져옴
-      inputValues
-    );
-  }, [data, rocketInventoryData, orderQuantityData, warehouseStockData, inputValues]); // 관련 데이터가 변경될 때만 재계산
-
 
   // 🚀 UPSERT 방식 saveToCart 함수 (효율적인 INSERT/UPDATE 통합)
   const saveToCart = useCallback(async (row: TableRow, quantity: number) => {
@@ -607,6 +595,18 @@ function ProductListPage() {
     shipmentStockData,
     onShipmentDataChange: loadShipmentStockDataWrapper
   });
+
+  // 📊 통계 계산 최적화 - useMemo로 매 렌더링마다 재계산 방지
+  const stats: Stats = useMemo(() => {
+    return calculateStats(
+      data, 
+      rocketInventoryData, 
+      orderQuantityData, 
+      warehouseStockData, 
+      rocketInventoryData, // storage fee는 rocketInventoryData에서 가져옴
+      inputValues
+    );
+  }, [data, rocketInventoryData, orderQuantityData, warehouseStockData, inputValues]); // 관련 데이터가 변경될 때만 재계산
 
 
 
