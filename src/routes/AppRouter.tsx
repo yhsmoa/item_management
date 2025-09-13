@@ -10,6 +10,7 @@ import ProductAdd from '../features/products/ProductAdd';
 import ChinaOrderListPage from '../features/chinaorder/ChinaOrderListPage';
 import StockManagement from '../features/stocks/StockManagement';
 import StocksScan from '../features/stocks/StocksScan';
+import OutboundPreparation from '../features/stocks/OutboundPreparation';
 import ChinaorderCart from '../features/chinaorder/ChinaorderCart';
 import ChinaorderConfirm from '../features/chinaorder/ChinaorderConfirm';
 import ChinaorderDelivery from '../features/chinaorder/ChinaorderDelivery';
@@ -225,6 +226,16 @@ const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <StocksScan />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* 출고 준비 페이지 - 로그인 필요 */}
+        <Route 
+          path="/stocks/outbound-preparation" 
+          element={
+            <ProtectedRoute>
+              <OutboundPreparation />
             </ProtectedRoute>
           } 
         />

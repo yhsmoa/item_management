@@ -1,15 +1,18 @@
 // Custom hook for managing order operations
 import { useState, useCallback, useRef } from 'react';
 import { appendOrderDataToGoogleSheets } from '../services/googleSheetsOrderService';
+import { ShipmentManagerService } from '../services/shipmentManagerService';
 
 interface UseOrderManagementProps {
   data?: any[];
   rocketInventoryData?: {[key: string]: any};
   getCurrentPageData?: () => any[];
+  shipmentStockData?: {[key: string]: number};
+  onShipmentDataChange?: () => void;
 }
 
 export const useOrderManagement = (props: UseOrderManagementProps = {}) => {
-  const { data = [], rocketInventoryData = {}, getCurrentPageData } = props;
+  const { data = [], rocketInventoryData = {}, getCurrentPageData, shipmentStockData = {}, onShipmentDataChange } = props;
 
   // State management
   const [inputValues, setInputValues] = useState<{[key: string]: string}>({});
@@ -31,6 +34,7 @@ export const useOrderManagement = (props: UseOrderManagementProps = {}) => {
 
   // Get shipping value helper function
   const getShippingValue = useCallback((cellId: string): string => {
+    // 편집 중인 값이 있으면 사용, 없으면 빈 문자열 반환 (편집 시작 시 기본값 설정은 handleCellClick에서)
     const cellValue = shippingValues[cellId];
     return String(cellValue || '');
   }, [shippingValues]);
@@ -61,14 +65,19 @@ export const useOrderManagement = (props: UseOrderManagementProps = {}) => {
   // Render shipping value
   const renderShippingValue = useCallback((row: any, index: number) => {
     const cellId = `shipping-${row.item_id}-${row.option_id || index}`;
-    const value = shippingValues[cellId];
     
-    if (value && value !== '0') {
-      const numValue = parseFloat(value);
-      return isNaN(numValue) ? value : numValue.toLocaleString();
+    // 편집 중이면 shippingValues 사용, 아니면 실제 저장된 데이터 사용
+    const editingValue = shippingValues[cellId];
+    const savedValue = row.barcode ? shipmentStockData[row.barcode] : 0;
+    
+    const value = editingValue !== undefined ? editingValue : savedValue;
+    
+    if (value && value !== '0' && value !== 0) {
+      const numValue = parseFloat(String(value));
+      return isNaN(numValue) ? String(value) : numValue.toLocaleString();
     }
-    return value || '-';
-  }, [shippingValues]);
+    return '-';
+  }, [shippingValues, shipmentStockData]);
 
   // Render return value
   const renderReturnValue = useCallback((row: any, index: number) => {
@@ -90,9 +99,18 @@ export const useOrderManagement = (props: UseOrderManagementProps = {}) => {
   }, [rocketInventoryData]);
 
   // Handle cell click
-  const handleCellClick = useCallback((cellId: string) => {
+  const handleCellClick = useCallback((cellId: string, row?: any) => {
     setEditingCell(cellId);
-  }, []);
+    
+    // 출고 셀 클릭 시 현재 저장된 값을 편집 필드에 설정
+    if (cellId.startsWith('shipping-') && row && row.barcode) {
+      const currentValue = shipmentStockData[row.barcode] || 0;
+      setShippingValues(prev => ({
+        ...prev,
+        [cellId]: String(currentValue)
+      }));
+    }
+  }, [shipmentStockData]);
 
   // Handle input change
   const handleInputChange = useCallback((cellId: string, value: string, productInfo?: any) => {
@@ -184,7 +202,73 @@ export const useOrderManagement = (props: UseOrderManagementProps = {}) => {
   // Handle blur and save
   const handleBlurAndSave = useCallback(async (row: any, cellId: string) => {
     setEditingCell(null);
-  }, []);
+    
+    // 출고 셀인 경우 실제 수량 업데이트 처리
+    if (cellId.startsWith('shipping-') && onShipmentDataChange) {
+      await handleShipmentUpdate(row, cellId);
+    }
+  }, [onShipmentDataChange]);
+
+  // Handle shipment update
+  const handleShipmentUpdate = useCallback(async (row: any, cellId: string) => {
+    try {
+      if (!row.barcode) {
+        console.log('❌ [SHIPMENT_UPDATE] 바코드 없음:', row);
+        return;
+      }
+
+      // 현재 로그인한 사용자 ID 가져오기
+      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      const userId = currentUser.id || currentUser.user_id;
+      
+      if (!userId) {
+        console.error('❌ [SHIPMENT_UPDATE] 사용자 ID를 찾을 수 없습니다.');
+        return;
+      }
+
+      const newValue = shippingValues[cellId];
+      const newAmount = Number(newValue) || 0;
+      const currentAmount = shipmentStockData[row.barcode] || 0;
+
+      if (newAmount === currentAmount) {
+        console.log('📋 [SHIPMENT_UPDATE] 변경사항 없음:', { barcode: row.barcode, amount: newAmount });
+        return;
+      }
+
+      console.log('🔄 [SHIPMENT_UPDATE] 출고 수량 업데이트 시작:', {
+        barcode: row.barcode,
+        current: currentAmount,
+        new: newAmount
+      });
+
+      const result = await ShipmentManagerService.updateShipmentAmount(
+        userId,
+        row.barcode,
+        currentAmount,
+        newAmount
+      );
+
+      if (result.success) {
+        console.log('✅ [SHIPMENT_UPDATE] 업데이트 완료:', result.message);
+        // 데이터 새로고침
+        if (onShipmentDataChange) {
+          onShipmentDataChange();
+        }
+      } else {
+        console.error('❌ [SHIPMENT_UPDATE] 업데이트 실패:', result.message);
+        alert(`출고 수량 업데이트 실패: ${result.message}`);
+        // 실패 시 원래 값으로 복원
+        setShippingValues(prev => ({
+          ...prev,
+          [cellId]: String(currentAmount)
+        }));
+      }
+
+    } catch (error) {
+      console.error('❌ [SHIPMENT_UPDATE] 예외 발생:', error);
+      alert('출고 수량 업데이트 중 오류가 발생했습니다.');
+    }
+  }, [shippingValues, shipmentStockData, onShipmentDataChange]);
 
   // Batch order submission
   const handleBatchOrderSubmission = useCallback(async () => {

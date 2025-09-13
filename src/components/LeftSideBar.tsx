@@ -96,6 +96,9 @@ const LeftSideBar: React.FC<LeftSideBarProps> = ({ isVisible }) => {
     } else if (currentPath.includes('/stocks/scan')) {
       setSelectedMenu('stock-scan');
       setExpandedMenus(['stocks']);
+    } else if (currentPath.includes('/stocks/outbound-preparation')) {
+      setSelectedMenu('stock-outbound-preparation');
+      setExpandedMenus(['stocks']);
     } else if (currentPath.includes('/stocks')) {
       setSelectedMenu('stock-list');
       setExpandedMenus(['stocks']);
@@ -160,7 +163,8 @@ const LeftSideBar: React.FC<LeftSideBarProps> = ({ isVisible }) => {
       path: '/stocks',
       children: [
         { id: 'stock-list', title: '재고 목록', icon: '📋', path: '/stocks/management' },
-        { id: 'stock-scan', title: '재고 관리', icon: '📷', path: '/stocks/scan' }
+        { id: 'stock-scan', title: '재고 관리', icon: '📷', path: '/stocks/scan' },
+        { id: 'stock-outbound-preparation', title: '출고 준비', icon: '📤', path: '/stocks/outbound-preparation' }
       ]
     },
     {

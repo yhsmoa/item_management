@@ -8,6 +8,7 @@ export const useInventoryData = () => {
   const [orderQuantityData, setOrderQuantityData] = useState<{[key: string]: number}>({});
   const [warehouseStockData, setWarehouseStockData] = useState<{[key: string]: number}>({});
   const [purchaseStatusData, setPurchaseStatusData] = useState<{[key: string]: number}>({});
+  const [shipmentStockData, setShipmentStockData] = useState<{[key: string]: number}>({});
 
   // Render functions for inventory-related data
   const renderOrderableQuantity = useCallback((row: any) => {
@@ -62,6 +63,14 @@ export const useInventoryData = () => {
     return value && numValue > 0 ? numValue : '-';
   }, [rocketInventoryData]);
 
+  const renderShipmentStock = useCallback((row: any) => {
+    const barcode = String(row.barcode || '').trim();
+    const value = barcode && shipmentStockData[barcode];
+    const numValue = typeof value === 'number' ? value : 0;
+    
+    return numValue > 0 ? numValue : '-';
+  }, [shipmentStockData]);
+
   const shouldHighlightRow = useCallback((row: any) => {
     const sales7Days = row.option_id && rocketInventoryData[row.option_id]?.sales_quantity_last_7_days;
     const sales30Days = row.option_id && rocketInventoryData[row.option_id]?.sales_quantity_last_30_days;
@@ -76,6 +85,7 @@ export const useInventoryData = () => {
     orderQuantityData,
     warehouseStockData,
     purchaseStatusData,
+    shipmentStockData,
     
     // Setters
     setRocketInventoryOptionIds,
@@ -83,6 +93,7 @@ export const useInventoryData = () => {
     setOrderQuantityData,
     setWarehouseStockData,
     setPurchaseStatusData,
+    setShipmentStockData,
     
     // Functions
     renderOrderableQuantity,
@@ -93,6 +104,7 @@ export const useInventoryData = () => {
     renderStorageFee,
     render7DaysSales,
     render30DaysSales,
+    renderShipmentStock,
     shouldHighlightRow
   };
 };

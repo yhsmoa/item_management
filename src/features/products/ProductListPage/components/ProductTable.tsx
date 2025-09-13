@@ -14,7 +14,7 @@ interface ProductTableProps {
   
   // Editing state
   editingCell: string | null;
-  handleCellClick: (cellId: string) => void;
+  handleCellClick: (cellId: string, row?: any) => void;
   getInputValue: (cellId: string) => string;
   getShippingValue: (cellId: string) => string;
   getReturnValue: (cellId: string) => string;
@@ -253,7 +253,7 @@ export const ProductTable: React.FC<ProductTableProps> = ({
               <td className="product-list-table-cell">-</td>
               <td 
                 className="product-list-table-cell product-list-editable-cell shipping-cell" 
-                onClick={() => handleCellClick(`shipping-${row.item_id}-${row.option_id || index}`)}
+                onClick={() => handleCellClick(`shipping-${row.item_id}-${row.option_id || index}`, row)}
                 style={{ cursor: 'pointer', backgroundColor: editingCell === `shipping-${row.item_id}-${row.option_id || index}` ? '#d6ebff' : undefined }}
               >
                 {editingCell === `shipping-${row.item_id}-${row.option_id || index}` ? (
@@ -272,7 +272,7 @@ export const ProductTable: React.FC<ProductTableProps> = ({
               </td>
               <td 
                 className="product-list-table-cell product-list-editable-cell return-cell" 
-                onClick={() => handleCellClick(`return-${row.item_id}-${row.option_id || index}`)}
+                onClick={() => handleCellClick(`return-${row.item_id}-${row.option_id || index}`, row)}
                 style={{ cursor: 'pointer', backgroundColor: editingCell === `return-${row.item_id}-${row.option_id || index}` ? '#ffd6d6' : undefined }}
               >
                 {editingCell === `return-${row.item_id}-${row.option_id || index}` ? (
