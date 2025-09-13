@@ -1123,6 +1123,195 @@ function ProductListPage() {
     }
   }, [selectedExposure, selectedSaleStatus, sortFilter, appliedSearchKeyword, setCurrentPage]);
 
+  // 🚛 출고 처리 함수
+  const handleShipmentSubmission = useCallback(async () => {
+    try {
+      console.log('🚛 [SHIPMENT] 출고 처리 시작');
+      
+      // 1. 현재 로그인한 사용자 ID 가져오기
+      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      const userId = currentUser.id || currentUser.user_id;
+      
+      if (!userId) {
+        alert('로그인 정보를 찾을 수 없습니다.');
+        return;
+      }
+
+      // 2. shippingValues에서 출고 데이터 추출
+      console.log('📦 [SHIPMENT] 출고 데이터 추출 중...');
+      console.log('🔍 [DEBUG] shippingValues 전체:', shippingValues);
+      
+      const shippingEntries = Object.entries(shippingValues)
+        .filter(([cellId, quantity]) => {
+          const numQuantity = Number(quantity);
+          const isValid = !isNaN(numQuantity) && numQuantity > 0;
+          if (!isValid) {
+            console.log('❌ [SHIPMENT] 유효하지 않은 출고량 제외:', { cellId, quantity, numQuantity });
+          }
+          return isValid;
+        });
+
+      if (shippingEntries.length === 0) {
+        alert('출고할 상품이 없습니다. 출고 수량을 입력해주세요.');
+        return;
+      }
+
+      console.log('✅ [SHIPMENT] 유효한 출고 데이터:', shippingEntries.length + '개');
+      
+      // 3. 각 출고 데이터 처리
+      let processedCount = 0;
+      let skippedCount = 0;
+      let totalInsertedCount = 0;
+      
+      for (const [cellId, quantity] of shippingEntries) {
+        try {
+          // cellId에서 정보 추출: shipping-{item_id}-{option_id}
+          const cellIdParts = cellId.split('-');
+          if (cellIdParts.length < 3) {
+            console.error('❌ [SHIPMENT] 잘못된 cellId 형식:', cellId);
+            skippedCount++;
+            continue;
+          }
+          
+          const itemId = cellIdParts[1];
+          const optionId = cellIdParts[2];
+          
+          // data에서 해당 상품 정보 찾기
+          const productInfo = data.find(item => 
+            String(item.item_id) === itemId && String(item.option_id) === optionId
+          );
+          
+          if (!productInfo || !productInfo.barcode) {
+            console.log('❌ [SHIPMENT] 상품 정보 또는 바코드 없음:', { itemId, optionId, hasProduct: !!productInfo, hasBarcode: !!productInfo?.barcode });
+            skippedCount++;
+            continue;
+          }
+
+          const requestedQuantity = Number(quantity);
+          console.log(`📦 [SHIPMENT] 처리 중: ${productInfo.item_name} (바코드: ${productInfo.barcode}, 요청수량: ${requestedQuantity})`);
+          
+          // 4. 창고재고에서 해당 바코드 확인
+          const warehouseStock = warehouseStockData[productInfo.barcode];
+          if (!warehouseStock || warehouseStock <= 0) {
+            console.log('❌ [SHIPMENT] 창고재고 없음, 패스:', { barcode: productInfo.barcode, stock: warehouseStock });
+            skippedCount++;
+            continue;
+          }
+
+          // 5. stocks_management에서 바코드로 조회하여 필요 수량만큼 데이터 수집
+          const { data: stocksData, error: stocksError } = await supabase
+            .from('stocks_management')
+            .select('id, user_id, item_name, barcode, stock, location, note')
+            .eq('user_id', userId)
+            .eq('barcode', productInfo.barcode)
+            .gt('stock', 0)
+            .order('id', { ascending: true });
+
+          if (stocksError) {
+            console.error('❌ [SHIPMENT] stocks_management 조회 오류:', stocksError);
+            skippedCount++;
+            continue;
+          }
+
+          if (!stocksData || stocksData.length === 0) {
+            console.log('❌ [SHIPMENT] stocks_management에 재고 없음:', productInfo.barcode);
+            skippedCount++;
+            continue;
+          }
+
+          // 6. 필요 수량만큼 데이터 수집
+          let remainingQuantity = requestedQuantity;
+          const dataToShip: any[] = [];
+          
+          for (const stockItem of stocksData) {
+            if (remainingQuantity <= 0) break;
+            
+            const availableStock = stockItem.stock;
+            const takeQuantity = Math.min(remainingQuantity, availableStock);
+            
+            // stocks_shipment에 추가할 데이터 생성
+            dataToShip.push({
+              user_id: userId,
+              item_name: stockItem.item_name,
+              barcode: stockItem.barcode,
+              stock: takeQuantity,
+              location: stockItem.location,
+              note: stockItem.note
+            });
+            
+            remainingQuantity -= takeQuantity;
+            console.log(`📦 [SHIPMENT] 수집된 데이터: ${stockItem.location}, 수량: ${takeQuantity}, 남은수량: ${remainingQuantity}`);
+          }
+
+          // 7. 요청 수량을 모두 수집할 수 없는 경우 스킵
+          if (remainingQuantity > 0) {
+            console.log('⚠️ [SHIPMENT] 재고 부족으로 스킵:', { 
+              barcode: productInfo.barcode, 
+              requested: requestedQuantity, 
+              available: requestedQuantity - remainingQuantity 
+            });
+            skippedCount++;
+            continue;
+          }
+
+          // 8. stocks_shipment 테이블에 데이터 저장
+          const { error: insertError } = await supabase
+            .from('stocks_shipment')
+            .insert(dataToShip);
+
+          if (insertError) {
+            console.error('❌ [SHIPMENT] stocks_shipment 저장 오류:', insertError);
+            console.error('❌ [SHIPMENT] 저장하려던 데이터:', dataToShip);
+            console.error('❌ [SHIPMENT] 오류 상세 정보:', {
+              code: insertError.code,
+              message: insertError.message,
+              details: insertError.details,
+              hint: insertError.hint
+            });
+            skippedCount++;
+            continue;
+          }
+
+          console.log(`✅ [SHIPMENT] 출고 완료: ${productInfo.item_name} (${dataToShip.length}개 행 저장)`);
+          processedCount++;
+          totalInsertedCount += dataToShip.length;
+          
+        } catch (error) {
+          console.error('❌ [SHIPMENT] 개별 항목 처리 실패:', { cellId, quantity, error });
+          skippedCount++;
+        }
+      }
+
+      // 9. 처리 결과 안내
+      const resultMessage = `✅ 출고 처리 완료!\n\n` +
+        `• 처리된 상품: ${processedCount}개\n` +
+        `• 건너뛴 상품: ${skippedCount}개\n` +
+        `• 총 저장된 행: ${totalInsertedCount}개\n\n` +
+        `출고 수량 데이터를 초기화하시겠습니까?\n` +
+        `(확인: 데이터 초기화, 취소: 데이터 유지)`;
+
+      const shouldClearShippingData = window.confirm(resultMessage);
+      
+      if (shouldClearShippingData) {
+        setShippingValues({});
+        console.log('🗑️ [SHIPMENT] 출고 데이터 초기화 완료');
+      } else {
+        console.log('📋 [SHIPMENT] 출고 데이터 유지');
+      }
+
+      console.log('✅ [SHIPMENT] 출고 처리 완료:', {
+        processed: processedCount,
+        skipped: skippedCount,
+        inserted: totalInsertedCount,
+        dataCleared: shouldClearShippingData
+      });
+      
+    } catch (error) {
+      console.error('❌ [SHIPMENT] 출고 처리 실패:', error);
+      alert('출고 처리 중 오류가 발생했습니다.');
+    }
+  }, [shippingValues, data, warehouseStockData, setShippingValues]);
+
   return (
     <div className="product-list-container">
       {/* 페이지 헤더 */}
@@ -1237,10 +1426,7 @@ function ProductListPage() {
               주문
             </ActionButton>
             <ActionButton
-              onClick={() => {
-                // 출고 버튼 기능은 나중에 구현
-                console.log('출고 버튼 클릭');
-              }}
+              onClick={handleShipmentSubmission}
               variant="primary"
               className="small-button"
             >

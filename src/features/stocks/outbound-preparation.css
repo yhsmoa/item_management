@@ -1,0 +1,314 @@
+/* ===================== 출고 준비 페이지 전용 스타일 ===================== */
+
+/* 메인 컨테이너 */
+.outbound-preparation-container {
+  padding: 20px;
+  max-width: 100%;
+  margin: 0 auto;
+  background-color: #f8fafc;
+  min-height: 100vh;
+}
+
+/* 페이지 헤더 */
+.outbound-preparation-page-header {
+  margin-bottom: 24px;
+}
+
+.outbound-preparation-page-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+}
+
+/* 필터 섹션 */
+.outbound-preparation-filter-section {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.outbound-preparation-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.outbound-preparation-select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  background-color: white;
+  color: #374151;
+  transition: border-color 0.2s ease;
+}
+
+.outbound-preparation-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* 검색 컨테이너 */
+.outbound-preparation-search-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.outbound-preparation-search-wrapper {
+  display: flex;
+  align-items: center;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: white;
+  transition: border-color 0.2s ease;
+}
+
+.outbound-preparation-search-wrapper:focus-within {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.outbound-preparation-search-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  color: #374151;
+  background: transparent;
+}
+
+.outbound-preparation-search-input::placeholder {
+  color: #9ca3af;
+}
+
+.outbound-preparation-search-button {
+  padding: 8px 12px;
+  background-color: #f3f4f6;
+  border: none;
+  border-left: 1px solid #e5e7eb;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s ease;
+}
+
+.outbound-preparation-search-button:hover {
+  background-color: #e5e7eb;
+}
+
+/* 테이블 섹션 */
+.outbound-preparation-table-section {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.outbound-preparation-table-header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background-color: #f8fafc;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.outbound-preparation-table-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.outbound-preparation-data-count {
+  font-size: 16px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.outbound-preparation-action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.outbound-preparation-button {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid #d1d5db;
+  background-color: white;
+  color: #374151;
+}
+
+.outbound-preparation-button:hover {
+  background-color: #f3f4f6;
+}
+
+.outbound-preparation-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.outbound-preparation-button-danger {
+  background-color: #ef4444;
+  color: white;
+  border-color: #ef4444;
+}
+
+.outbound-preparation-button-danger:hover:not(:disabled) {
+  background-color: #dc2626;
+  border-color: #dc2626;
+}
+
+/* 테이블 컨테이너 */
+.outbound-preparation-table-container {
+  overflow-x: auto;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.outbound-preparation-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.outbound-preparation-table-header {
+  background-color: #f8fafc;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.outbound-preparation-table-header-cell {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 2px solid #e5e7eb;
+  background-color: #f8fafc;
+}
+
+.outbound-preparation-table-body {
+  background-color: white;
+}
+
+.outbound-preparation-table-row {
+  transition: background-color 0.2s ease;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.outbound-preparation-table-row:hover {
+  background-color: #f9fafb;
+}
+
+.outbound-preparation-table-cell {
+  padding: 12px 16px;
+  vertical-align: middle;
+  color: #374151;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+/* 페이지네이션 */
+.outbound-preparation-pagination {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+  padding: 20px;
+}
+
+.outbound-preparation-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: white;
+  padding: 12px 20px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.outbound-preparation-pagination-button {
+  padding: 8px 16px;
+  background-color: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  transition: all 0.2s ease;
+}
+
+.outbound-preparation-pagination-button:hover:not(:disabled) {
+  background-color: #e5e7eb;
+  border-color: #d1d5db;
+}
+
+.outbound-preparation-pagination-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.outbound-preparation-pagination-info {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  padding: 8px 16px;
+}
+
+/* 숫자 입력 스피너 제거 */
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox용 숫자 입력 스피너 제거 */
+.no-spinner {
+  -moz-appearance: textfield;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .outbound-preparation-container {
+    padding: 16px;
+  }
+  
+  .outbound-preparation-filter-section {
+    padding: 16px;
+  }
+  
+  .outbound-preparation-filter-section > div {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .outbound-preparation-table-header-section {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+  
+  .outbound-preparation-action-buttons {
+    justify-content: center;
+  }
+  
+  .outbound-preparation-table-container {
+    font-size: 12px;
+  }
+  
+  .outbound-preparation-table-header-cell,
+  .outbound-preparation-table-cell {
+    padding: 8px;
+  }
+}
