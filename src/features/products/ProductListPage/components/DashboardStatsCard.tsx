@@ -6,7 +6,7 @@ interface DashboardStatsCardProps {
   value: number;
   hasInfo?: boolean;
   subtitle?: string;
-  color?: 'default' | 'orange' | 'red' | 'blue';
+  color?: 'default' | 'orange' | 'red' | 'blue' | 'green';
   onClick?: () => void;
   active?: boolean;
 }
@@ -28,6 +28,8 @@ const DashboardStatsCard: React.FC<DashboardStatsCardProps> = ({
         return '#EF4444';
       case 'blue':
         return '#3B82F6';
+      case 'green':
+        return '#10B981';
       default:
         return '#1F2937';
     }
@@ -41,6 +43,8 @@ const DashboardStatsCard: React.FC<DashboardStatsCardProps> = ({
         return '#EF4444';
       case 'blue':
         return '#3B82F6';
+      case 'green':
+        return '#10B981';
       default:
         return '#10B981';
     }

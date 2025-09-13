@@ -110,6 +110,9 @@ function ProductListPage() {
   const [selectedSaleStatus, setSelectedSaleStatus] = useState('전체');
   const [sortFilter, setSortFilter] = useState('전체');
   
+  // 카드 필터 상태 추가
+  const [activeCardFilter, setActiveCardFilter] = useState<string>('all');
+  
   // 테이블 관련
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [hoveredImage, setHoveredImage] = useState<HoveredImage | null>(null);
@@ -133,8 +136,15 @@ function ProductListPage() {
 
   // 📊 통계 계산 최적화 - useMemo로 매 렌더링마다 재계산 방지
   const stats: Stats = useMemo(() => {
-    return calculateStats(data);
-  }, [data]); // data가 변경될 때만 재계산
+    return calculateStats(
+      data, 
+      rocketInventoryData, 
+      orderQuantityData, 
+      warehouseStockData, 
+      rocketInventoryData, // storage fee는 rocketInventoryData에서 가져옴
+      inputValues
+    );
+  }, [data, rocketInventoryData, orderQuantityData, warehouseStockData, inputValues]); // 관련 데이터가 변경될 때만 재계산
 
 
   // 🚀 UPSERT 방식 saveToCart 함수 (효율적인 INSERT/UPDATE 통합)
@@ -1122,12 +1132,47 @@ function ProductListPage() {
       });
     }
     
+    // 6. 카드 필터링
+    if (activeCardFilter && activeCardFilter !== 'all') {
+      filtered = filtered.filter(item => {
+        switch (activeCardFilter) {
+          case 'rocketInventory':
+            // 로켓그로스 재고: 쿠팡재고(orderable_quantity) > 0
+            const orderableQty = rocketInventoryData[item.option_id]?.orderable_quantity;
+            return orderableQty && Number(orderableQty) > 0;
+          
+          case 'personalOrder':
+            // 개인주문: 현재는 사용하지 않으므로 빈 배열 반환
+            return false;
+          
+          case 'warehouseStock':
+            // 창고재고: 창고재고 > 0
+            const warehouseQty = warehouseStockData[item.barcode];
+            return warehouseQty && Number(warehouseQty) > 0;
+          
+          case 'storageFee':
+            // 창고비: storage fee > 0
+            const storageFee = rocketInventoryData[item.option_id]?.monthly_storage_fee;
+            return storageFee && Number(storageFee) > 0;
+          
+          case 'inputData':
+            // 입력: 입력 열에 값이 있는 것들
+            const cellId = `input-${item.item_id}-${item.option_id}`;
+            const inputValue = inputValues[cellId];
+            return inputValue && inputValue.trim() !== '' && Number(inputValue) > 0;
+          
+          default:
+            return true;
+        }
+      });
+    }
+    
     // console.log('🔍 [디버깅] 필터링 완료:', filtered.length + '개');
     setFilteredData(filtered);
     
     // 페이지 초기화는 실제 사용자 필터 변경 시에만 (rocketInventoryOptionIds 변경은 제외)
     // 하지만 이 useEffect는 rocketInventoryOptionIds가 필요하므로 페이지 초기화를 하지 않음
-  }, [data, searchFilter, selectedExposure, selectedSaleStatus, sortFilter, appliedSearchKeyword, rocketInventoryOptionIds, hasPeriodSales]);
+  }, [data, searchFilter, selectedExposure, selectedSaleStatus, sortFilter, appliedSearchKeyword, rocketInventoryOptionIds, hasPeriodSales, activeCardFilter, rocketInventoryData, warehouseStockData, inputValues]);
 
   // 🆕 사용자 필터 변경 시에만 페이지 초기화 - 이전 값 추적으로 정확한 변경 감지
   const prevFiltersRef = useRef({
@@ -1335,7 +1380,11 @@ function ProductListPage() {
       </div>
 
       {/* 통계 카드 섹션 */}
-      <StatsCardsSection stats={stats} />
+      <StatsCardsSection 
+        stats={stats} 
+        activeFilter={activeCardFilter}
+        onFilterChange={setActiveCardFilter}
+      />
 
       {/* 검색 및 필터 섹션 */}
       <SearchSection
