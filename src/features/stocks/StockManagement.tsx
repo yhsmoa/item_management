@@ -13,7 +13,7 @@ function StockManagement() {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [locationSearchKeyword, setLocationSearchKeyword] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('전체');
-  const [searchCategory, setSearchCategory] = useState('바코드');
+  const [searchCategory, setSearchCategory] = useState('상품명');
   const [isLoading, setIsLoading] = useState(false);
   
   // 재고 데이터
