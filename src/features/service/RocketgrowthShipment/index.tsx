@@ -43,6 +43,11 @@ const RocketgrowthShipment: React.FC = () => {
   // 쉽먼트 접수 엑셀 관련 상태
   const [shipmentExcelFile, setShipmentExcelFile] = useState<File | null>(null);
 
+  // 입고 사이즈 관련 상태
+  const [isSizeModalOpen, setIsSizeModalOpen] = useState(false);
+  const [sizeExcelFile, setSizeExcelFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
   // 쉽먼트 데이터 수정 함수들
   const [editingCell, setEditingCell] = useState<{index: number, field: string} | null>(null);
 
@@ -521,6 +526,146 @@ const RocketgrowthShipment: React.FC = () => {
     }
   };
 
+  // 입고 사이즈 Excel 업로드 핸들러
+  const handleSizeExcelUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSizeExcelFile(file);
+    }
+    event.target.value = '';
+  };
+
+  // 입고 사이즈 데이터 처리 및 업로드
+  const handleSizeDataUpload = async () => {
+    if (!sizeExcelFile) {
+      alert('엑셀 파일을 선택해주세요.');
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      const userId = currentUser.id;
+
+      if (!userId) {
+        alert('사용자 정보를 찾을 수 없습니다.');
+        return;
+      }
+
+      // Excel 파일 읽기
+      const fileData = await sizeExcelFile.arrayBuffer();
+      const workbook = XLSX.read(fileData, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+
+      if (jsonData.length < 17) {
+        alert('엑셀 파일에 데이터가 부족합니다. (최소 17행 필요)');
+        return;
+      }
+
+      // 17행부터 데이터 추출 (16행까지는 헤더)
+      const dataRows = jsonData.slice(16);
+      const sizeData = [];
+
+      for (const row of dataRows) {
+        const itemId = row[0]?.toString().trim(); // A열
+        const optionId = row[1]?.toString().trim(); // B열
+        const shipmentSize = row[5]?.toString().trim(); // F열
+
+        if (!itemId || !optionId) continue;
+
+        const id = `${itemId}-${optionId}`;
+
+        sizeData.push({
+          id,
+          user_id: userId,
+          item_id: itemId,
+          option_id: optionId,
+          shipment_size: shipmentSize || ''
+        });
+      }
+
+      if (sizeData.length === 0) {
+        alert('처리할 데이터가 없습니다.');
+        return;
+      }
+
+      // 기존 데이터 확인
+      const existingIds = sizeData.map(item => item.id);
+      const { data: existingData, error: selectError } = await supabase
+        .from('coupang_shipment_size')
+        .select('id')
+        .eq('user_id', userId)
+        .in('id', existingIds);
+
+      if (selectError) {
+        console.error('기존 데이터 조회 오류:', selectError);
+        alert('데이터 조회 중 오류가 발생했습니다.');
+        return;
+      }
+
+      const existingIdSet = new Set(existingData?.map(item => item.id) || []);
+
+      // 데이터 분류: 업데이트할 것과 삽입할 것
+      const toUpdate = sizeData.filter(item => existingIdSet.has(item.id));
+      const toInsert = sizeData.filter(item => !existingIdSet.has(item.id));
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      // 업데이트 처리
+      for (const item of toUpdate) {
+        const { error } = await supabase
+          .from('coupang_shipment_size')
+          .update({
+            shipment_size: item.shipment_size
+          })
+          .eq('id', item.id)
+          .eq('user_id', userId);
+
+        if (error) {
+          console.error('업데이트 오류:', error);
+          errorCount++;
+        } else {
+          successCount++;
+        }
+      }
+
+      // 삽입 처리
+      if (toInsert.length > 0) {
+        const { error } = await supabase
+          .from('coupang_shipment_size')
+          .insert(toInsert);
+
+        if (error) {
+          console.error('삽입 오류:', error);
+          errorCount += toInsert.length;
+        } else {
+          successCount += toInsert.length;
+        }
+      }
+
+      // 결과 메시지
+      const message = errorCount > 0
+        ? `처리 완료: 성공 ${successCount}건, 실패 ${errorCount}건`
+        : `성공적으로 ${successCount}건이 처리되었습니다.`;
+
+      alert(message);
+
+      // 모달 닫기
+      setIsSizeModalOpen(false);
+      setSizeExcelFile(null);
+
+    } catch (error) {
+      console.error('Excel 처리 중 오류:', error);
+      alert('Excel 파일 처리 중 오류가 발생했습니다.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   // 로켓그로스 입고요청 Excel 다운로드 함수
   const handleRocketgrowthExcelDownload = () => {
     if (processedData.length === 0) {
@@ -643,6 +788,12 @@ const RocketgrowthShipment: React.FC = () => {
             onClick={() => document.getElementById('xlsx-upload')?.click()}
           >
             📊 xlsx 업로드
+          </ActionButton>
+          <ActionButton
+            variant="primary"
+            onClick={() => setIsSizeModalOpen(true)}
+          >
+            📏 입고 사이즈
           </ActionButton>
         </div>
       </div>
@@ -1184,6 +1335,155 @@ const RocketgrowthShipment: React.FC = () => {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 입고 사이즈 모달 */}
+      {isSizeModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            width: '500px',
+            padding: '24px',
+            maxHeight: '80vh',
+            overflow: 'auto'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '20px',
+              borderBottom: '1px solid #e2e8f0',
+              paddingBottom: '16px'
+            }}>
+              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>
+                입고 사이즈 데이터 업로드
+              </h2>
+              <button
+                onClick={() => {
+                  setIsSizeModalOpen(false);
+                  setSizeExcelFile(null);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '20px',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  color: '#6b7280'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <p style={{
+                fontSize: '14px',
+                color: '#6b7280',
+                marginBottom: '12px',
+                lineHeight: '1.5'
+              }}>
+                • 엑셀 파일의 17행부터 데이터를 읽습니다<br/>
+                • A열: item_id, B열: option_id, F열: shipment_size<br/>
+                • 기존 데이터는 업데이트, 새 데이터는 추가됩니다
+              </p>
+
+              <input
+                type="file"
+                id="size-excel-upload"
+                accept=".xlsx,.xls"
+                onChange={handleSizeExcelUpload}
+                style={{ display: 'none' }}
+              />
+
+              <div style={{
+                border: '2px dashed #d1d5db',
+                borderRadius: '8px',
+                padding: '40px 20px',
+                textAlign: 'center',
+                backgroundColor: '#f9fafb',
+                cursor: 'pointer',
+                marginBottom: '20px'
+              }}
+              onClick={() => document.getElementById('size-excel-upload')?.click()}
+              >
+                {sizeExcelFile ? (
+                  <div>
+                    <p style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#059669' }}>
+                      ✅ 파일 선택됨
+                    </p>
+                    <p style={{ margin: 0, fontSize: '12px', color: '#6b7280' }}>
+                      {sizeExcelFile.name}
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <p style={{ margin: '0 0 8px 0', fontSize: '16px' }}>📁</p>
+                    <p style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#374151' }}>
+                      클릭하여 Excel 파일 선택
+                    </p>
+                    <p style={{ margin: 0, fontSize: '12px', color: '#6b7280' }}>
+                      .xlsx, .xls 파일만 지원
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              justifyContent: 'flex-end'
+            }}>
+              <button
+                onClick={() => {
+                  setIsSizeModalOpen(false);
+                  setSizeExcelFile(null);
+                }}
+                disabled={isUploading}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#6b7280',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  cursor: isUploading ? 'not-allowed' : 'pointer',
+                  opacity: isUploading ? 0.6 : 1
+                }}
+              >
+                취소
+              </button>
+              <button
+                onClick={handleSizeDataUpload}
+                disabled={!sizeExcelFile || isUploading}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: (!sizeExcelFile || isUploading) ? '#d1d5db' : '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  cursor: (!sizeExcelFile || isUploading) ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {isUploading ? '업로드 중...' : '업로드'}
+              </button>
             </div>
           </div>
         </div>
