@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import * as XLSX from 'xlsx';
 import ActionButton from '../../../components/ActionButton';
 import { supabase } from '../../../config/supabase';
+import { processShipmentSizeExcelUpload } from '../../../services/excelUploadService';
 import './index.css';
 
 interface ProcessedData {
@@ -47,6 +48,11 @@ const RocketgrowthShipment: React.FC = () => {
   const [isSizeModalOpen, setIsSizeModalOpen] = useState(false);
   const [sizeExcelFile, setSizeExcelFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{
+    current: number;
+    total: number;
+    message: string;
+  } | null>(null);
 
   // 쉽먼트 데이터 수정 함수들
   const [editingCell, setEditingCell] = useState<{index: number, field: string} | null>(null);
@@ -545,122 +551,36 @@ const RocketgrowthShipment: React.FC = () => {
     setIsUploading(true);
 
     try {
-      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
-      const userId = currentUser.id;
+      const result = await processShipmentSizeExcelUpload(sizeExcelFile, (stage, current, total) => {
+        if (current !== undefined && total !== undefined) {
+          setUploadProgress({ current, total, message: stage });
+        } else {
+          setUploadProgress({ current: 0, total: 0, message: stage });
+        }
+      });
 
-      if (!userId) {
-        alert('사용자 정보를 찾을 수 없습니다.');
-        return;
-      }
-
-      // Excel 파일 읽기
-      const fileData = await sizeExcelFile.arrayBuffer();
-      const workbook = XLSX.read(fileData, { type: 'array' });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
-
-      if (jsonData.length < 17) {
-        alert('엑셀 파일에 데이터가 부족합니다. (최소 17행 필요)');
-        return;
-      }
-
-      // 17행부터 데이터 추출 (16행까지는 헤더)
-      const dataRows = jsonData.slice(16);
-      const sizeData = [];
-
-      for (const row of dataRows) {
-        const itemId = row[0]?.toString().trim(); // A열
-        const optionId = row[1]?.toString().trim(); // B열
-        const shipmentSize = row[5]?.toString().trim(); // F열
-
-        if (!itemId || !optionId) continue;
-
-        const id = `${itemId}-${optionId}`;
-
-        sizeData.push({
-          id,
-          user_id: userId,
-          item_id: itemId,
-          option_id: optionId,
-          shipment_size: shipmentSize || ''
+      if (result.success) {
+        alert(`입고 사이즈 xlsx 업로드가 완료되었습니다.\n처리된 데이터: ${result.processedCount}개`);
+        console.log('📊 입고 사이즈 엑셀 업로드 성공:', {
+          파일명: sizeExcelFile.name,
+          처리된행수: result.processedCount,
+          전체행수: result.totalRows
         });
+      } else {
+        throw new Error(result.error || '업로드 실패');
       }
 
-      if (sizeData.length === 0) {
-        alert('처리할 데이터가 없습니다.');
-        return;
-      }
-
-      // 기존 데이터 확인
-      const existingIds = sizeData.map(item => item.id);
-      const { data: existingData, error: selectError } = await supabase
-        .from('coupang_shipment_size')
-        .select('id')
-        .eq('user_id', userId)
-        .in('id', existingIds);
-
-      if (selectError) {
-        console.error('기존 데이터 조회 오류:', selectError);
-        alert('데이터 조회 중 오류가 발생했습니다.');
-        return;
-      }
-
-      const existingIdSet = new Set(existingData?.map(item => item.id) || []);
-
-      // 데이터 분류: 업데이트할 것과 삽입할 것
-      const toUpdate = sizeData.filter(item => existingIdSet.has(item.id));
-      const toInsert = sizeData.filter(item => !existingIdSet.has(item.id));
-
-      let successCount = 0;
-      let errorCount = 0;
-
-      // 업데이트 처리
-      for (const item of toUpdate) {
-        const { error } = await supabase
-          .from('coupang_shipment_size')
-          .update({
-            shipment_size: item.shipment_size
-          })
-          .eq('id', item.id)
-          .eq('user_id', userId);
-
-        if (error) {
-          console.error('업데이트 오류:', error);
-          errorCount++;
-        } else {
-          successCount++;
-        }
-      }
-
-      // 삽입 처리
-      if (toInsert.length > 0) {
-        const { error } = await supabase
-          .from('coupang_shipment_size')
-          .insert(toInsert);
-
-        if (error) {
-          console.error('삽입 오류:', error);
-          errorCount += toInsert.length;
-        } else {
-          successCount += toInsert.length;
-        }
-      }
-
-      // 결과 메시지
-      const message = errorCount > 0
-        ? `처리 완료: 성공 ${successCount}건, 실패 ${errorCount}건`
-        : `성공적으로 ${successCount}건이 처리되었습니다.`;
-
-      alert(message);
+      // 업로드 완료
+      setUploadProgress(null);
 
       // 모달 닫기
       setIsSizeModalOpen(false);
       setSizeExcelFile(null);
 
-    } catch (error) {
-      console.error('Excel 처리 중 오류:', error);
-      alert('Excel 파일 처리 중 오류가 발생했습니다.');
+    } catch (error: any) {
+      setUploadProgress(null);
+      console.error('입고 사이즈 엑셀 업로드 실패:', error);
+      alert(`입고 사이즈 엑셀 업로드 중 오류가 발생했습니다.\n${error instanceof Error ? error.message : '알 수 없는 오류'}`);
     } finally {
       setIsUploading(false);
     }
@@ -1445,6 +1365,56 @@ const RocketgrowthShipment: React.FC = () => {
               </div>
             </div>
 
+            {/* 진행상황 표시 */}
+            {uploadProgress && (
+              <div style={{
+                marginBottom: '20px',
+                padding: '16px',
+                backgroundColor: '#f3f4f6',
+                borderRadius: '6px',
+                border: '1px solid #d1d5db'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '8px'
+                }}>
+                  <span style={{ fontSize: '14px', color: '#374151' }}>
+                    {uploadProgress.message}
+                  </span>
+                  <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                    {uploadProgress.current.toLocaleString()} / {uploadProgress.total.toLocaleString()}
+                  </span>
+                </div>
+                <div style={{
+                  width: '100%',
+                  height: '8px',
+                  backgroundColor: '#e5e7eb',
+                  borderRadius: '4px',
+                  overflow: 'hidden'
+                }}>
+                  <div
+                    style={{
+                      width: `${Math.min((uploadProgress.current / uploadProgress.total) * 100, 100)}%`,
+                      height: '100%',
+                      backgroundColor: '#10b981',
+                      borderRadius: '4px',
+                      transition: 'width 0.3s ease'
+                    }}
+                  />
+                </div>
+                <div style={{
+                  marginTop: '4px',
+                  textAlign: 'center',
+                  fontSize: '12px',
+                  color: '#6b7280'
+                }}>
+                  {Math.round((uploadProgress.current / uploadProgress.total) * 100)}% 완료
+                </div>
+              </div>
+            )}
+
             <div style={{
               display: 'flex',
               gap: '12px',
@@ -1454,6 +1424,7 @@ const RocketgrowthShipment: React.FC = () => {
                 onClick={() => {
                   setIsSizeModalOpen(false);
                   setSizeExcelFile(null);
+                  setUploadProgress(null);
                 }}
                 disabled={isUploading}
                 style={{
@@ -1482,7 +1453,7 @@ const RocketgrowthShipment: React.FC = () => {
                   cursor: (!sizeExcelFile || isUploading) ? 'not-allowed' : 'pointer'
                 }}
               >
-                {isUploading ? '업로드 중...' : '업로드'}
+                {isUploading ? (uploadProgress ? '처리 중...' : '업로드 중...') : '업로드'}
               </button>
             </div>
           </div>

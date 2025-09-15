@@ -617,30 +617,30 @@ async function savePersonalOrderDataToSupabase(
       user_id: userId, // 현재 로그인한 사용자 ID 사용
       id: item.order_number && item.option_id ? `${item.order_number}-${item.option_id}` : '' // order_number + "-" + option_id
     }));
-    
+
     // 2. 배치 단위로 데이터 Upsert (50개씩 처리) - id 기준으로 중복 처리
     const BATCH_SIZE = 50;
     let savedCount = 0;
-    
+
     for (let i = 0; i < dataWithMetadata.length; i += BATCH_SIZE) {
       const batch = dataWithMetadata.slice(i, i + BATCH_SIZE);
       const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-      
+
       const { error } = await supabase
         .from('coupang_personal_order')
-        .upsert(batch, { 
+        .upsert(batch, {
           onConflict: 'id',
-          ignoreDuplicates: false 
+          ignoreDuplicates: false
         });
-      
+
       if (error) {
         throw new Error(`배치 ${batchNum} Upsert 실패: ${error.message}`);
       }
-      
+
       savedCount += batch.length;
       onProgress?.(savedCount, dataWithMetadata.length);
     }
-    
+
     return {
       success: true,
       savedCount: savedCount
@@ -649,6 +649,198 @@ async function savePersonalOrderDataToSupabase(
     return {
       success: false,
       savedCount: 0,
+      error: error instanceof Error ? error.message : '알 수 없는 오류'
+    };
+  }
+}
+
+/**
+ * 입고 사이즈 엑셀 데이터 타입 정의 (coupang_shipment_size 테이블과 매칭)
+ */
+interface CoupangShipmentSizeExcelData {
+  item_id: string;      // A열
+  option_id: string;    // B열
+  shipment_size: string; // F열
+  id: string;           // item_id-option_id
+  user_id: string;      // 사용자 ID
+}
+
+/**
+ * 입고 사이즈 Excel 파일을 파싱하여 배열로 반환
+ */
+async function parseShipmentSizeExcelFile(file: File): Promise<CoupangShipmentSizeExcelData[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result;
+        const workbook = XLSX.read(data, { type: 'array' });
+
+        // 첫 번째 시트 선택
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+
+        // 시트를 JSON 배열로 변환
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+          header: 1,
+          defval: ''
+        }) as any[][];
+
+        if (jsonData.length < 17) {
+          throw new Error('엑셀 파일에 데이터가 부족합니다. (최소 17행 필요)');
+        }
+
+        const processedData: CoupangShipmentSizeExcelData[] = [];
+
+        // 17행부터 데이터 시작 (인덱스 16부터) - 16행까지는 헤더
+        for (let i = 16; i < jsonData.length; i++) {
+          const row = jsonData[i] as any[];
+
+          // 빈 행 건너뛰기 (A열과 B열에 모두 데이터가 없는 경우)
+          if (!row || row.length === 0 || !row[0] || !row[1]) {
+            continue;
+          }
+
+          const itemId = parseString(row[0]);    // A열
+          const optionId = parseString(row[1]);  // B열
+          const shipmentSize = parseString(row[5]) || ''; // F열
+
+          if (itemId && optionId) {
+            const rowData: CoupangShipmentSizeExcelData = {
+              item_id: itemId,
+              option_id: optionId,
+              shipment_size: shipmentSize,
+              id: `${itemId}-${optionId}`,
+              user_id: '' // 나중에 설정
+            };
+
+            processedData.push(rowData);
+          }
+        }
+
+        resolve(processedData);
+      } catch (error) {
+        reject(error);
+      }
+    };
+
+    reader.onerror = () => {
+      reject(new Error('파일 읽기 실패'));
+    };
+
+    // 파일을 ArrayBuffer로 읽기
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+/**
+ * 파싱된 입고 사이즈 데이터를 Supabase의 coupang_shipment_size 테이블에 저장
+ */
+async function saveShipmentSizeDataToSupabase(
+  data: CoupangShipmentSizeExcelData[],
+  userId: string,
+  onProgress?: (current: number, total: number) => void
+): Promise<{ success: boolean; savedCount: number; error?: string }> {
+  try {
+    // 1. 데이터에 user_id 설정
+    const dataWithMetadata = data.map((item) => ({
+      ...item,
+      user_id: userId
+    }));
+
+    // 2. 배치 단위로 데이터 Upsert (1000개씩 처리) - id 기준으로 중복 처리
+    const BATCH_SIZE = 1000;
+    let savedCount = 0;
+
+    for (let i = 0; i < dataWithMetadata.length; i += BATCH_SIZE) {
+      const batch = dataWithMetadata.slice(i, i + BATCH_SIZE);
+
+      const { error } = await supabase
+        .from('coupang_shipment_size')
+        .upsert(batch, {
+          onConflict: 'id',
+          ignoreDuplicates: false
+        });
+
+      if (error) {
+        throw new Error(`배치 ${Math.floor(i / BATCH_SIZE) + 1} Upsert 실패: ${error.message}`);
+      }
+
+      savedCount += batch.length;
+      onProgress?.(savedCount, dataWithMetadata.length);
+    }
+
+    return {
+      success: true,
+      savedCount: savedCount
+    };
+  } catch (error) {
+    return {
+      success: false,
+      savedCount: 0,
+      error: error instanceof Error ? error.message : '알 수 없는 오류'
+    };
+  }
+}
+
+/**
+ * 입고 사이즈 Excel 업로드 처리 (메인 함수)
+ */
+export async function processShipmentSizeExcelUpload(
+  file: File,
+  onProgress?: (stage: string, current?: number, total?: number) => void
+): Promise<UploadResult> {
+  try {
+    // 현재 로그인한 사용자 ID 가져오기
+    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    const userId = currentUser.id;
+
+    if (!userId) {
+      throw new Error('로그인 정보를 찾을 수 없습니다.');
+    }
+
+    // 1단계: Excel 파일 파싱
+    onProgress?.('Excel 파일 파싱 중...');
+    const parsedData = await parseShipmentSizeExcelFile(file);
+
+    if (parsedData.length === 0) {
+      return {
+        success: false,
+        processedCount: 0,
+        totalRows: 0,
+        error: '처리할 데이터가 없습니다.'
+      };
+    }
+
+    // 2단계: Supabase에 저장
+    onProgress?.('Supabase에 데이터 저장 중...', 0, parsedData.length);
+
+    const saveResult = await saveShipmentSizeDataToSupabase(
+      parsedData,
+      userId,
+      (current, total) => {
+        onProgress?.('Supabase에 데이터 저장 중...', current, total);
+      }
+    );
+
+    if (!saveResult.success) {
+      throw new Error(saveResult.error || '데이터 저장 실패');
+    }
+
+    return {
+      success: true,
+      processedCount: saveResult.savedCount,
+      totalRows: parsedData.length
+    };
+
+  } catch (error) {
+    console.error('입고 사이즈 Excel 업로드 실패:', error);
+
+    return {
+      success: false,
+      processedCount: 0,
+      totalRows: 0,
       error: error instanceof Error ? error.message : '알 수 없는 오류'
     };
   }
