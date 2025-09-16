@@ -280,6 +280,15 @@ function StocksScan() {
     return result;
   };
 
+  // 엑셀 스타일 컬럼명을 인덱스로 변환 (A->0, B->1, ..., Z->25, AA->26)
+  const getColumnIndex = (columnName: string): number => {
+    let result = 0;
+    for (let i = 0; i < columnName.length; i++) {
+      result = result * 26 + (columnName.charCodeAt(i) - 64);
+    }
+    return result - 1;
+  };
+
   // 컬럼 선택 핸들러
   const handleColumnSelect = (columnName: string) => {
     if (isSelectingBarcode) {
@@ -372,39 +381,72 @@ function StocksScan() {
   const handleDeliveryListData = async () => {
     // 선택된 시작 행부터 데이터 처리
     const dataRows = excelData.slice(dataStartRow - 1);
-    
+
+    console.log('deliveryList 처리:', {
+      전체행수: excelData.length,
+      시작행: dataStartRow,
+      처리행수: dataRows.length
+    });
+
     // R=17, K=10, L=11, AO=40 (0-based index)
     const barcodeIndex = 17; // R열
     const productNameIndex = 10; // K열
-    const optionNameIndex = 11; // L열  
+    const optionNameIndex = 11; // L열
     const warehouseIndex = 40; // AO열
-    
+
     const newStockData: any[] = [];
 
     /**
      * 창고 데이터 파싱 함수
-     * "[MBOX106 -> 1]\n[MBOX35 -> 1]" 형태의 텍스트를 파싱하여 location과 stock 배열 반환
+     * 다양한 형태의 창고 데이터를 파싱
      */
     const parseWarehouseData = (warehouseText: string): Array<{location: string, stock: number}> => {
       if (!warehouseText || warehouseText.trim() === '') return [];
-      
+
+      console.log('원본 창고 데이터:', warehouseText);
+
       const results: Array<{location: string, stock: number}> = [];
-      
+
       // 줄바꿈으로 분리
-      const lines = warehouseText.split(/\n/).filter(line => line.trim() !== '');
-      
+      const lines = warehouseText.split(/[\n\r]+/).filter(line => line.trim() !== '');
+
       for (const line of lines) {
-        // [LOCATION -> STOCK] 패턴 매칭
-        const match = line.match(/\[([^[\]]+)\s*->\s*(\d+)\]/);
+        console.log('처리할 라인:', line);
+
+        // 패턴 1: [LOCATION -> STOCK] 형태
+        let match = line.match(/\[([^[\]]+)\s*->\s*(\d+)\]/);
         if (match) {
           const location = match[1].trim();
           const stock = parseInt(match[2]) || 0;
           if (location && stock > 0) {
             results.push({ location, stock });
+            console.log('패턴1 매칭:', { location, stock });
+            continue;
           }
         }
+
+        // 패턴 2: MBOXXX 1 (공백으로 구분)
+        match = line.match(/^(MBOX\d+)\s+(\d+)$/);
+        if (match) {
+          const location = match[1].trim();
+          const stock = parseInt(match[2]) || 0;
+          if (location && stock > 0) {
+            results.push({ location, stock });
+            console.log('패턴2 매칭:', { location, stock });
+            continue;
+          }
+        }
+
+        // 패턴 3: 단순히 MBOXXX만 있는 경우 (재고 1로 간주)
+        match = line.match(/^(MBOX\d+)$/);
+        if (match) {
+          const location = match[1].trim();
+          results.push({ location, stock: 1 });
+          console.log('패턴3 매칭:', { location, stock: 1 });
+          continue;
+        }
       }
-      
+
       return results;
     };
 
@@ -414,8 +456,19 @@ function StocksScan() {
       const productName = row[productNameIndex] || '';
       const optionName = row[optionNameIndex] || '';
       const warehouseData = row[warehouseIndex] || '';
-      
-      if (!barcode.trim()) continue; // 빈 바코드 건너뛰기
+
+      console.log(`행 ${i + 1}:`, {
+        barcode,
+        productName,
+        optionName,
+        warehouseData: warehouseData ? `${warehouseData}` : '없음',
+        전체컬럼수: row.length
+      });
+
+      if (!barcode.trim()) {
+        console.log(`행 ${i + 1}: 바코드 없음, 건너뜀`);
+        continue; // 빈 바코드 건너뛰기
+      }
       
       // 상품명 조합
       let fullProductName = '';
@@ -429,7 +482,9 @@ function StocksScan() {
       
       // 창고 데이터 파싱
       const warehouseItems = parseWarehouseData(warehouseData.toString());
-      
+
+      console.log(`행 ${i + 1} 창고파싱:`, warehouseItems);
+
       if (warehouseItems.length > 0) {
         // 파싱된 각 창고 위치별로 개별 아이템 생성
         for (const warehouseItem of warehouseItems) {
@@ -458,6 +513,8 @@ function StocksScan() {
         }
       }
     }
+
+    console.log('최종 newStockData:', newStockData);
 
     // 재고 관리 테이블에 데이터 추가
     setStockManagementData(prev => {
@@ -500,12 +557,12 @@ function StocksScan() {
     const dataRows = excelData.slice(dataStartRow - 1);
     
     // 선택된 컬럼명(A, B, C...)을 인덱스로 변환
-    const barcodeIndex = selectedBarcodeColumn.charCodeAt(0) - 65; // A=0, B=1, C=2...
-    const quantityIndex = selectedQuantityColumn.charCodeAt(0) - 65;
-    const locationIndex = selectedLocationColumn ? selectedLocationColumn.charCodeAt(0) - 65 : -1;
-    const noteIndex = selectedNoteColumn ? selectedNoteColumn.charCodeAt(0) - 65 : -1;
-    const productNameIndex = selectedProductNameColumn ? selectedProductNameColumn.charCodeAt(0) - 65 : -1;
-    const optionNameIndex = selectedOptionNameColumn ? selectedOptionNameColumn.charCodeAt(0) - 65 : -1;
+    const barcodeIndex = getColumnIndex(selectedBarcodeColumn);
+    const quantityIndex = getColumnIndex(selectedQuantityColumn);
+    const locationIndex = selectedLocationColumn ? getColumnIndex(selectedLocationColumn) : -1;
+    const noteIndex = selectedNoteColumn ? getColumnIndex(selectedNoteColumn) : -1;
+    const productNameIndex = selectedProductNameColumn ? getColumnIndex(selectedProductNameColumn) : -1;
+    const optionNameIndex = selectedOptionNameColumn ? getColumnIndex(selectedOptionNameColumn) : -1;
 
     // 각 바코드별로 상품명을 조회해서 설정
     const newStockData: any[] = [];
@@ -760,14 +817,14 @@ function StocksScan() {
       let errorCount = 0;
       let errorDetails: string[] = [];
       
-      // 🔍 1단계: 기존 재고 데이터 일괄 조회
+      // 🔍 1단계: 기존 재고 데이터 일괄 조회 (item_name도 함께 조회)
       const BATCH_SIZE = 100;
       const allIds = groupedItems.map(item => item.id);
       const existingStockMap = new Map();
-      
+
       for (let i = 0; i < allIds.length; i += BATCH_SIZE) {
         const batchIds = allIds.slice(i, i + BATCH_SIZE);
-        
+
         try {
           const { data: existingStocks, error: batchError } = await supabase
             .from('stocks_management')
@@ -817,12 +874,11 @@ function StocksScan() {
         const existingStock = existingStockMap.get(id);
         
         if (existingStock) {
-          // 기존 재고 업데이트
+          // 기존 재고 업데이트 (수량만 추가)
           const newStock = (existingStock.stock || 0) + totalQuantity;
           toUpdate.push({
             id: id,
-            stock: newStock,
-            item_name: itemName
+            stock: newStock  // stock만 포함
           });
           updateCount++;
         } else {
@@ -845,34 +901,29 @@ function StocksScan() {
         }
       });
 
-      // 🚀 3단계: 배치 업데이트 및 삽입
+      // 🚀 3단계: 배치 업데이트 및 삽입 (UPDATE와 INSERT 분리)
       setStockAddProgress({ current: 70, total: 100 });
-      
-      // 배치 업데이트 실행
+
+      // 배치 UPDATE 실행 (수량만 업데이트)
       if (toUpdate.length > 0) {
-        for (let i = 0; i < toUpdate.length; i += BATCH_SIZE) {
-          const batch = toUpdate.slice(i, i + BATCH_SIZE);
-          
+        for (const item of toUpdate) {
           try {
             const { error: updateError } = await supabase
               .from('stocks_management')
-              .upsert(batch, { onConflict: 'id' });
+              .update({ stock: item.stock })  // stock만 업데이트
+              .eq('id', item.id);
 
             if (updateError) {
-              console.error('배치 업데이트 오류:', updateError);
-              batch.forEach(item => {
-                errorDetails.push(`ID: ${item.id} (업데이트 실패)`);
-                errorCount++;
-                updateCount--;
-              });
-            }
-          } catch (err) {
-            console.error('배치 업데이트 예외:', err);
-            batch.forEach(item => {
-              errorDetails.push(`ID: ${item.id} (업데이트 예외)`);
+              console.error('개별 업데이트 오류:', updateError);
+              errorDetails.push(`ID: ${item.id} (업데이트 실패)`);
               errorCount++;
               updateCount--;
-            });
+            }
+          } catch (err) {
+            console.error('개별 업데이트 예외:', err);
+            errorDetails.push(`ID: ${item.id} (업데이트 예외)`);
+            errorCount++;
+            updateCount--;
           }
         }
       }
@@ -1094,17 +1145,18 @@ function StocksScan() {
         for (let i = 0; i < toUpdate.length; i += CHUNK_SIZE) {
           const chunk = toUpdate.slice(i, i + CHUNK_SIZE);
           
-          const { error: updateError } = await supabase
-            .from('stocks_management')
-            .upsert(chunk, { onConflict: 'id' });
+          for (const item of chunk) {
+            const { error: updateError } = await supabase
+              .from('stocks_management')
+              .update({ stock: item.stock })
+              .eq('id', item.id);
 
-          if (updateError) {
-            console.error('배치 업데이트 오류:', updateError);
-            chunk.forEach(item => {
+            if (updateError) {
+              console.error('개별 업데이트 오류:', updateError);
               errorDetails.push(`ID: ${item.id} (오류: 데이터베이스 업데이트 실패)`);
-            });
-            errorCount += chunk.length;
-            successCount -= chunk.length;
+              errorCount++;
+              successCount--;
+            }
           }
         }
       }
