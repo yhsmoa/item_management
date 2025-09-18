@@ -323,35 +323,6 @@ const SidebarContainer = styled.div<{ $isVisible: boolean }>`
   z-index: 900;
   overflow: hidden;
   
-  /* 호버 시 폭 확장 - 더 부드러운 애니메이션과 그림자 효과 */
-  &:hover {
-    width: 280px;
-    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
-    border-right: 1px solid #D1D5DB;
-  }
-  
-  /* 호버 시 내부 콘텐츠도 함께 확장 */
-  &:hover .menu-title-text {
-    opacity: 1;
-    visibility: visible;
-    transition: opacity 0.2s ease 0.1s;
-  }
-  
-  &:hover .menu-item-content {
-    padding-left: 20px;
-    padding-right: 20px;
-    transition: padding 0.3s ease-in-out;
-  }
-  
-  /* 스크롤바 개선 */
-  &:hover::-webkit-scrollbar {
-    width: 6px;
-  }
-  
-  &:hover::-webkit-scrollbar-thumb {
-    background: #9CA3AF;
-    border-radius: 3px;
-  }
 `;
 
 /**
