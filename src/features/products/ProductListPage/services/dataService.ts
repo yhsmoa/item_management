@@ -3,6 +3,7 @@ import { supabase } from '../../../../config/supabase';
 import { fetchCoupangSalesData } from '../../../../services/coupangSalesService';
 import { viewsService } from '../../../../services/viewsService';
 import { formatDateToYYMMDD, formatDateToMMDD } from '../utils/dateUtils';
+import { sortProducts } from '../utils/sortUtils';
 
 export const loadRocketInventoryOptionIds = async (): Promise<{
   optionIds: Set<string>;
@@ -542,7 +543,6 @@ export const loadProductsFromDB = async (): Promise<{
         .from('extract_coupang_item_all')
         .select('*')
         .eq('user_id', userId)
-        .order('option_id', { ascending: false })
         .range(offset, offset + batchSize - 1);
 
       if (batchError) {
@@ -578,13 +578,17 @@ export const loadProductsFromDB = async (): Promise<{
         바코드타입: typeof item.barcode
       }));
       console.log('🔍 [제품로드] 바코드 샘플 확인:', barcodeSample);
-      
+
       // 바코드가 있는 제품 수 확인
       const productsWithBarcode = allProducts.filter(item => item.barcode && item.barcode.trim()).length;
       console.log(`📊 [제품로드] 바코드가 있는 제품: ${productsWithBarcode}/${allProducts.length}개`);
     }
 
-    return { products: allProducts, error: null };
+    // 커스텀 정렬 적용 (item_id + option_name 기준)
+    const sortedProducts = sortProducts(allProducts);
+    console.log('🔄 [제품로드] 커스텀 정렬 적용 완료');
+
+    return { products: sortedProducts, error: null };
   } catch (error) {
     console.error('❌ 상품 로드 실패:', error);
     return { products: [], error };
