@@ -99,6 +99,17 @@
   border-color: #2563eb;
 }
 
+.coupang-orders-button-warning {
+  background-color: #f59e0b;
+  color: white;
+  border-color: #f59e0b;
+}
+
+.coupang-orders-button-warning:hover {
+  background-color: #d97706;
+  border-color: #d97706;
+}
+
 /* 검색 및 필터 섹션 */
 .coupang-orders-filter-section {
   background-color: white;

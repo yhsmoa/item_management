@@ -111,60 +111,126 @@ const CoupangOrders: React.FC = () => {
   const [clearDataBeforeUpload, setClearDataBeforeUpload] = useState(true);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  /**
+   * 실제 할당 가능한 주문 수를 계산하는 함수
+   * 바코드별로 재고와 필요 수량을 비교하여 실제 출고 가능한 주문 개수 계산
+   */
+  const calculateActualShippableOrders = (orders: CoupangOrderData[]): number => {
+    // 출고예정일 기준으로 정렬 (오름차순)
+    const sortedOrders = [...orders].sort((a, b) => {
+      const dateA = new Date(a.order_expected_shipping_date || '9999-12-31');
+      const dateB = new Date(b.order_expected_shipping_date || '9999-12-31');
+      return dateA.getTime() - dateB.getTime();
+    });
+
+    // 바코드별 재고 할당 추적
+    const barcodeStockTracker = new Map<string, number>();
+
+    let shippableCount = 0;
+
+    sortedOrders.forEach(order => {
+      const barcode = order.barcode || '';
+      if (!barcode) return;
+
+      // 현재 바코드의 남은 재고량 계산
+      const totalStock = stockData.get(barcode) || 0;
+      const usedStock = barcodeStockTracker.get(barcode) || 0;
+      const remainingStock = totalStock - usedStock;
+
+      // 이 주문을 출고할 수 있는지 확인
+      if (remainingStock >= order.qty) {
+        shippableCount++;
+        // 재고 사용량 업데이트
+        barcodeStockTracker.set(barcode, usedStock + order.qty);
+      }
+    });
+
+    return shippableCount;
+  };
+
+  /**
+   * 실제 할당 가능한 주문 목록을 반환하는 함수 (필터링용)
+   */
+  const getActualShippableOrdersWithDetails = (orders: CoupangOrderData[]): CoupangOrderData[] => {
+    // 출고예정일 기준으로 정렬 (오름차순)
+    const sortedOrders = [...orders].sort((a, b) => {
+      const dateA = new Date(a.order_expected_shipping_date || '9999-12-31');
+      const dateB = new Date(b.order_expected_shipping_date || '9999-12-31');
+      return dateA.getTime() - dateB.getTime();
+    });
+
+    // 바코드별 재고 할당 추적
+    const barcodeStockTracker = new Map<string, number>();
+    const shippableOrders: CoupangOrderData[] = [];
+
+    sortedOrders.forEach(order => {
+      const barcode = order.barcode || '';
+      if (!barcode) return;
+
+      // 현재 바코드의 남은 재고량 계산
+      const totalStock = stockData.get(barcode) || 0;
+      const usedStock = barcodeStockTracker.get(barcode) || 0;
+      const remainingStock = totalStock - usedStock;
+
+      // 이 주문을 출고할 수 있는지 확인
+      if (remainingStock >= order.qty) {
+        shippableOrders.push(order);
+        // 재고 사용량 업데이트
+        barcodeStockTracker.set(barcode, usedStock + order.qty);
+      }
+    });
+
+    return shippableOrders;
+  };
+
   // 통계 데이터 계산 - 실시간으로 업데이트되는 데이터 기준
   const stats = React.useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     let overdueCount = 0;        // 출고지연
     let upcomingCount = 0;       // 출고임박 (3일 남은 것)
-    let readyToShipCount = 0;    // 바로출고 (창고 > 0)
     let noOrderCount = 0;        // 미주문 (사입 = 0 또는 "")
     let barcodeErrorCount = 0;   // 바코드 오류 (barcode = "")
-    
+
     orderData.forEach(order => {
       const barcode = order.barcode || '';
-      
+
       // 바코드 오류 체크
       if (!order.barcode || order.barcode.trim() === '') {
         barcodeErrorCount++;
       }
-      
+
       // 실시간 사입 수량 계산
       const purchaseQty = barcode ? (purchaseData.get(barcode) || 0) : 0;
-      
+
       // 미주문 체크 (사입이 0이거나 없는 경우)
       if (purchaseQty === 0) {
         noOrderCount++;
       }
-      
-      // 실시간 창고 재고 계산
-      const stockQty = barcode ? (stockData.get(barcode) || 0) : 0;
-      
-      // 출고가능 체크 (창고 재고 > 0)
-      if (stockQty > 0) {
-        readyToShipCount++;
-      }
-      
+
       // 출고 날짜 관련 체크
       if (order.order_expected_shipping_date) {
         const orderDateObj = new Date(order.order_expected_shipping_date);
         orderDateObj.setHours(0, 0, 0, 0);
-        
+
         const diffTime = orderDateObj.getTime() - today.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
+
         // 출고지연 (출고예정일이 지난 경우)
         if (diffDays < 0) {
           overdueCount++;
-        } 
+        }
         // 출고임박 (3일 이하 남은 경우, 하지만 지나지 않은 경우)
         else if (diffDays <= 3) {
           upcomingCount++;
         }
       }
     });
-    
+
+    // 실제 할당 가능한 주문 수 계산
+    const readyToShipCount = calculateActualShippableOrders(orderData);
+
     return {
       total: orderData.length,
       overdue: overdueCount,
@@ -179,55 +245,254 @@ const CoupangOrders: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   /**
-   * 창고 위치 표시 텍스트 생성 함수
+   * 바코드별 재고 할당 상태를 저장하는 컴포넌트 외부 변수
+   * (렌더링에 영향을 주지 않는 변수)
+   */
+  const stockAllocationTrackerRef = useRef<Map<string, Map<string, number>>>(new Map());
+
+  /**
+   * 창고 위치 표시 텍스트 생성 함수 (중복 할당 방지)
    * @param barcode 바코드
    * @param qty 주문 수량
-   * @returns 창고 위치 표시 텍스트
+   * @param orderSequence 주문 순서 (중복 방지를 위한 키)
+   * @returns 창고 위치 표시 텍스트 (출고 가능한 경우만)
    */
-  const generateWarehouseText = (barcode: string, qty: number): string => {
+  const generateWarehouseText = (barcode: string, qty: number, orderSequence: number): string => {
     if (!barcode || qty <= 0) return '';
-    
+
     const stockDetails = stockDetailData.get(barcode) || [];
     if (stockDetails.length === 0) return '';
-    
+
     // 재고량 기준으로 내림차순 정렬
     const sortedStocks = [...stockDetails].sort((a, b) => b.stock - a.stock);
-    
+
     if (sortedStocks.length === 0) return '';
-    
-    // 전체 재고 합계 계산
-    const totalStock = sortedStocks.reduce((sum, item) => sum + item.stock, 0);
-    
-    // qty만큼 필요한 재고를 어떻게 분배할지 계산
+
+    // 현재 바코드의 할당 상황 가져오기
+    let barcodeAllocations = stockAllocationTrackerRef.current.get(barcode);
+    if (!barcodeAllocations) {
+      barcodeAllocations = new Map<string, number>();
+      stockAllocationTrackerRef.current.set(barcode, barcodeAllocations);
+    }
+
+    // qty만큼 필요한 재고를 할당하되, 이미 할당된 재고는 제외
     let remainingQty = qty;
-    const selectedStocks: Array<{location: string, stock: number, usedQty: number}> = [];
-    
+    const selectedStocks: Array<{location: string, usedQty: number}> = [];
+
     for (const stockItem of sortedStocks) {
       if (remainingQty <= 0) break;
-      
-      const usedQty = Math.min(stockItem.stock, remainingQty);
+
+      // 이미 할당된 수량 확인
+      const alreadyAllocated = barcodeAllocations.get(stockItem.location) || 0;
+      const availableStock = Math.max(0, stockItem.stock - alreadyAllocated);
+
+      if (availableStock <= 0) continue; // 이미 모든 재고가 할당된 경우
+
+      const usedQty = Math.min(availableStock, remainingQty);
       selectedStocks.push({
         location: stockItem.location,
-        stock: stockItem.stock,
         usedQty: usedQty
       });
+
+      // 할당량 업데이트 (ref를 통해 직접 업데이트, 렌더링 트리거 없음)
+      barcodeAllocations.set(stockItem.location, alreadyAllocated + usedQty);
       remainingQty -= usedQty;
     }
-    
-    // 결과 텍스트 생성
+
+    // 출고 가능한 재고가 있는 경우만 결과 반환
+    if (selectedStocks.length === 0) {
+      return ''; // 출고할 재고가 없으면 빈 문자열 반환
+    }
+
+    // 결과 텍스트 생성 (단순 형태)
     const result = selectedStocks.map(item => {
-      if (item.stock === item.usedQty && item.usedQty < qty) {
-        // 해당 위치의 모든 재고를 사용하는 경우 (그리고 qty보다 작은 경우)
-        return `[${item.location} -> ${item.stock}]`;
-      } else if (item.stock > item.usedQty || item.usedQty === qty) {
-        // 해당 위치에 여분이 있거나, 이 위치에서 모든 qty를 충족하는 경우
-        return `[${item.location} -> ${item.stock}]`;
-      } else {
-        return `[${item.location} -> ${item.stock}]`;
+      return `[${item.location} -> ${item.usedQty}]`;
+    });
+
+    return result.join('\n');
+  };
+
+  /**
+   * 재고 할당 추적기 초기화 함수
+   */
+  const resetStockAllocationTracker = () => {
+    stockAllocationTrackerRef.current = new Map();
+  };
+
+  /**
+   * 바코드별 필요 수량을 계산하는 함수
+   */
+  const calculateRequiredQuantities = (orders: CoupangOrderData[]): Map<string, number> => {
+    const requiredQtyMap = new Map<string, number>();
+
+    orders.forEach(order => {
+      if (order.barcode) {
+        const currentQty = requiredQtyMap.get(order.barcode) || 0;
+        requiredQtyMap.set(order.barcode, currentQty + order.qty);
       }
     });
-    
-    return result.join('\n');
+
+    return requiredQtyMap;
+  };
+
+  /**
+   * 효율적인 창고 할당 로직
+   * 1. 필요한 바코드별 수량 계산
+   * 2. 창고에서 해당 수량만큼 할당 가능한지 확인
+   * 3. 할당 가능한 것만 미리 예약하여 저장
+   */
+  const handleWarehouseSearch = async () => {
+    const userId = getCurrentUserId();
+    if (!userId) {
+      alert('로그인한 사용자 정보를 찾을 수 없습니다.');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      console.log('🔍 창고 조회 시작...');
+
+      // 1단계: 현재 주문 데이터에서 바코드별 필요 수량 계산
+      const requiredQuantities = calculateRequiredQuantities(filteredOrderData.length > 0 ? filteredOrderData : orderData);
+      console.log('📊 필요 수량:', Object.fromEntries(requiredQuantities));
+
+      if (requiredQuantities.size === 0) {
+        alert('바코드가 있는 주문 데이터가 없습니다. 먼저 바코드 조회를 실행해주세요.');
+        return;
+      }
+
+      // 2단계: stocks_management에서 해당 바코드들의 재고 조회
+      const barcodes = Array.from(requiredQuantities.keys());
+      console.log(`📦 조회할 바코드: ${barcodes.length}개`);
+
+      let allStockData: any[] = [];
+      const BATCH_SIZE = 100;
+
+      // 배치별로 재고 데이터 조회
+      for (let i = 0; i < barcodes.length; i += BATCH_SIZE) {
+        const batchBarcodes = barcodes.slice(i, i + BATCH_SIZE);
+
+        const { data: batch, error } = await supabase
+          .from('stocks_management')
+          .select('barcode, stock, location')
+          .eq('user_id', userId)
+          .in('barcode', batchBarcodes)
+          .gt('stock', 0); // 재고가 0보다 큰 것만
+
+        if (error) {
+          throw new Error(`재고 데이터 조회 실패: ${error.message}`);
+        }
+
+        if (batch && batch.length > 0) {
+          allStockData = [...allStockData, ...batch];
+        }
+      }
+
+      console.log(`📋 조회된 재고 데이터: ${allStockData.length}개`);
+
+      // 3단계: 바코드별 재고를 수량 내림차순으로 정리
+      const stockByBarcode = new Map<string, Array<{location: string, stock: number}>>();
+      allStockData.forEach(item => {
+        if (!stockByBarcode.has(item.barcode)) {
+          stockByBarcode.set(item.barcode, []);
+        }
+        stockByBarcode.get(item.barcode)!.push({
+          location: item.location,
+          stock: item.stock
+        });
+      });
+
+      // 각 바코드별로 재고량 내림차순 정렬
+      stockByBarcode.forEach((stocks, barcode) => {
+        stocks.sort((a, b) => b.stock - a.stock);
+      });
+
+      // 4단계: 필요한 수량만큼 할당 계산
+      const warehouseAllocations = new Map<string, string>();
+      let totalAllocated = 0;
+      let totalRequired = 0;
+
+      requiredQuantities.forEach((requiredQty, barcode) => {
+        totalRequired += requiredQty;
+        const availableStocks = stockByBarcode.get(barcode) || [];
+
+        let remainingQty = requiredQty;
+        const allocatedLocations: string[] = [];
+
+        for (const stockItem of availableStocks) {
+          if (remainingQty <= 0) break;
+
+          const allocatedQty = Math.min(stockItem.stock, remainingQty);
+          allocatedLocations.push(`[${stockItem.location} -> ${allocatedQty}]`);
+          remainingQty -= allocatedQty;
+          totalAllocated += allocatedQty;
+        }
+
+        if (allocatedLocations.length > 0) {
+          warehouseAllocations.set(barcode, allocatedLocations.join('\n'));
+        }
+      });
+
+      // 5단계: 결과를 stockDetailData에 저장 (할당된 것만)
+      const newStockDetailData = new Map<string, Array<{location: string, stock: number}>>();
+      const newStockData = new Map<string, number>();
+
+      warehouseAllocations.forEach((allocation, barcode) => {
+        const requiredQty = requiredQuantities.get(barcode) || 0;
+        const availableStocks = stockByBarcode.get(barcode) || [];
+
+        let remainingQty = requiredQty;
+        const allocatedStocks: Array<{location: string, stock: number}> = [];
+        let totalStock = 0;
+
+        for (const stockItem of availableStocks) {
+          if (remainingQty <= 0) break;
+
+          const allocatedQty = Math.min(stockItem.stock, remainingQty);
+          allocatedStocks.push({
+            location: stockItem.location,
+            stock: allocatedQty
+          });
+          totalStock += allocatedQty;
+          remainingQty -= allocatedQty;
+        }
+
+        if (allocatedStocks.length > 0) {
+          newStockDetailData.set(barcode, allocatedStocks);
+          newStockData.set(barcode, totalStock);
+        }
+      });
+
+      // 6단계: 상태 업데이트
+      setStockDetailData(newStockDetailData);
+      setStockData(newStockData);
+
+      // 7단계: 할당 추적기 초기화 (새로운 할당을 위해)
+      resetStockAllocationTracker();
+
+      // 8단계: 결과 메시지
+      const allocatedBarcodes = warehouseAllocations.size;
+      const shortfall = totalRequired - totalAllocated;
+
+      let message = `창고 조회 완료!\n`;
+      message += `필요 수량: ${totalRequired}개\n`;
+      message += `할당 가능: ${totalAllocated}개\n`;
+      message += `할당된 바코드: ${allocatedBarcodes}/${requiredQuantities.size}개`;
+
+      if (shortfall > 0) {
+        message += `\n부족 수량: ${shortfall}개`;
+      }
+
+      alert(message);
+      console.log('✅ 창고 조회 및 할당 완료');
+
+    } catch (error) {
+      console.error('❌ 창고 조회 오류:', error);
+      alert(`창고 조회 중 오류 발생: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // 재고 데이터 로드 함수
@@ -270,21 +535,22 @@ const CoupangOrders: React.FC = () => {
         }
       }
 
-      // 바코드별 재고 합계 및 상세 정보 계산
+      // 바코드별 재고 합계 및 상세 정보 계산 (재고 > 0인 것만)
       const stockMap = new Map<string, number>();
       const stockDetailMap = new Map<string, Array<{location: string, stock: number}>>();
-      
+
       allStockData.forEach(item => {
         const barcode = item.barcode;
         const stock = item.stock || 0;
         const location = item.location || '';
-        
-        // 재고 합계 계산
-        const currentStock = stockMap.get(barcode) || 0;
-        stockMap.set(barcode, currentStock + stock);
-        
-        // 재고 상세 정보 저장 (stock이 0보다 큰 경우만)
+
+        // 재고가 0보다 큰 경우만 처리
         if (stock > 0) {
+          // 재고 합계 계산
+          const currentStock = stockMap.get(barcode) || 0;
+          stockMap.set(barcode, currentStock + stock);
+
+          // 재고 상세 정보 저장
           const currentDetails = stockDetailMap.get(barcode) || [];
           currentDetails.push({ location, stock });
           stockDetailMap.set(barcode, currentDetails);
@@ -390,8 +656,7 @@ const CoupangOrders: React.FC = () => {
         }
       }
 
-      // 재고 데이터도 함께 로드
-      await loadStockData();
+      // 주문 데이터만 로드 (창고 데이터는 별도 조회)
 
       // 계산된 필드 추가
       const processedData = calculateOrderFields(allOrderData);
@@ -464,12 +729,9 @@ const CoupangOrders: React.FC = () => {
           });
           break;
         case 'readyToShip':
-          // 출고가능: 창고 재고 > 0
-          filtered = orderData.filter(order => {
-            const barcode = order.barcode || '';
-            const stockQty = barcode ? (stockData.get(barcode) || 0) : 0;
-            return stockQty > 0;
-          });
+          // 출고가능: 실제 할당 가능한 주문들만 필터링
+          const shippableOrders = getActualShippableOrdersWithDetails(orderData);
+          filtered = shippableOrders;
           break;
         case 'noOrder':
           // 미주문: 사입이 0이거나 없는 경우
@@ -581,6 +843,9 @@ const CoupangOrders: React.FC = () => {
     }
 
     try {
+      // Excel 다운로드 시작 전 할당 추적기 초기화
+      resetStockAllocationTracker();
+
       // 컬럼 헤더를 A~AO 순서로 정의
       const headers = [
         '번호', // A
@@ -627,7 +892,7 @@ const CoupangOrders: React.FC = () => {
       ];
 
       // 데이터 준비 (각 행마다 A~AO 컬럼 순서대로)
-      const excelData = dataToDownload.map(order => [
+      const excelData = dataToDownload.map((order, index) => [
         order.number || '', // A
         order.bundle_shipping_number || '', // B
         order.order_number || '', // C
@@ -668,7 +933,7 @@ const CoupangOrders: React.FC = () => {
         order.etc || '', // AL
         order.payment_location || '', // AM
         order.delivery_type || '', // AN
-        generateWarehouseText(order.barcode || '', order.qty) // AO
+        generateWarehouseText(order.barcode || '', order.qty, order.sequence || index) // AO
       ]);
 
       // 헤더를 첫 번째 행으로 추가
@@ -1021,7 +1286,7 @@ const CoupangOrders: React.FC = () => {
       
       alert(`바코드 조회 완료!\n조회된 주문: ${orderData.length}개\n조회된 상품 (바코드 있음): ${itemData.length}개\n매칭 성공: ${updateCount}개`);
       
-      // 6. 데이터 새로고침
+      // 6. 데이터 새로고침 (바코드만 업데이트, 창고 데이터는 별도 조회)
       await loadOrderData();
       
     } catch (error) {
@@ -1156,12 +1421,19 @@ const CoupangOrders: React.FC = () => {
             >
               {isLoading ? '조회 중...' : '바코드 조회'}
             </button>
-            <button 
+            <button
               className="coupang-orders-button coupang-orders-button-info"
               onClick={calculatePurchaseQuantities}
               disabled={isLoading || isUploading}
             >
               사입 조회
+            </button>
+            <button
+              className="coupang-orders-button coupang-orders-button-warning"
+              onClick={handleWarehouseSearch}
+              disabled={isLoading || isUploading}
+            >
+              {isLoading ? '창고 조회 중...' : '창고 조회'}
             </button>
           </div>
         </div>
@@ -1299,78 +1571,83 @@ const CoupangOrders: React.FC = () => {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={11} style={{ 
-                    textAlign: 'center', 
-                    padding: '40px', 
+                  <td colSpan={11} style={{
+                    textAlign: 'center',
+                    padding: '40px',
                     color: '#666',
-                    fontSize: '16px' 
+                    fontSize: '16px'
                   }}>
                     데이터를 불러오는 중...
                   </td>
                 </tr>
               ) : filteredOrderData.length === 0 ? (
                 <tr>
-                  <td colSpan={11} style={{ 
-                    textAlign: 'center', 
-                    padding: '40px', 
+                  <td colSpan={11} style={{
+                    textAlign: 'center',
+                    padding: '40px',
                     color: '#666',
-                    fontSize: '16px' 
+                    fontSize: '16px'
                   }}>
                     {searchKeyword ? '검색 결과가 없습니다.' : '주문 데이터가 없습니다.'}
                   </td>
                 </tr>
               ) : (
-                filteredOrderData.map((order, index) => (
-                  <tr key={order.id || index}>
-                    <td style={{ textAlign: 'center' }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedOrders.has(order.id)}
-                        onChange={(e) => handleSelectOrder(order.id, e.target.checked)}
-                      />
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      {order.order_number}<br/>
-                      {order.product_id}<br/>
-                      {order.option_id}
-                    </td>
-                    <td style={{ textAlign: 'center' }}>{order.separate_shipping}</td>
-                    <td style={{ textAlign: 'center' }}>
-                      {formatDate(order.order_date)}<br/>
-                      <span style={getDateStyle(order.order_expected_shipping_date)}>
-                        {formatDate(order.order_expected_shipping_date)}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: 'left' }}>
-                      {order.item_name}<br/>
-                      {order.option_name}<br/>
-                      {order.barcode || ''}
-                    </td>
-                    <td style={{ textAlign: 'center' }}>{order.qty}</td>
-                    <td 
-                      style={{ 
-                        textAlign: 'center', 
-                        cursor: 'pointer', 
-                        color: '#000000'
-                      }}
-                      onClick={() => handleRecipientClick(order)}
-                    >
-                      {order.recipient_name}
-                    </td>
-                    <td style={{ textAlign: 'center' }}>{order.sequence || ''}</td>
-                    <td style={{ textAlign: 'center' }}>{order.total_qty || ''}</td>
-                    <td style={{ textAlign: 'center' }}>{order.purchase_qty || ''}</td>
-                    <td style={{ 
-                      textAlign: 'left', 
-                      whiteSpace: 'pre-line',
-                      fontSize: '12px',
-                      lineHeight: '1.2',
-                      padding: '4px'
-                    }}>
-                      {generateWarehouseText(order.barcode || '', order.qty)}
-                    </td>
-                  </tr>
-                ))
+                (() => {
+                  // 테이블 렌더링 시작 전 할당 추적기 초기화
+                  resetStockAllocationTracker();
+
+                  return filteredOrderData.map((order, index) => (
+                    <tr key={order.id || index}>
+                      <td style={{ textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedOrders.has(order.id)}
+                          onChange={(e) => handleSelectOrder(order.id, e.target.checked)}
+                        />
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        {order.order_number}<br/>
+                        {order.product_id}<br/>
+                        {order.option_id}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>{order.separate_shipping}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        {formatDate(order.order_date)}<br/>
+                        <span style={getDateStyle(order.order_expected_shipping_date)}>
+                          {formatDate(order.order_expected_shipping_date)}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'left' }}>
+                        {order.item_name}<br/>
+                        {order.option_name}<br/>
+                        {order.barcode || ''}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>{order.qty}</td>
+                      <td
+                        style={{
+                          textAlign: 'center',
+                          cursor: 'pointer',
+                          color: '#000000'
+                        }}
+                        onClick={() => handleRecipientClick(order)}
+                      >
+                        {order.recipient_name}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>{order.sequence || ''}</td>
+                      <td style={{ textAlign: 'center' }}>{order.total_qty || ''}</td>
+                      <td style={{ textAlign: 'center' }}>{order.purchase_qty || ''}</td>
+                      <td style={{
+                        textAlign: 'left',
+                        whiteSpace: 'pre-line',
+                        fontSize: '12px',
+                        lineHeight: '1.2',
+                        padding: '4px'
+                      }}>
+                        {generateWarehouseText(order.barcode || '', order.qty, order.sequence || index)}
+                      </td>
+                    </tr>
+                  ));
+                })()
               )}
             </tbody>
           </table>
