@@ -124,10 +124,14 @@ export const ProductTable: React.FC<ProductTableProps> = ({
           {currentData.map((row, index) => {
             const isEditing = editingCell === `input-${row.item_id}-${row.option_id || index}`;
             const uniqueKey = `${currentPage}-${index}-${row.item_id}-${row.option_id || 'no-option'}`;
+
+            // item_id가 이전 행과 다른지 확인하여 경계선 표시
+            const isNewItemGroup = index > 0 && currentData[index - 1].item_id !== row.item_id;
+
             return (
-            <tr 
+            <tr
               key={uniqueKey}
-              className={`product-list-table-row ${row.type === 'item' ? 'product-list-table-row-item' : 'product-list-table-row-option'} ${isEditing ? 'editing-active' : ''} ${shouldHighlightRow(row) ? 'product-list-table-row-green-bg' : ''}`}
+              className={`product-list-table-row ${row.type === 'item' ? 'product-list-table-row-item' : 'product-list-table-row-option'} ${isEditing ? 'editing-active' : ''} ${shouldHighlightRow(row) ? 'product-list-table-row-green-bg' : ''} ${isNewItemGroup ? 'product-list-table-row-item-border' : ''}`}
             >
               <td className="product-list-table-cell">
                 <input

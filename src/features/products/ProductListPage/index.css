@@ -930,4 +930,10 @@
 
 .product-list-table-row-green-bg:hover {
   background-color: #a3f3a3 !important; /* 호버 시 조금 더 진한 연한 초록색 */
+}
+
+/* item_id가 바뀔 때 상단 경계선 스타일 (은은하게) */
+.product-list-table-row-item-border {
+  border-top: 2px solid #e5e7eb !important; /* 연한 회색 경계선 */
+  box-shadow: 0 -1px 0 0 rgba(0, 0, 0, 0.05) !important; /* 매우 은은한 그림자 */
 } 

@@ -15,11 +15,32 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
   handlePageChange,
   transformedDataLength
 }) => {
+  // 페이지 변경 시 테이블 상단으로 스크롤하는 함수
+  const scrollToTableTop = () => {
+    const tableElement = document.querySelector('.product-list-table-section');
+    if (tableElement) {
+      tableElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }
+  };
+
+  const handlePreviousPage = () => {
+    handlePageChange(currentPage - 1);
+    scrollToTableTop();
+  };
+
+  const handleNextPage = () => {
+    handlePageChange(currentPage + 1);
+    scrollToTableTop();
+  };
+
   return (
     <div className="product-list-pagination">
       <div className="product-list-pagination-controls">
         <ActionButton
-          onClick={() => handlePageChange(currentPage - 1)}
+          onClick={handlePreviousPage}
           disabled={currentPage === 1}
           variant="default"
           className="product-list-pagination-button"
@@ -30,7 +51,7 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
           {currentPage} / {totalPages || 1}
         </span>
         <ActionButton
-          onClick={() => handlePageChange(currentPage + 1)}
+          onClick={handleNextPage}
           disabled={currentPage === totalPages || totalPages === 0}
           variant="default"
           className="product-list-pagination-button"
