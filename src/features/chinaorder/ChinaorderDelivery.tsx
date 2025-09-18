@@ -172,106 +172,74 @@ function ChinaorderDelivery() {
     <div className="product-list-container">
       {/* 페이지 헤더 */}
       <div className="product-list-page-header">
-        <h1 className="product-list-page-title">출고중</h1>
-        <ActionButton 
-          variant="success" 
+        <h1 className="product-list-page-title">출고 조회</h1>
+        <ActionButton
+          variant="success"
           onClick={handleGoogleSheetsImport}
           loading={sheetsLoading}
-          loadingText="가져오는 중..."
+          loadingText="새로고침 중..."
         >
-          구글 시트 불러오기
+          새로고침
         </ActionButton>
       </div>
 
-      {/* 통계 카드 섹션 */}
-      <div className="product-list-stats-grid">
-        <DashboardStatsCard title="전체" value={stats.total} color="default" />
-        <DashboardStatsCard title="아이템파너 아님" value={stats.notItemPartner} hasInfo={true} subtitle="쿠팡 배송 성장 20% 상품 中" color="orange" />
-        <DashboardStatsCard title="품절" value={stats.outOfStock} color="red" />
-        <DashboardStatsCard title="승인반려" value={stats.rejected} hasInfo={true} color="red" />
-        <DashboardStatsCard title="판매중" value={stats.selling} color="blue" />
-        <DashboardStatsCard title="임시저장" value={stats.tempSave} color="default" />
-      </div>
 
       {/* 검색 및 필터 섹션 */}
       <div className="product-list-filter-section">
-        <div className="product-list-filter-grid-improved">
-          {/* 판매방식 필터 */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', alignItems: 'end' }}>
+          {/* 드롭박스 1 */}
           <div>
-            <label className="product-list-label">판매방식</label>
-            <select 
-              value={sortFilter}
-              onChange={(e) => setSortFilter(e.target.value)}
-              className="product-list-select"
-            >
-              <option value="전체">전체</option>
-              <option value="로켓그로스">로켓그로스</option>
-              <option value="일반판매">일반판매</option>
-            </select>
-          </div>
-
-          {/* 노출상태 */}
-          <div>
-            <label className="product-list-label">노출상태</label>
-            <select 
-              value={selectedExposure}
-              onChange={(e) => setSelectedExposure(e.target.value)}
-              className="product-list-select"
-            >
-              <option value="전체">전체</option>
-              <option value="APPROVAL">승인</option>
-              <option value="ON_SALE">판매중</option>
-              <option value="REJECT">반려</option>
-              <option value="SUSPENSION">일시중단</option>
-            </select>
-          </div>
-
-          {/* 판매상태 */}
-          <div>
-            <label className="product-list-label">판매상태</label>
-            <select 
+            <label className="product-list-label">출고상태</label>
+            <select
               value={selectedSaleStatus}
               onChange={(e) => setSelectedSaleStatus(e.target.value)}
               className="product-list-select"
             >
               <option value="전체">전체</option>
-              <option value="ONSALE">판매중</option>
-              <option value="OUTOFSTOCK">품절</option>
-              <option value="SUSPENSION">판매중단</option>
+              <option value="출고준비">출고준비</option>
+              <option value="출고">출고</option>
             </select>
           </div>
 
-          {/* 카테고리 */}
+          {/* 드롭박스 2 */}
           <div>
-            <label className="product-list-label">카테고리</label>
-            <select 
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
+            <label className="product-list-label">출고날짜</label>
+            <select
+              value={selectedExposure}
+              onChange={(e) => setSelectedExposure(e.target.value)}
               className="product-list-select"
             >
               <option value="전체">전체</option>
+              <option value="오늘">오늘</option>
+              <option value="7일">7일</option>
+              <option value="30일">30일</option>
             </select>
           </div>
 
-          {/* 검색창 */}
-          <div className="product-list-search-container">
-            <label className="product-list-label">검색</label>
-            <div className="product-list-search-wrapper">
-              <input
-                type="text"
-                value={searchKeyword}
-                onChange={(e) => setSearchKeyword(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="검색어를 입력하세요... (Enter 키로 검색)"
-                className="product-list-search-input"
-              />
-              <button 
-                onClick={handleSearch}
-                className="product-list-search-button"
-              >
-                🔍
-              </button>
-            </div>
+          {/* 조회 버튼 */}
+          <div>
+            <button
+              onClick={handleSearch}
+              className="delivery-search-button"
+              style={{
+                position: 'static',
+                transform: 'none',
+                right: 'auto',
+                top: 'auto',
+                width: '100%',
+                height: '42px',
+                backgroundColor: '#007bff',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                transition: 'background-color 0.15s ease-in-out'
+              }}
+            >
+              조회
+            </button>
           </div>
         </div>
       </div>

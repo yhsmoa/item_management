@@ -681,4 +681,9 @@
 
 .product-list-table-row-green-bg:hover {
   background-color: #dcfce7 !important;
+}
+
+/* 출고 조회 버튼 스타일 */
+.delivery-search-button:hover {
+  background-color: #0056b3 !important;
 } 
