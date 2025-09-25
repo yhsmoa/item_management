@@ -1162,7 +1162,7 @@ const CoupangOrders: React.FC = () => {
       // 1. coupang_personal_order 테이블에서 현재 사용자의 데이터 조회 (제한 없음)
       const { data: orderData, error: orderError } = await supabase
         .from('coupang_personal_order')
-        .select('id, item_name, option_name')
+        .select('id, item_name, option_name, vendor_product_code')
         .eq('user_id', userId)
         .range(0, 99999);  // 최대 100,000개까지 조회
 
@@ -1187,7 +1187,7 @@ const CoupangOrders: React.FC = () => {
         
         const { data: batch, error: itemError } = await supabase
           .from('extract_coupang_item_all')
-          .select('item_name, option_name, barcode')
+          .select('item_name, option_name, barcode, vendor_item_id')
           .eq('user_id', userId)
           .not('barcode', 'is', null)
           .neq('barcode', '')
@@ -1219,14 +1219,36 @@ const CoupangOrders: React.FC = () => {
 
       // Map을 사용하여 빠른 검색 구현
       const itemBarcodeMap = new Map<string, string>();
+      const vendorBarcodeMap = new Map<string, string>();
+      
       itemData.forEach(item => {
-        const key = `${item.item_name}|${item.option_name}`;
-        itemBarcodeMap.set(key, item.barcode);
+        // 상품명|옵션명 조합
+        const itemKey = `${item.item_name}|${item.option_name}`;
+        itemBarcodeMap.set(itemKey, item.barcode);
+        
+        // vendor_item_id|옵션명 조합
+        if (item.vendor_item_id) {
+          const vendorKey = `${item.vendor_item_id}|${item.option_name}`;
+          vendorBarcodeMap.set(vendorKey, item.barcode);
+        }
       });
 
       /**
+       * option_name의 첫번째 공백 기준으로 순서를 변경하는 함수
+       * 예: "블루 FREE2 (66~77)" -> "FREE2 (66~77) 블루"
+       */
+      const swapFirstSpace = (optionName: string): string => {
+        const firstSpaceIndex = optionName.indexOf(' ');
+        if (firstSpaceIndex === -1) return optionName;
+        
+        const firstPart = optionName.substring(0, firstSpaceIndex);
+        const remainingPart = optionName.substring(firstSpaceIndex + 1);
+        return `${remainingPart} ${firstPart}`;
+      };
+
+      /**
        * option_name의 마지막 공백 기준으로 순서를 변경하는 함수
-       * 예: "블랙 [무릎] 66" -> "66 블랙 [무릎]"
+       * 예: "블루 FREE2 (66~77)" -> "(66~77) 블루 FREE2"
        */
       const swapLastSpace = (optionName: string): string => {
         const lastSpaceIndex = optionName.lastIndexOf(' ');
@@ -1237,21 +1259,65 @@ const CoupangOrders: React.FC = () => {
         return `${lastPart} ${firstPart}`;
       };
 
+      /**
+       * 3단계 옵션명 검색을 수행하는 함수
+       */
+      const searchWithOptionSwap = (baseKey: string, optionName: string, searchMap: Map<string, string>): { barcode: string | undefined, method: string } => {
+        // 1단계: 원본 option_name 그대로 조회
+        let barcode = searchMap.get(baseKey);
+        if (barcode) {
+          return { barcode, method: '원본' };
+        }
+        
+        // 2단계: option_name에서 첫번째 공백 기준으로 텍스트 swap하여 검색
+        const swappedFirstOptionName = swapFirstSpace(optionName);
+        const swappedFirstKey = baseKey.replace(optionName, swappedFirstOptionName);
+        barcode = searchMap.get(swappedFirstKey);
+        if (barcode) {
+          return { barcode, method: '첫번째 공백 swap' };
+        }
+        
+        // 3단계: option_name에서 마지막 공백 기준으로 텍스트 swap하여 검색
+        const swappedLastOptionName = swapLastSpace(optionName);
+        const swappedLastKey = baseKey.replace(optionName, swappedLastOptionName);
+        barcode = searchMap.get(swappedLastKey);
+        if (barcode) {
+          return { barcode, method: '마지막 공백 swap' };
+        }
+        
+        return { barcode: undefined, method: '' };
+      };
+
       // 매칭되는 바코드 찾기
       orderData.forEach(order => {
-        const key = `${order.item_name}|${order.option_name}`;
-        let barcode = itemBarcodeMap.get(key);
+        let barcode: string | undefined;
+        let foundMethod = '';
         
-        // 1차 시도: 원본 그대로 검색
-        if (!barcode) {
-          // 2차 시도: option_name 순서 변경하여 검색
-          const swappedOptionName = swapLastSpace(order.option_name);
-          const swappedKey = `${order.item_name}|${swappedOptionName}`;
-          barcode = itemBarcodeMap.get(swappedKey);
+        // 1차: 상품명|옵션명 조합으로 3단계 검색
+        const itemKey = `${order.item_name}|${order.option_name}`;
+        const itemResult = searchWithOptionSwap(itemKey, order.option_name, itemBarcodeMap);
+        
+        if (itemResult.barcode) {
+          barcode = itemResult.barcode;
+          foundMethod = `상품명 (${itemResult.method})`;
+        }
+        
+        // 2차: vendor_product_code|옵션명 조합으로 3단계 검색 (1차 실패 시)
+        if (!barcode && order.vendor_product_code) {
+          const vendorKey = `${order.vendor_product_code}|${order.option_name}`;
+          const vendorResult = searchWithOptionSwap(vendorKey, order.option_name, vendorBarcodeMap);
+          
+          if (vendorResult.barcode) {
+            barcode = vendorResult.barcode;
+            foundMethod = `업체코드 (${vendorResult.method})`;
+          }
         }
         
         if (barcode) {
           updates.push({ id: order.id, barcode });
+          console.log(`✓ 매칭 성공 (${foundMethod}): ${order.option_name} -> ${barcode}`);
+        } else {
+          console.log(`✗ 매칭 실패: ${order.option_name}`);
         }
       });
 
