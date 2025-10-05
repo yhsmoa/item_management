@@ -50,13 +50,12 @@ export const useLoadOrderInfo = () => {
     try {
       console.log(`🔍 바코드 조회 시작: ${barcode}`);
 
-      // chinaorder_googlesheet에서 user_id와 barcode로 조회 (가장 최신 데이터 1개)
+      // chinaorder_googlesheet에서 user_id와 barcode로 조회 (데이터 1개)
       const { data, error } = await supabase
         .from('chinaorder_googlesheet')
         .select('china_option1, china_option2, china_price, china_link, img_url')
         .eq('user_id', userId)
         .eq('barcode', barcode)
-        .order('created_at', { ascending: false })
         .limit(1);
 
       if (error) {
