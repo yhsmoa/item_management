@@ -11,7 +11,7 @@ import ChinaOrderListPage from '../features/chinaorder/ChinaOrderListPage';
 import StockManagement from '../features/stocks/StockManagement';
 import StocksScan from '../features/stocks/StocksScan';
 import OutboundPreparation from '../features/stocks/OutboundPreparation';
-import ChinaorderCart from '../features/chinaorder/ChinaorderCart';
+import ChinaorderCart from '../features/chinaorder/ChinaOrderCart';
 import ChinaorderConfirm from '../features/chinaorder/ChinaorderConfirm';
 import ChinaorderDelivery from '../features/chinaorder/ChinaorderDelivery';
 import ChinaorderRecords from '../features/chinaorder/ChinaorderRecords';

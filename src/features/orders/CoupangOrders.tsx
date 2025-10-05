@@ -681,6 +681,25 @@ const CoupangOrders: React.FC = () => {
     loadOrderData();
   }, []);
 
+  // orderData 로드 완료 후 자동으로 사입 조회 및 창고 조회 실행
+  useEffect(() => {
+    if (orderData.length > 0) {
+      const autoSearch = async () => {
+        console.log('📊 자동 조회 시작: 주문 데이터', orderData.length, '건');
+
+        // 1. 사입 조회 자동 실행
+        await calculatePurchaseQuantities();
+
+        // 2. 창고 조회 자동 실행
+        await handleWarehouseSearch();
+
+        console.log('✅ 자동 조회 완료');
+      };
+
+      autoSearch();
+    }
+  }, [orderData.length]); // orderData.length가 변경될 때만 실행 (최초 로드 시)
+
   // stockData나 purchaseData가 변경될 때마다 계산된 필드 업데이트
   useEffect(() => {
     if (orderData.length > 0) {

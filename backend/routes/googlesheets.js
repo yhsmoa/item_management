@@ -680,4 +680,82 @@ router.post('/import-data', async (req, res) => {
   }
 });
 
+/**
+ * 구글시트 테스트용 API - C1 셀에 텍스트 입력
+ * @route POST /api/googlesheets/test-write
+ */
+router.post('/test-write', async (req, res) => {
+  try {
+    const { user_id } = req.body;
+
+    console.log('🧪 [TEST_WRITE] 테스트 시작:', { user_id });
+
+    if (!user_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'user_id가 필요합니다.'
+      });
+    }
+
+    // 사용자 정보 조회
+    const { data: userData, error: userError } = await supabase
+      .from('users_api')
+      .select('googlesheet_id')
+      .eq('user_id', user_id)
+      .single();
+
+    if (userError || !userData) {
+      console.error('❌ [TEST_WRITE] 사용자 조회 실패:', userError);
+      return res.status(404).json({
+        success: false,
+        message: '사용자 정보를 찾을 수 없습니다.'
+      });
+    }
+
+    const googlesheet_id = userData.googlesheet_id;
+    console.log('✅ [TEST_WRITE] 구글시트 ID:', googlesheet_id);
+
+    if (!googlesheet_id) {
+      return res.status(400).json({
+        success: false,
+        message: '사용자에게 연결된 구글시트가 없습니다.'
+      });
+    }
+
+    // Google Sheets API 인증
+    const auth = getGoogleSheetsAuth();
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // C1 셀에 '입력 완료' 입력
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: googlesheet_id,
+      range: '신규!C1',
+      valueInputOption: 'RAW',
+      resource: {
+        values: [['입력 완료']]
+      },
+    });
+
+    console.log('✅ [TEST_WRITE] C1 셀에 입력 완료');
+
+    res.json({
+      success: true,
+      message: 'C1 셀에 "입력 완료" 입력 성공',
+      data: {
+        googlesheet_id,
+        range: '신규!C1',
+        value: '입력 완료'
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ [TEST_WRITE] 오류:', error);
+    res.status(500).json({
+      success: false,
+      message: '서버 오류가 발생했습니다.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 module.exports = router;

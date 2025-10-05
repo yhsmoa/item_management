@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import DashboardStatsCard from '../products/ProductListPage/components/DashboardStatsCard';
-import ActionButton from '../../components/ActionButton';
-import { useGoogleSheetsImport } from './hooks/useGoogleSheetsImport';
-import { supabase } from '../../config/supabase';
-import './ChinaorderCart.css';
+import DashboardStatsCard from '../../products/ProductListPage/components/DashboardStatsCard';
+import ActionButton from '../../../components/ActionButton';
+import { useGoogleSheetsImport } from '../hooks/useGoogleSheetsImport';
+import { supabase } from '../../../config/supabase';
+import AddOrderModal from './components/AddOrderModal';
+import './styles.css';
 
 // 임시 인터페이스 정의 (ChinaOrderData와 동일한 구조)
 interface ChinaOrderData {
@@ -71,23 +72,6 @@ function ChinaorderCart() {
   // 주문 데이터 - 빈 배열로 초기화 (다른 DB와 연동 예정)
   const [orderData, setOrderData] = useState<ChinaOrderData[]>([]);
   const [filteredOrderData, setFilteredOrderData] = useState<ChinaOrderData[]>([]);
-
-  // 🆕 입력 행 상태 관리
-  const [showInputRow, setShowInputRow] = useState(false);
-  const [inputData, setInputData] = useState<ChinaOrderData>({
-    option_id: '',
-    item_name: '',
-    option_name: '',
-    barcode: '',
-    order_quantity: 0,
-    china_option1: '',
-    china_option2: '',
-    china_price: '',
-    china_total_price: '',
-    remark: '',
-    china_link: '',
-    image_url: ''
-  });
 
   // 🆕 인라인 편집 상태 관리
   const [editingCell, setEditingCell] = useState<{ rowId: string; field: string } | null>(null);
@@ -227,7 +211,7 @@ function ChinaorderCart() {
               console.log('📋 원본 데이터:', data);
         
         // 📋 DB 컬럼명을 인터페이스에 맞게 변환
-        const transformedData = data?.map(item => ({
+        const transformedData = data?.map((item: any) => ({
           option_id: item.option_id || '',
           item_name: item.item_name || '',
           option_name: item.option_name || '',
@@ -381,28 +365,13 @@ function ChinaorderCart() {
     }
   };
 
+  // 🔧 모달 상태 관리
+  const [showAddOrderModal, setShowAddOrderModal] = useState(false);
+
   // 🔧 액션 버튼 핸들러들
   const handleAddOrder = () => {
     console.log('🛒 주문 추가하기 버튼 클릭');
-    setShowInputRow(!showInputRow);
-    
-    // 입력 행이 열릴 때 데이터 초기화
-    if (!showInputRow) {
-      setInputData({
-        option_id: '',
-        item_name: '',
-        option_name: '',
-        barcode: '',
-        order_quantity: 0,
-        china_option1: '',
-        china_option2: '',
-        china_price: '',
-        china_total_price: '',
-        remark: '',
-        china_link: '',
-        image_url: ''
-      });
-    }
+    setShowAddOrderModal(true);
   };
 
   const handleLoadInfo = async () => {
@@ -574,149 +543,6 @@ function ChinaorderCart() {
     }
   };
 
-  // 🔄 입력 데이터 업데이트 핸들러
-  const handleInputChange = (field: keyof ChinaOrderData, value: string | number) => {
-    setInputData(prev => {
-      const updated = {
-        ...prev,
-        [field]: value
-      };
-      
-      // china_price나 order_quantity가 변경되면 china_total_price 자동 계산
-      if (field === 'china_price' || field === 'order_quantity') {
-        const priceNum = parseFloat(String(field === 'china_price' ? value : updated.china_price || 0));
-        const quantityNum = Number(field === 'order_quantity' ? value : updated.order_quantity || 0);
-        const totalPrice = priceNum * quantityNum;
-        updated.china_total_price = totalPrice > 0 ? totalPrice.toString() : '';
-      }
-      
-      return updated;
-    });
-  };
-
-  // 💾 UPSERT 저장 로직 - 올바른 DB 컬럼명으로 매핑
-  const handleSaveInputData = async () => {
-    try {
-      setIsLoading(true);
-      
-      const currentUserId = getCurrentUserId();
-      if (!currentUserId) {
-        alert('로그인이 필요합니다.');
-        return;
-      }
-
-      // 필수 필드 검증
-      if (!inputData.option_id?.trim()) {
-        alert('옵션ID를 입력해주세요.');
-        return;
-      }
-
-      const today = new Date();
-      const dateString = String(today.getMonth() + 1).padStart(2, '0') + String(today.getDate()).padStart(2, '0');
-
-      // UPSERT 로직: option_id로 기존 데이터 확인
-      const { data: existingData, error: checkError } = await supabase
-        .from('chinaorder_cart')
-        .select('*')
-        .eq('user_id', currentUserId)
-        .eq('option_id', inputData.option_id)
-        .eq('date', dateString);
-
-      if (checkError) {
-        console.error('❌ 기존 데이터 확인 오류:', checkError);
-        throw checkError;
-      }
-
-      // 📋 인터페이스 → DB 컬럼명으로 변환하여 저장
-      const saveData = {
-        user_id: currentUserId,
-        date: dateString,
-        option_id: inputData.option_id,
-        item_name: inputData.item_name || '',
-        option_name: inputData.option_name || '',
-        barcode: inputData.barcode || '',
-        quantity: inputData.order_quantity || 0, // 인터페이스: order_quantity → DB: quantity
-        china_option1: inputData.china_option1 || '',
-        china_option2: inputData.china_option2 || '',
-        china_price: inputData.china_price || '',
-        china_total_price: inputData.china_total_price || '',
-        china_link: inputData.china_link || '',
-        image_url: inputData.image_url || '', // 인터페이스: image_url → DB: image_url
-        composition: inputData.remark || '' // 인터페이스: remark → DB: composition (혼용률)
-      };
-
-      let result;
-
-      if (existingData && existingData.length > 0) {
-        // UPDATE: 기존 데이터가 있으면 업데이트
-        console.log('🔄 기존 데이터 업데이트');
-        result = await supabase
-          .from('chinaorder_cart')
-          .update(saveData)
-          .eq('user_id', currentUserId)
-          .eq('option_id', inputData.option_id)
-          .eq('date', dateString);
-      } else {
-        // INSERT: 새로운 데이터 삽입
-        console.log('➕ 새로운 데이터 삽입');
-        result = await supabase
-          .from('chinaorder_cart')
-          .insert([saveData]);
-      }
-
-      if (result.error) {
-        console.error('❌ 저장 오류:', result.error);
-        throw result.error;
-      }
-
-      console.log('✅ 데이터 저장 완료');
-      
-      // 저장 완료 후 초기화 및 새로고침
-      setShowInputRow(false);
-      setInputData({
-        option_id: '',
-        item_name: '',
-        option_name: '',
-        barcode: '',
-        order_quantity: 0,
-        china_option1: '',
-        china_option2: '',
-        china_price: '',
-        china_total_price: '',
-        remark: '',
-        china_link: '',
-        image_url: ''
-      });
-      
-      // 데이터 새로고침
-      await loadOrderData();
-
-    } catch (error) {
-      console.error('❌ 저장 실패:', error);
-      alert('저장에 실패했습니다. 다시 시도해주세요.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // 🚫 입력 취소 핸들러
-  const handleCancelInput = () => {
-    setShowInputRow(false);
-    setInputData({
-      option_id: '',
-      item_name: '',
-      option_name: '',
-      barcode: '',
-      order_quantity: 0,
-      china_option1: '',
-      china_option2: '',
-      china_price: '',
-      china_total_price: '',
-      remark: '',
-      china_link: '',
-      image_url: ''
-    });
-  };
 
   const totalPages = Math.ceil(filteredOrderData.length / itemsPerPage);
   const currentTableRows = transformDataToTableRows(getCurrentPageData());
@@ -1180,241 +1006,6 @@ function ChinaorderCart() {
                   </tr>
                 );
               })}
-              
-              {/* 🆕 입력 행 */}
-              {showInputRow && (
-                <tr className="product-list-table-row" style={{ backgroundColor: '#f8f9fa', border: '2px solid #007bff' }}>
-                  <td className="product-list-table-cell" style={{ textAlign: 'center', padding: '4px' }}>
-                    <ActionButton
-                      variant="success"
-                      onClick={handleSaveInputData}
-                      disabled={isLoading || !inputData.option_id?.trim()}
-                      loading={isLoading}
-                      loadingText="저장 중..."
-                    >
-                      💾
-                    </ActionButton>
-                  </td>
-                  <td className="product-list-table-cell" style={{ padding: '4px', textAlign: 'center' }}>
-                    <input
-                      type="text"
-                      value={inputData.image_url || ''}
-                      onChange={(e) => handleInputChange('image_url', e.target.value)}
-                      placeholder="이미지 URL"
-                      style={{ 
-                        width: '100%', 
-                        fontSize: '11px', 
-                        padding: '2px', 
-                        border: '1px solid #ddd',
-                        borderRadius: '2px'
-                      }}
-                    />
-                  </td>
-                  <td className="product-list-table-cell" style={{ padding: '4px' }}>
-                    <input
-                      type="text"
-                      value={inputData.option_id || ''}
-                      onChange={(e) => handleInputChange('option_id', e.target.value)}
-                      placeholder="옵션ID*"
-                      style={{ 
-                        width: '100%', 
-                        fontSize: '11px', 
-                        padding: '2px', 
-                        border: inputData.option_id?.trim() ? '1px solid #ddd' : '2px solid #ff6b6b',
-                        borderRadius: '2px'
-                      }}
-                    />
-                  </td>
-                  <td className="product-list-table-cell" style={{ padding: '4px' }}>
-                    <input
-                      type="text"
-                      value={inputData.item_name || ''}
-                      onChange={(e) => handleInputChange('item_name', e.target.value)}
-                      placeholder="등록상품명"
-                      style={{ 
-                        width: '100%', 
-                        fontSize: '12px', 
-                        padding: '2px', 
-                        border: '1px solid #ddd',
-                        borderRadius: '2px',
-                        textAlign: 'center'
-                      }}
-                    />
-                  </td>
-                  <td className="product-list-table-cell" style={{ padding: '4px' }}>
-                    <input
-                      type="text"
-                      value={inputData.option_name || ''}
-                      onChange={(e) => handleInputChange('option_name', e.target.value)}
-                      placeholder="옵션명"
-                      style={{ 
-                        width: '100%', 
-                        fontSize: '12px', 
-                        padding: '2px', 
-                        border: '1px solid #ddd',
-                        borderRadius: '2px',
-                        textAlign: 'center'
-                      }}
-                    />
-                  </td>
-                  <td className="product-list-table-cell" style={{ padding: '4px' }}>
-                    <input
-                      type="text"
-                      value={inputData.barcode || ''}
-                      onChange={(e) => handleInputChange('barcode', e.target.value)}
-                      placeholder="바코드"
-                      style={{ 
-                        width: '100%', 
-                        fontSize: '11px', 
-                        padding: '2px', 
-                        border: '1px solid #ddd',
-                        borderRadius: '2px',
-                        textAlign: 'center'
-                      }}
-                    />
-                  </td>
-                  <td className="product-list-table-cell" style={{ padding: '4px' }}>
-                    <input
-                      type="number"
-                      value={inputData.order_quantity || ''}
-                      onChange={(e) => handleInputChange('order_quantity', parseInt(e.target.value) || 0)}
-                      placeholder="개수"
-                      min="0"
-                      style={{ 
-                        width: '100%', 
-                        fontSize: '11px', 
-                        padding: '2px', 
-                        border: '1px solid #ddd',
-                        borderRadius: '2px'
-                      }}
-                    />
-                  </td>
-                  <td className="product-list-table-cell" style={{ padding: '4px' }}>
-                    <input
-                      type="text"
-                      value={inputData.remark || ''}
-                      onChange={(e) => handleInputChange('remark', e.target.value)}
-                      placeholder="혼용률"
-                      style={{ 
-                        width: '100%', 
-                        fontSize: '11px', 
-                        padding: '2px', 
-                        border: '1px solid #ddd',
-                        borderRadius: '2px'
-                      }}
-                    />
-                  </td>
-                  <td className="product-list-table-cell" style={{ padding: '4px' }}>
-                    <input
-                      type="text"
-                      value={inputData.china_option1 || ''}
-                      onChange={(e) => handleInputChange('china_option1', e.target.value)}
-                      placeholder="중국옵션1"
-                      style={{ 
-                        width: '100%', 
-                        fontSize: '12px', 
-                        padding: '2px', 
-                        border: '1px solid #ddd',
-                        borderRadius: '2px'
-                      }}
-                    />
-                  </td>
-                  <td className="product-list-table-cell" style={{ padding: '4px' }}>
-                    <input
-                      type="text"
-                      value={inputData.china_option2 || ''}
-                      onChange={(e) => handleInputChange('china_option2', e.target.value)}
-                      placeholder="중국옵션2"
-                      style={{ 
-                        width: '100%', 
-                        fontSize: '12px', 
-                        padding: '2px', 
-                        border: '1px solid #ddd',
-                        borderRadius: '2px'
-                      }}
-                    />
-                  </td>
-                  <td className="product-list-table-cell" style={{ padding: '4px' }}>
-                    <input
-                      type="text"
-                      value={inputData.china_price || ''}
-                      onChange={(e) => handleInputChange('china_price', e.target.value)}
-                      placeholder="위안"
-                      style={{ 
-                        width: '100%', 
-                        fontSize: '11px', 
-                        padding: '2px', 
-                        border: '1px solid #ddd',
-                        borderRadius: '2px'
-                      }}
-                    />
-                  </td>
-                  <td className="product-list-table-cell" style={{ padding: '4px' }}>
-                    <input
-                      type="text"
-                      value={inputData.china_total_price || ''}
-                      onChange={(e) => handleInputChange('china_total_price', e.target.value)}
-                      placeholder="총위안"
-                      style={{ 
-                        width: '100%', 
-                        fontSize: '11px', 
-                        padding: '2px', 
-                        border: '1px solid #ddd',
-                        borderRadius: '2px'
-                      }}
-                    />
-                  </td>
-                  <td className="product-list-table-cell" style={{ padding: '4px', textAlign: 'center', fontSize: '11px' }}>
-                    -
-                  </td>
-                  <td className="product-list-table-cell" style={{ padding: '4px' }}>
-                    <input
-                      type="text"
-                      value={inputData.china_link || ''}
-                      onChange={(e) => handleInputChange('china_link', e.target.value)}
-                      placeholder="주문링크"
-                      style={{ 
-                        width: '100%', 
-                        fontSize: '11px', 
-                        padding: '2px', 
-                        border: '1px solid #ddd',
-                        borderRadius: '2px'
-                      }}
-                    />
-                  </td>
-                </tr>
-              )}
-              
-              {/* 🆕 입력 행 조작 버튼들 */}
-              {showInputRow && (
-                <tr>
-                  <td colSpan={14} style={{ padding: '8px', textAlign: 'center', backgroundColor: '#f8f9fa' }}>
-                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
-                      <ActionButton
-                        variant="success"
-                        onClick={handleSaveInputData}
-                        disabled={isLoading || !inputData.option_id?.trim()}
-                        loading={isLoading}
-                        loadingText="저장 중..."
-                      >
-                        💾 저장
-                      </ActionButton>
-                      
-                      <ActionButton
-                        variant="default"
-                        onClick={handleCancelInput}
-                        disabled={isLoading}
-                      >
-                        ❌ 취소
-                      </ActionButton>
-                      
-                      <span style={{ fontSize: '12px', color: '#666', marginLeft: '12px' }}>
-                        * 옵션ID는 필수 입력 항목입니다
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
@@ -1425,19 +1016,19 @@ function ChinaorderCart() {
       {totalPages > 1 && (
         <div className="product-list-pagination">
           <div className="product-list-pagination-controls">
-            <button 
+            <button
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage === 1}
               className="product-list-pagination-button"
             >
               이전
             </button>
-            
+
             <div className="product-list-pagination-info">
               {currentPage} / {totalPages}
             </div>
-            
-            <button 
+
+            <button
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
               className="product-list-pagination-button"
@@ -1447,6 +1038,17 @@ function ChinaorderCart() {
           </div>
         </div>
       )}
+
+      {/* 주문 추가 모달 */}
+      <AddOrderModal
+        isOpen={showAddOrderModal}
+        onClose={() => setShowAddOrderModal(false)}
+        onSave={(data) => {
+          console.log('모달에서 저장된 데이터:', data);
+          // TODO: 저장 로직 구현
+          loadOrderData();
+        }}
+      />
     </div>
   );
 }

@@ -47,7 +47,8 @@
       "Read(/D:\\project\\item_management\\src\\features\\orders/**)",
       "Read(/D:\\project\\item_management\\src\\features\\orders/**)",
       "Bash(node:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(move:*)"
     ],
     "deny": [],
     "ask": [],

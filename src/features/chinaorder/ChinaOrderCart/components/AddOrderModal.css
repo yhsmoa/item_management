@@ -1,0 +1,338 @@
+/* 모달 오버레이 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+/* 모달 컨테이너 */
+.modal-container {
+  width: 900px;
+  height: 600px;
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 모달 헤더 (저장/취소 버튼) */
+.modal-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+  background-color: white;
+}
+
+.modal-header-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.cancel-button {
+  background-color: #6b7280 !important;
+  color: white !important;
+  border-color: #6b7280 !important;
+}
+
+.cancel-button:hover {
+  background-color: #4b5563 !important;
+  border-color: #4b5563 !important;
+}
+
+/* 탭 버튼 영역 */
+.modal-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px 24px;
+  border-bottom: 2px solid #e5e7eb;
+  background-color: #f9fafb;
+}
+
+.modal-tab {
+  padding: 10px 32px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background-color: white;
+  color: #374151;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.modal-tab:hover {
+  background-color: #f3f4f6;
+  border-color: #9ca3af;
+  transform: translateY(-1px);
+}
+
+.modal-tab.active {
+  background-color: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+}
+
+/* 모달 콘텐츠 */
+.modal-content {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 주문 항목 리스트 */
+.order-items-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-bottom: 20px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 8px;
+  box-sizing: border-box;
+}
+
+/* 스크롤바 스타일 */
+.order-items-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.order-items-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.order-items-list::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.order-items-list::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* 주문 항목 행 - 2분할 레이아웃 */
+.order-item-row {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 20px;
+  padding: 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background-color: #f9fafb;
+  transition: box-shadow 0.2s ease-in-out;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.order-item-row:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* 이미지 영역 (왼쪽) */
+.order-item-image-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
+.order-item-image {
+  width: 150px;
+  height: 150px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.image-placeholder {
+  width: 140px;
+  height: 140px;
+  background-color: #e5e7eb;
+  border: 2px dashed #9ca3af;
+  border-radius: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.product-image {
+  width: 140px;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+}
+
+.delete-item-button {
+  width: 100%;
+  max-width: 140px;
+}
+
+/* 입력 폼 영역 (오른쪽) */
+.order-item-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+/* 입력 행 그룹 (3개씩 묶음) */
+.order-item-row-group {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  width: 100%;
+}
+
+/* 옵션명, 바코드, 수량 그룹 - 커스텀 비율 */
+.order-item-row-group.option-group {
+  grid-template-columns: 1.5fr 1fr 0.5fr;
+}
+
+/* 이미지 URL, 링크 URL 그룹 - 50:50 */
+.order-item-row-group.url-group {
+  grid-template-columns: 1fr 1fr;
+}
+
+/* 전체 너비 입력 필드 */
+.order-item-input-full {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s ease-in-out;
+  background-color: white;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.order-item-input-full:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+/* 일반 입력 필드 */
+.order-item-input {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s ease-in-out;
+  background-color: white;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.order-item-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+/* 추가/복사 버튼 영역 */
+.add-row-buttons {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.add-row-button,
+.copy-row-button {
+  flex: 1;
+  padding: 14px;
+  border: 2px dashed #d1d5db;
+  border-radius: 10px;
+  background-color: white;
+  color: #6b7280;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  box-sizing: border-box;
+}
+
+.add-row-button:hover,
+.copy-row-button:hover {
+  background-color: #f9fafb;
+  border-color: #9ca3af;
+  color: #374151;
+  transform: translateY(-1px);
+}
+
+/* 대량엑셀 탭 스타일 */
+.bulk-excel-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  height: 100%;
+}
+
+.bulk-excel-header {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 0;
+}
+
+.template-download-button {
+  min-width: 140px;
+}
+
+.bulk-excel-upload-area {
+  border: 2px dashed #d1d5db;
+  border-radius: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  background-color: #f9fafb;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.bulk-excel-upload-area:hover {
+  border-color: #3b82f6;
+  background-color: #eff6ff;
+}
+
+.bulk-excel-upload-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.bulk-excel-upload-area p {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.bulk-excel-upload-hint {
+  font-size: 14px !important;
+  color: #6b7280 !important;
+  margin-top: 8px !important;
+}
