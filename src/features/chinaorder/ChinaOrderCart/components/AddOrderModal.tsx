@@ -291,7 +291,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave }
                           src={item.imageUrl}
                           alt="상품 이미지"
                           className="product-image"
-                          crossOrigin="anonymous"
+                          referrerPolicy="no-referrer"
                           onError={(e) => {
                             e.currentTarget.style.display = 'none';
                             e.currentTarget.nextElementSibling?.setAttribute('style', 'display: flex');
