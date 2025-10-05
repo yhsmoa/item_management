@@ -77,34 +77,44 @@ function ChinaorderCart() {
   const [editingCell, setEditingCell] = useState<{ rowId: string; field: string } | null>(null);
   const [editValue, setEditValue] = useState<string>('');
 
-  // 컴포넌트 마운트 시 데이터 로드 (한 번만 실행)
+  // Google Sheets 직접 읽기 훅 (Supabase 저장 안함)
+  const { isLoading: sheetsLoading, handleGoogleSheetsDirectRead } = useGoogleSheetsDirectRead((data) => {
+    // 구글 시트에서 읽은 데이터를 직접 화면에 표시
+    console.log('📥 구글 시트에서 직접 읽은 데이터:', data);
+    setOrderData(data);
+    setFilteredOrderData(data);
+  });
+
+  // 컴포넌트 마운트 시 구글 시트 자동 불러오기 (한 번만 실행)
   useEffect(() => {
     console.log('🔄 ChinaorderCart 컴포넌트 마운트됨');
-    
+
     // 이미 초기 로드가 완료되었으면 건너뛰기
     if (initialLoadRef.current) {
       console.log('⚠️ 이미 초기 로드가 완료되었으므로 건너뜁니다.');
       return;
     }
-    
+
     initialLoadRef.current = true;
-    console.log('🚀 첫 번째 데이터 로드 시작');
-    loadOrderData();
-    
+    console.log('🚀 페이지 접속 시 구글 시트 자동 불러오기 시작');
+
+    // 구글 시트 자동 불러오기
+    handleGoogleSheetsDirectRead();
+
     // 🧹 cleanup 함수: 컴포넌트 언마운트 시 메모리 정리
     return () => {
       console.log('🧹 ChinaorderCart 컴포넌트 언마운트 - 메모리 정리 중...');
-      
+
       // 대용량 상태 데이터 초기화 (메모리 절약)
       setOrderData([]);
       setFilteredOrderData([]);
       setSelectedItems([]);
       setIsLoading(false);
       setSelectAll(false);
-      
+
       console.log('✅ ChinaorderCart 메모리 정리 완료');
     };
-  }, []); // 빈 의존성 배열로 한 번만 실행
+  }, [handleGoogleSheetsDirectRead]); // handleGoogleSheetsDirectRead 의존성 추가
 
   // 🔍 테이블 헤더와 열 너비 측정
   useEffect(() => {
@@ -180,14 +190,6 @@ function ChinaorderCart() {
     setFilteredOrderData([]);
     setIsLoading(false);
   };
-
-  // Google Sheets 직접 읽기 훅 (Supabase 저장 안함)
-  const { isLoading: sheetsLoading, handleGoogleSheetsDirectRead } = useGoogleSheetsDirectRead((data) => {
-    // 구글 시트에서 읽은 데이터를 직접 화면에 표시
-    console.log('📥 구글 시트에서 직접 읽은 데이터:', data);
-    setOrderData(data);
-    setFilteredOrderData(data);
-  });
 
   // 통계 계산
   const stats: Stats = {
