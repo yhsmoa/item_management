@@ -48,7 +48,8 @@
       "Read(/D:\\project\\item_management\\src\\features\\orders/**)",
       "Bash(node:*)",
       "Bash(rm:*)",
-      "Bash(move:*)"
+      "Bash(move:*)",
+      "Bash(git pull:*)"
     ],
     "deny": [],
     "ask": [],
