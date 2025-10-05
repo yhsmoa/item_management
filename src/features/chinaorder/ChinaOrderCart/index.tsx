@@ -5,7 +5,6 @@ import { useGoogleSheetsDirectRead } from '../hooks/useGoogleSheetsDirectRead';
 import { useLoadOrderInfo } from './hooks/useLoadOrderInfo';
 import { supabase } from '../../../config/supabase';
 import AddOrderModal from './components/AddOrderModal';
-import BackupOrderModal from './components/BackupOrderModal';
 import './styles.css';
 
 // 임시 인터페이스 정의 (ChinaOrderData와 동일한 구조)
@@ -904,14 +903,15 @@ function ChinaorderCart() {
         }}
       />
 
-      {/* 주문 데이터베이스 백업 모달 */}
-      <BackupOrderModal
+      {/* 주문 데이터베이스 백업 모달 - AddOrderModal을 backup 모드로 재사용 */}
+      <AddOrderModal
         isOpen={showBackupModal}
         onClose={() => setShowBackupModal(false)}
-        onSave={(data) => {
+        onSave={(data: any) => {
           console.log('백업 데이터:', data);
           // TODO: 백업 로직 구현
         }}
+        mode="backup"
       />
     </div>
   );

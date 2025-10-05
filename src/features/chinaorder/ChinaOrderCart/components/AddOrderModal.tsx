@@ -6,12 +6,15 @@ interface AddOrderModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: any) => void;
+  mode?: 'add' | 'backup'; // add: 주문 추가하기, backup: 주문 데이터베이스
+  title?: string; // 모달 타이틀 (선택적)
 }
 
 type TabType = 'single' | 'bulk' | 'coupang';
 
-const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave }) => {
-  const [activeTab, setActiveTab] = useState<TabType>('single');
+const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, mode = 'add', title }) => {
+  // mode가 'backup'이면 'bulk' 탭으로 시작, 아니면 'single'
+  const [activeTab, setActiveTab] = useState<TabType>(mode === 'backup' ? 'bulk' : 'single');
   const [productName, setProductName] = useState('');
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const coupangFileInputRef = React.useRef<HTMLInputElement>(null);
@@ -411,6 +414,12 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave }
       <div className="modal-container" onClick={(e) => e.stopPropagation()}>
         {/* 상단 버튼 영역 */}
         <div className="modal-header">
+          {/* mode가 'backup'이면 왼쪽에 문구 표시 */}
+          {mode === 'backup' && (
+            <div style={{ fontSize: '16px', fontWeight: 500, color: '#333' }}>
+              백업할 주문 엑셀 추가
+            </div>
+          )}
           <div className="modal-header-buttons">
             <ActionButton variant="default" onClick={onClose} className="cancel-button">
               취소
@@ -421,27 +430,38 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave }
           </div>
         </div>
 
-        {/* 탭 버튼 영역 */}
-        <div className="modal-tabs">
-          <button
-            className={`modal-tab ${activeTab === 'single' ? 'active' : ''}`}
-            onClick={() => setActiveTab('single')}
-          >
-            단건
-          </button>
-          <button
-            className={`modal-tab ${activeTab === 'bulk' ? 'active' : ''}`}
-            onClick={() => setActiveTab('bulk')}
-          >
-            대량엑셀
-          </button>
-          <button
-            className={`modal-tab ${activeTab === 'coupang' ? 'active' : ''}`}
-            onClick={() => setActiveTab('coupang')}
-          >
-            쿠팡엑셀
-          </button>
-        </div>
+        {/* 탭 버튼 영역 - mode가 'add'일 때만 모든 탭 표시, 'backup'이면 대량엑셀만 */}
+        {mode === 'add' ? (
+          <div className="modal-tabs">
+            <button
+              className={`modal-tab ${activeTab === 'single' ? 'active' : ''}`}
+              onClick={() => setActiveTab('single')}
+            >
+              단건
+            </button>
+            <button
+              className={`modal-tab ${activeTab === 'bulk' ? 'active' : ''}`}
+              onClick={() => setActiveTab('bulk')}
+            >
+              대량엑셀
+            </button>
+            <button
+              className={`modal-tab ${activeTab === 'coupang' ? 'active' : ''}`}
+              onClick={() => setActiveTab('coupang')}
+            >
+              쿠팡엑셀
+            </button>
+          </div>
+        ) : (
+          <div className="modal-tabs">
+            <button
+              className={`modal-tab active`}
+              onClick={() => setActiveTab('bulk')}
+            >
+              대량엑셀
+            </button>
+          </div>
+        )}
 
         {/* 단건 탭 내용 */}
         {activeTab === 'single' && (
