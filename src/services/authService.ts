@@ -7,6 +7,7 @@ export interface User {
   name: string;
   email: string;
   contact_number: string;
+  coupang_name?: string;
   created_at?: string;
   updated_at?: string;
 }

@@ -73,6 +73,7 @@ const LoginPage: React.FC = () => {
           name: result.user.name,
           email: result.user.email,
           contact_number: result.user.contact_number,
+          coupang_name: result.user.coupang_name,  // 업체명 추가
           loginTime: new Date().toISOString()
         }));
         
