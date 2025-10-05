@@ -797,4 +797,102 @@ router.post('/add-single-order', async (req, res) => {
   }
 });
 
+/**
+ * 대량엑셀 업로드 - 엑셀 데이터를 구글시트에 저장
+ * @route POST /api/googlesheets/upload-bulk-excel
+ */
+router.post('/upload-bulk-excel', async (req, res) => {
+  try {
+    const { user_id, excelData } = req.body;
+
+    console.log('📊 [UPLOAD_BULK_EXCEL] 대량엑셀 업로드 시작:', { user_id, rows_count: excelData?.length });
+
+    if (!user_id || !excelData || !Array.isArray(excelData) || excelData.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'user_id와 excelData가 필요합니다.'
+      });
+    }
+
+    // 사용자 정보 조회
+    const { data: userData, error: userError } = await supabase
+      .from('users_api')
+      .select('googlesheet_id')
+      .eq('user_id', user_id)
+      .single();
+
+    if (userError || !userData) {
+      console.error('❌ [UPLOAD_BULK_EXCEL] 사용자 조회 실패:', userError);
+      return res.status(404).json({
+        success: false,
+        message: '사용자 정보를 찾을 수 없습니다.'
+      });
+    }
+
+    const googlesheet_id = userData.googlesheet_id;
+    console.log('✅ [UPLOAD_BULK_EXCEL] 구글시트 ID:', googlesheet_id);
+
+    if (!googlesheet_id) {
+      return res.status(400).json({
+        success: false,
+        message: '사용자에게 연결된 구글시트가 없습니다.'
+      });
+    }
+
+    // Google Sheets API 인증
+    const auth = getGoogleSheetsAuth();
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // 현재 시트 데이터 확인 (다음 빈 행 찾기)
+    const range = '신규!A:L';
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: googlesheet_id,
+      range: range,
+    });
+
+    const existingData = response.data.values || [];
+    const nextRow = Math.max(2, existingData.length + 1); // 헤더 제외하고 2행부터 시작
+
+    console.log('📍 [UPLOAD_BULK_EXCEL] 다음 입력 행:', nextRow);
+
+    // 엑셀 데이터를 구글시트에 입력 (헤더 제외된 데이터)
+    const rows = excelData;
+
+    // 데이터 입력
+    const updateRange = `신규!A${nextRow}:L${nextRow + rows.length - 1}`;
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: googlesheet_id,
+      range: updateRange,
+      valueInputOption: 'USER_ENTERED',
+      resource: {
+        values: rows
+      },
+    });
+
+    console.log('✅ [UPLOAD_BULK_EXCEL] 데이터 입력 완료:', {
+      range: updateRange,
+      rows_count: rows.length
+    });
+
+    res.json({
+      success: true,
+      message: `${rows.length}개 행이 성공적으로 저장되었습니다.`,
+      data: {
+        googlesheet_id,
+        range: updateRange,
+        rows_count: rows.length,
+        next_row: nextRow
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ [UPLOAD_BULK_EXCEL] 오류:', error);
+    res.status(500).json({
+      success: false,
+      message: '서버 오류가 발생했습니다.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 module.exports = router;

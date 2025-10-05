@@ -238,13 +238,85 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave }
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    setSelectedFileName(files[0].name);
-    // TODO: 파일 업로드 처리
-    console.log('선택된 파일:', files[0].name);
+    const file = files[0];
+    setSelectedFileName(file.name);
+
+    try {
+      // 엑셀 파일 읽기
+      const XLSX = await import('xlsx');
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+
+      // '신규' 시트 읽기
+      const worksheet = workbook.Sheets['신규'];
+      if (!worksheet) {
+        alert('엑셀 파일에 "신규" 시트가 없습니다.');
+        return;
+      }
+
+      // 시트 데이터를 배열로 변환 (헤더 포함)
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+      // 1행(헤더) 제외하고 데이터만 추출
+      const dataRows = jsonData.slice(1).filter((row: any) => {
+        // 빈 행 제외 (모든 셀이 비어있는 행)
+        return row && row.some((cell: any) => cell !== undefined && cell !== null && cell !== '');
+      });
+
+      if (dataRows.length === 0) {
+        alert('엑셀 파일에 데이터가 없습니다.');
+        return;
+      }
+
+      console.log('📊 엑셀 데이터 로드:', {
+        total_rows: jsonData.length,
+        data_rows: dataRows.length,
+        sample: dataRows[0]
+      });
+
+      // 사용자 확인
+      const confirmed = window.confirm(`${dataRows.length}개 행을 구글시트에 추가하시겠습니까?`);
+      if (!confirmed) return;
+
+      // 백엔드로 데이터 전송
+      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      const userId = currentUser.id || currentUser.user_id;
+
+      if (!userId) {
+        alert('사용자 정보를 찾을 수 없습니다.');
+        return;
+      }
+
+      const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001';
+      const response = await fetch(`${backendUrl}/api/googlesheets/upload-bulk-excel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          excelData: dataRows
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert(`구글시트에 ${result.data.rows_count}개 행이 저장되었습니다!`);
+        setSelectedFileName('');
+        onClose();
+      } else {
+        alert(`저장 실패: ${result.message}`);
+      }
+
+    } catch (error) {
+      console.error('파일 처리 오류:', error);
+      alert('파일 처리 중 오류가 발생했습니다.');
+    }
   };
 
   const handleCoupangFileSelect = () => {
