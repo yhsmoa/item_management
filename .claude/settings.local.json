@@ -49,7 +49,11 @@
       "Bash(node:*)",
       "Bash(rm:*)",
       "Bash(move:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(if [ -f .env.local ])",
+      "Bash(then echo \"File exists\")",
+      "Bash(else echo \"File not found\")",
+      "Bash(fi)"
     ],
     "deny": [],
     "ask": [],
