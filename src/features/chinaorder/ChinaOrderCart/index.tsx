@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import DashboardStatsCard from '../../products/ProductListPage/components/DashboardStatsCard';
 import ActionButton from '../../../components/ActionButton';
 import { useGoogleSheetsDirectRead } from '../hooks/useGoogleSheetsDirectRead';
+import { useLoadOrderInfo } from './hooks/useLoadOrderInfo';
 import { supabase } from '../../../config/supabase';
 import AddOrderModal from './components/AddOrderModal';
 import './styles.css';
@@ -84,6 +85,9 @@ function ChinaorderCart() {
     setOrderData(data);
     setFilteredOrderData(data);
   });
+
+  // 정보 불러오기 훅 (바코드 기반으로 이전 주문 정보 조회)
+  const { isLoading: loadInfoLoading, loadOrderInfo } = useLoadOrderInfo();
 
   // 컴포넌트 마운트 시 구글 시트 자동 불러오기 (한 번만 실행)
   useEffect(() => {
@@ -300,112 +304,26 @@ function ChinaorderCart() {
     setShowAddOrderModal(true);
   };
 
+  /**
+   * 정보 불러오기 핸들러
+   * 바코드 기반으로 chinaorder_googlesheet에서 이전 주문 정보를 조회하여 현재 테이블 데이터에 반영
+   */
   const handleLoadInfo = async () => {
     console.log('📥 정보 불러오기 버튼 클릭');
-    setIsLoading(true);
-    
-    try {
-      const currentUserId = getCurrentUserId();
-      if (!currentUserId) {
-        alert('로그인이 필요합니다.');
-        return;
-      }
 
-      // 1. chinaorder_cart에서 현재 사용자의 모든 데이터 가져오기
-      const { data: cartData, error: cartError } = await supabase
-        .from('chinaorder_cart')
-        .select('*')
-        .eq('user_id', currentUserId);
-
-      if (cartError) {
-        console.error('❌ 카트 데이터 조회 오류:', cartError);
-        throw cartError;
-      }
-
-      if (!cartData || cartData.length === 0) {
-        console.log('📝 업데이트할 카트 데이터가 없습니다.');
-        return;
-      }
-
-      console.log(`📊 ${cartData.length}개의 카트 데이터를 처리합니다.`);
-      let updatedCount = 0;
-
-      // 2. 각 카트 항목의 barcode로 chinaorder_records에서 최신 정보 검색
-      for (const cartItem of cartData) {
-        if (!cartItem.barcode) {
-          console.log(`⚠️ 바코드가 없는 항목 건너뛰기: ${cartItem.option_id}`);
-          continue;
-        }
-
-        // chinaorder_records에서 해당 barcode로 검색 (china_order_number 역순)
-        const { data: recordsData, error: recordsError } = await supabase
-          .from('chinaorder_records')
-          .select('image_url, composition, china_option1, china_option2, china_price, remark, china_link')
-          .eq('barcode', cartItem.barcode)
-          .order('china_order_number', { ascending: false })
-          .limit(1); // 가장 최신 데이터 1개만
-
-        if (recordsError) {
-          console.error(`❌ 레코드 검색 오류 (barcode: ${cartItem.barcode}):`, recordsError);
-          continue;
-        }
-
-        if (!recordsData || recordsData.length === 0) {
-          console.log(`🔍 barcode ${cartItem.barcode}에 대한 레코드를 찾을 수 없습니다.`);
-          continue;
-        }
-
-        const latestRecord = recordsData[0];
-        
-        // 3. china_total_price 계산 (china_price * quantity)
-        const chinaPriceNum = parseFloat(latestRecord.china_price || '0');
-        const quantity = cartItem.quantity || 0;
-        const calculatedTotalPrice = chinaPriceNum * quantity;
-
-        // 4. 카트 데이터 업데이트
-        const updateData = {
-          image_url: latestRecord.image_url || cartItem.image_url || '',
-          composition: latestRecord.composition || cartItem.composition || '', // DB 컬럼명
-          china_option1: latestRecord.china_option1 || cartItem.china_option1 || '',
-          china_option2: latestRecord.china_option2 || cartItem.china_option2 || '',
-          china_price: latestRecord.china_price || cartItem.china_price || '',
-          china_total_price: calculatedTotalPrice.toString(),
-          china_link: latestRecord.china_link || cartItem.china_link || ''
-        };
-
-        const { error: updateError } = await supabase
-          .from('chinaorder_cart')
-          .update(updateData)
-          .eq('user_id', currentUserId)
-          .eq('option_id', cartItem.option_id)
-          .eq('date', cartItem.date);
-
-        if (updateError) {
-          console.error(`❌ 업데이트 오류 (option_id: ${cartItem.option_id}):`, updateError);
-          continue;
-        }
-
-        updatedCount++;
-        console.log(`✅ 업데이트 완료: ${cartItem.option_id} (barcode: ${cartItem.barcode})`);
-      }
-
-      console.log(`🎉 정보 불러오기 완료: ${updatedCount}개 항목 업데이트`);
-      
-      // 5. 업데이트된 데이터 다시 로드
-      await loadOrderData();
-      
-      if (updatedCount > 0) {
-        alert(`${updatedCount}개 항목의 정보가 업데이트되었습니다.`);
-      } else {
-        alert('업데이트할 정보가 없습니다.');
-      }
-
-    } catch (error) {
-      console.error('❌ 정보 불러오기 실패:', error);
-      alert('정보 불러오기에 실패했습니다. 다시 시도해주세요.');
-    } finally {
-      setIsLoading(false);
+    // 현재 테이블 데이터 확인
+    if (orderData.length === 0) {
+      alert('먼저 구글 시트에서 데이터를 불러와주세요.');
+      return;
     }
+
+    // 정보 불러오기 실행 (훅 사용)
+    await loadOrderInfo(orderData, (updatedData) => {
+      // 업데이트된 데이터로 화면 갱신
+      setOrderData(updatedData);
+      setFilteredOrderData(updatedData);
+      console.log('✅ 테이블 데이터 업데이트 완료');
+    });
   };
 
   const handleDelete = async () => {
@@ -679,7 +597,7 @@ function ChinaorderCart() {
             <ActionButton
               variant="info"
               onClick={handleLoadInfo}
-              loading={isLoading}
+              loading={loadInfoLoading}
               loadingText="불러오는 중..."
             >
               정보 불러오기
