@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import DashboardStatsCard from '../../products/ProductListPage/components/DashboardStatsCard';
 import ActionButton from '../../../components/ActionButton';
-import { useGoogleSheetsImport } from '../hooks/useGoogleSheetsImport';
+import { useGoogleSheetsDirectRead } from '../hooks/useGoogleSheetsDirectRead';
 import { supabase } from '../../../config/supabase';
 import AddOrderModal from './components/AddOrderModal';
 import './styles.css';
@@ -173,96 +173,20 @@ function ChinaorderCart() {
     }
   }, [filteredOrderData, isLoading]); // 데이터가 변경되거나 로딩이 완료될 때 측정
 
-  // 📥 주문 데이터 로드 - chinaorder_cart 테이블에서 데이터 가져오기
+  // 📥 주문 데이터 로드 - 신규주문 페이지는 구글 시트에서 직접 읽기 때문에 초기화만 수행
   const loadOrderData = async () => {
-    // useRef로 중복 호출 방지
-    if (loadingRef.current) {
-      console.log('⚠️ 이미 로딩 중이므로 중복 호출을 방지합니다.');
-      return;
-    }
-
-    try {
-      loadingRef.current = true;
-      setIsLoading(true);
-      
-      // 실제 로그인한 사용자 ID 가져오기
-      const currentUserId = getCurrentUserId();
-      if (!currentUserId) {
-        console.log('👤 사용자 ID가 없어 데이터를 로드하지 않습니다.');
-        setOrderData([]);
-        setFilteredOrderData([]);
-        return;
-      }
-
-      console.log('📥 신규주문 데이터 로드 시작 - 사용자 ID:', currentUserId);
-
-      // chinaorder_new 테이블에서 현재 사용자의 데이터 조회
-      const { data, error } = await supabase
-        .from('chinaorder_new')
-        .select('*')
-        .eq('user_id', currentUserId);
-
-      if (error) {
-        console.error('❌ 주문 데이터 로드 오류:', error);
-        throw error;
-      }
-
-      console.log('✅ 주문 데이터 로드 완료:', data?.length || 0, '개');
-              console.log('📋 원본 데이터:', data);
-        
-        // 📋 DB 컬럼명을 인터페이스에 맞게 변환
-        const transformedData = data?.map((item: any) => ({
-          option_id: item.option_id || '',
-          item_name: item.item_name || '',
-          option_name: item.option_name || '',
-          barcode: item.barcode || '',
-          order_quantity: item.order_qty || 0, // DB: order_qty
-          china_option1: item.china_option1 || '',
-          china_option2: item.china_option2 || '',
-          china_price: item.china_price || '',
-          china_total_price: item.china_total_price || '',
-          china_link: item.china_link || '',
-          image_url: item.img_url || '', // DB의 img_url 필드에서 가져오기
-          remark: item.note || item.remark || '', // DB의 note 또는 remark 필드에서 가져오기
-          // 상태 필드들 추가
-          order_status_ordering: item.order_status_ordering || '',
-          order_status_check: item.order_status_import || '', // DB: order_status_import
-          order_status_cancel: item.order_status_cancel || '',
-          order_status_shipment: item.order_status_shipment || '',
-          // 추가 필드들
-          china_order_number: item.china_order_number || '',
-          date: item.date || '',
-          confirm_order_id: item.confirm_order_id || '',
-          confirm_shipment_id: item.confirm_shipment_id || ''
-        })) || [];
-
-        console.log('📥 변환된 데이터:', transformedData);
-        console.log('📊 신규주문 데이터 개수:', transformedData.length);
-        
-        // 🔄 데이터 완전 교체 (기존 데이터 초기화 후 새 데이터 설정)
-        console.log('🔄 기존 데이터 초기화 후 새 데이터 설정');
-        setOrderData([]);
-        setFilteredOrderData([]);
-        
-        setTimeout(() => {
-          setOrderData(transformedData);
-          setFilteredOrderData(transformedData);
-          console.log('✅ 새 데이터 설정 완료:', transformedData.length, '개');
-        }, 100);
-
-    } catch (error) {
-      console.error('❌ 주문 데이터 로드 예외:', error);
-      setOrderData([]);
-      setFilteredOrderData([]);
-    } finally {
-      loadingRef.current = false;
-      setIsLoading(false);
-    }
+    console.log('📋 신규주문 페이지 초기화 - 빈 데이터로 시작');
+    setOrderData([]);
+    setFilteredOrderData([]);
+    setIsLoading(false);
   };
 
-  // Google Sheets 가져오기 훅
-  const { isLoading: sheetsLoading, handleGoogleSheetsImport } = useGoogleSheetsImport(() => {
-    loadOrderData(); // 성공 시 데이터 재로드
+  // Google Sheets 직접 읽기 훅 (Supabase 저장 안함)
+  const { isLoading: sheetsLoading, handleGoogleSheetsDirectRead } = useGoogleSheetsDirectRead((data) => {
+    // 구글 시트에서 읽은 데이터를 직접 화면에 표시
+    console.log('📥 구글 시트에서 직접 읽은 데이터:', data);
+    setOrderData(data);
+    setFilteredOrderData(data);
   });
 
   // 통계 계산
@@ -627,7 +551,7 @@ function ChinaorderCart() {
         <h1 className="product-list-page-title">신규주문</h1>
         <ActionButton
           variant="success"
-          onClick={handleGoogleSheetsImport}
+          onClick={handleGoogleSheetsDirectRead}
           loading={sheetsLoading}
           loadingText="가져오는 중..."
         >

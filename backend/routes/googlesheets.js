@@ -467,47 +467,35 @@ router.post('/import-data', async (req, res) => {
       });
     }
 
-    // 2. Google Sheets API로 '진행' 및 '신규' 시트 데이터 읽기
+    // 2. Google Sheets API로 '진행' 시트 데이터 읽기
     const auth = getGoogleSheetsAuth();
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     // '진행' 시트 데이터 읽기
     const progressResponse = await sheets.spreadsheets.values.get({
       spreadsheetId: userData.googlesheet_id,
       range: '진행!A:S', // A부터 S열까지
     });
 
-    // '신규' 시트 데이터 읽기
-    const newResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: userData.googlesheet_id,
-      range: '신규!A:S', // A부터 S열까지
-    });
-
     const progressRows = progressResponse.data.values || [];
-    const newRows = newResponse.data.values || [];
-    
-    if (progressRows.length <= 1 && newRows.length <= 1) {
+
+    if (progressRows.length <= 1) {
       return res.json({
         success: true,
         message: '가져올 데이터가 없습니다.',
-        data: { imported_count: 0, progress_count: 0, new_count: 0 }
+        data: { imported_count: 0, progress_count: 0 }
       });
     }
 
-    // 3. 기존 데이터 초기화
-    console.log('🗑️ [IMPORT_DATA] 기존 데이터 초기화 중...');
+    // 3. 기존 '진행' 데이터 초기화
+    console.log('🗑️ [IMPORT_DATA] 기존 진행 데이터 초기화 중...');
     const { error: deleteProgressError } = await supabase
       .from('chinaorder_googlesheet')
       .delete()
       .eq('user_id', user_id);
 
-    const { error: deleteNewError } = await supabase
-      .from('chinaorder_new')
-      .delete()
-      .eq('user_id', user_id);
-
-    if (deleteProgressError || deleteNewError) {
-      console.error('❌ [IMPORT_DATA] 기존 데이터 삭제 실패:', { deleteProgressError, deleteNewError });
+    if (deleteProgressError) {
+      console.error('❌ [IMPORT_DATA] 기존 데이터 삭제 실패:', deleteProgressError);
       return res.status(500).json({
         success: false,
         message: '기존 데이터 삭제 중 오류가 발생했습니다.',
@@ -542,121 +530,34 @@ router.post('/import-data', async (req, res) => {
       confirm_shipment_id: row[18] || '' // S열 (수정: 19->18)
     }));
 
-    // 5. '신규' 시트 데이터 변환 (첫 행은 헤더이므로 제외)
-    const newDataRows = newRows.slice(1);
-    console.log('🔍 [DEBUG] 신규 시트 원본 데이터:', {
-      총_행수: newRows.length,
-      데이터_행수: newDataRows.length,
-      첫번째_데이터_행: newDataRows[0],
-      두번째_데이터_행: newDataRows[1]
-    });
-    
-    // 신규 시트에서 주문번호(B열) 검증
-    const emptyOrderNumberRows = [];
-    newDataRows.forEach((row, index) => {
-      if (!row[1] || row[1].toString().trim() === '') {
-        emptyOrderNumberRows.push(index + 2); // 헤더 제외하여 실제 행 번호
-      }
-    });
-    
-    if (emptyOrderNumberRows.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: `신규 시트의 ${emptyOrderNumberRows.join(', ')}행에 주문번호(B열)를 입력해주세요.`,
-        error_code: 'EMPTY_ORDER_NUMBER',
-        empty_rows: emptyOrderNumberRows
-      });
-    }
-    
-    const newTransformedData = newDataRows.map((row, index) => {
-      const transformedRow = {
-      user_id,
-      china_order_number: row[1] || `AUTO_${Date.now()}_${index}`, // B열 - 고유값 생성
-      order_number: '', // 빈값
-      option_id: row[19] || '', // T열
-      date: row[0] || '', // A열
-      item_name: row[2] || '', // C열
-      option_name: row[3] || '', // D열
-      barcode: row[5] || '', // F열
-      order_qty: safeParseInt(row[4]), // E열
-      china_option1: row[6] || '', // G열
-      china_option2: row[7] || '', // H열
-      china_price: row[8] || null, // I열 - null 처리
-      china_total_price: row[9] || null, // J열 - null 처리
-      img_url: row[10] || '', // K열
-      china_link: row[11] || '', // L열
-      order_status_ordering: safeParseInt(row[12]), // M열
-      order_status_import: safeParseInt(row[13]), // N열
-      order_status_cancel: safeParseInt(row[14]), // O열
-      order_status_shipment: safeParseInt(row[15]), // P열
-      note: row[16] || '', // Q열 (수정: 17->16)
-      confirm_order_id: row[17] || '', // R열 (수정: 18->17)
-      confirm_shipment_id: row[18] || '' // S열 (수정: 19->18)
-      };
-      
-      // 첫 번째 행의 변환 결과 디버깅
-      if (index === 0) {
-        console.log('🔍 [DEBUG] 신규 시트 첫 행 변환:', {
-          원본_행: row,
-          order_qty_원본: row[4],
-          order_qty_변환: transformedRow.order_qty,
-          order_status_ordering_원본: row[12],
-          order_status_ordering_변환: transformedRow.order_status_ordering,
-          order_status_import_원본: row[13],
-          order_status_import_변환: transformedRow.order_status_import,
-          변환된_행: transformedRow
-        });
-      }
-      
-      return transformedRow;
-    });
-
-    // 6. Supabase에 데이터 저장
-    let progressInsertError = null;
-    let newInsertError = null;
-
-    // '진행' 데이터를 chinaorder_googlesheet에 저장
+    // 5. Supabase에 '진행' 데이터 저장
     if (progressTransformedData.length > 0) {
-      const { data: progressInsertData, error } = await supabase
+      const { error: progressInsertError } = await supabase
         .from('chinaorder_googlesheet')
         .insert(progressTransformedData);
-      progressInsertError = error;
-    }
 
-    // '신규' 데이터를 chinaorder_new에 저장  
-    if (newTransformedData.length > 0) {
-      const { data: newInsertData, error } = await supabase
-        .from('chinaorder_new')
-        .insert(newTransformedData);
-      newInsertError = error;
-    }
-
-    if (progressInsertError || newInsertError) {
-      console.error('❌ [IMPORT_DATA] 데이터베이스 저장 실패:', { progressInsertError, newInsertError });
-      return res.status(500).json({
-        success: false,
-        message: '데이터베이스 저장 중 오류가 발생했습니다.',
-        error_code: 'DATABASE_ERROR'
-      });
+      if (progressInsertError) {
+        console.error('❌ [IMPORT_DATA] 데이터베이스 저장 실패:', progressInsertError);
+        return res.status(500).json({
+          success: false,
+          message: '데이터베이스 저장 중 오류가 발생했습니다.',
+          error_code: 'DATABASE_ERROR'
+        });
+      }
     }
 
     const processingTime = Date.now() - startTime;
-    const totalImported = progressTransformedData.length + newTransformedData.length;
-    
+
     console.log('✅ [IMPORT_DATA] 데이터 가져오기 완료:', {
       progress_count: progressTransformedData.length,
-      new_count: newTransformedData.length,
-      total_imported: totalImported,
       processing_time_ms: processingTime
     });
 
     res.json({
       success: true,
-      message: `진행: ${progressTransformedData.length}개, 신규: ${newTransformedData.length}개의 데이터를 성공적으로 가져왔습니다.`,
+      message: `진행: ${progressTransformedData.length}개의 데이터를 성공적으로 가져왔습니다.`,
       data: {
         progress_count: progressTransformedData.length,
-        new_count: newTransformedData.length,
-        total_imported: totalImported,
         processing_time_ms: processingTime
       }
     });
@@ -672,6 +573,128 @@ router.post('/import-data', async (req, res) => {
     
     res.status(500).json({ 
       success: false, 
+      message: '서버 오류가 발생했습니다.',
+      error_code: 'INTERNAL_SERVER_ERROR',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      processing_time_ms: processingTime
+    });
+  }
+});
+
+/**
+ * '신규' 시트 데이터를 직접 읽어서 반환 (Supabase 저장 안함)
+ * @route POST /api/googlesheets/read-new-sheet
+ * @description 신규주문 페이지에서 구글 시트 데이터를 직접 읽기
+ */
+router.post('/read-new-sheet', async (req, res) => {
+  const startTime = Date.now();
+
+  try {
+    const { user_id } = req.body;
+
+    console.log('🎯 [READ_NEW_SHEET] 신규 시트 직접 읽기 시작:', {
+      user_id,
+      timestamp: new Date().toISOString()
+    });
+
+    if (!user_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'user_id가 필요합니다.',
+        error_code: 'INVALID_INPUT'
+      });
+    }
+
+    // 1. 사용자 정보 조회
+    const { data: userData, error: userError } = await supabase
+      .from('users_api')
+      .select('googlesheet_id')
+      .eq('user_id', user_id)
+      .single();
+
+    if (userError || !userData || !userData.googlesheet_id) {
+      return res.status(404).json({
+        success: false,
+        message: '사용자의 구글시트 정보를 찾을 수 없습니다.',
+        error_code: 'GOOGLESHEET_NOT_FOUND'
+      });
+    }
+
+    // 2. Google Sheets API로 '신규' 시트 데이터 읽기
+    const auth = getGoogleSheetsAuth();
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const newResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: userData.googlesheet_id,
+      range: '신규!A:S', // A부터 S열까지
+    });
+
+    const newRows = newResponse.data.values || [];
+
+    console.log('📊 [READ_NEW_SHEET] 신규 시트 원본 데이터:', {
+      총_행수: newRows.length,
+      첫번째_행_헤더: newRows[0]
+    });
+
+    // 헤더가 없거나 데이터가 없는 경우
+    if (newRows.length === 0) {
+      return res.json({
+        success: true,
+        message: '신규 시트가 비어있습니다.',
+        data: []
+      });
+    }
+
+    // 3. 데이터 변환 (첫 행은 헤더이므로 제외)
+    const newDataRows = newRows.slice(1);
+    const transformedData = newDataRows.map((row, index) => ({
+      china_order_number: row[1] || '', // B열
+      date: row[0] || '', // A열
+      item_name: row[2] || '', // C열
+      option_name: row[3] || '', // D열
+      order_quantity: safeParseInt(row[4]), // E열
+      barcode: row[5] || '', // F열
+      china_option1: row[6] || '', // G열
+      china_option2: row[7] || '', // H열
+      china_price: row[8] || '', // I열
+      china_total_price: row[9] || '', // J열
+      image_url: row[10] || '', // K열
+      china_link: row[11] || '', // L열
+      order_status_ordering: row[12] || '', // M열
+      order_status_check: row[13] || '', // N열
+      order_status_cancel: row[14] || '', // O열
+      order_status_shipment: row[15] || '', // P열
+      remark: row[16] || '', // Q열
+      confirm_order_id: row[17] || '', // R열
+      confirm_shipment_id: row[18] || '', // S열
+      option_id: row[19] || '' // T열
+    }));
+
+    const processingTime = Date.now() - startTime;
+
+    console.log('✅ [READ_NEW_SHEET] 신규 시트 읽기 완료:', {
+      data_count: transformedData.length,
+      processing_time_ms: processingTime
+    });
+
+    res.json({
+      success: true,
+      message: `${transformedData.length}개의 신규 데이터를 불러왔습니다.`,
+      data: transformedData,
+      processing_time_ms: processingTime
+    });
+
+  } catch (error) {
+    const processingTime = Date.now() - startTime;
+
+    console.error('❌ [READ_NEW_SHEET] 신규 시트 읽기 실패:', {
+      error: error.message,
+      stack: error.stack,
+      processing_time_ms: processingTime
+    });
+
+    res.status(500).json({
+      success: false,
       message: '서버 오류가 발생했습니다.',
       error_code: 'INTERNAL_SERVER_ERROR',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined,
