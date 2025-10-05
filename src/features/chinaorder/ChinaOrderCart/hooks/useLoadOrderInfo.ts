@@ -12,6 +12,16 @@ interface OrderInfoResult {
   china_price?: string;
   china_link?: string;
   img_url?: string;
+  note?: string;
+}
+
+interface DBOrderInfoResult {
+  china_option1?: string;
+  china_option2?: string;
+  china_price?: string;
+  china_link?: string;
+  img_url?: string;
+  note?: string;
 }
 
 export const useLoadOrderInfo = () => {
@@ -80,7 +90,56 @@ export const useLoadOrderInfo = () => {
   };
 
   /**
-   * 여러 바코드에 대해 일괄 조회
+   * 바코드로 chinaorder_googlesheet_DB에서 주문 정보 조회
+   * @param barcode - 조회할 바코드
+   * @returns 주문 정보 또는 null
+   */
+  const fetchOrderInfoFromDB = async (barcode: string): Promise<DBOrderInfoResult | null> => {
+    const userId = getCurrentUserId();
+    if (!userId) {
+      console.error('❌ 사용자 ID를 찾을 수 없습니다.');
+      return null;
+    }
+
+    if (!barcode || barcode.trim() === '') {
+      console.log('⚠️ 바코드가 비어있어 조회를 건너뜁니다.');
+      return null;
+    }
+
+    try {
+      console.log(`🔍 DB 바코드 조회 시작: ${barcode}`);
+
+      // chinaorder_googlesheet_DB에서 user_id와 barcode로 조회 (데이터 1개)
+      const { data, error } = await supabase
+        .from('chinaorder_googlesheet_DB')
+        .select('china_option1, china_option2, china_price, china_link, img_url, note')
+        .eq('user_id', userId)
+        .eq('barcode', barcode)
+        .limit(1);
+
+      if (error) {
+        console.error('❌ Supabase DB 조회 오류:', error);
+        throw error;
+      }
+
+      if (!data || data.length === 0) {
+        console.log(`📭 DB 바코드 ${barcode}에 대한 정보를 찾을 수 없습니다.`);
+        return null;
+      }
+
+      const orderInfo = data[0];
+      console.log(`✅ DB 바코드 ${barcode} 조회 성공:`, orderInfo);
+
+      return orderInfo;
+
+    } catch (error) {
+      console.error(`❌ DB 바코드 ${barcode} 조회 중 예외 발생:`, error);
+      return null;
+    }
+  };
+
+  /**
+   * 여러 바코드에 대해 일괄 조회 (두 테이블 비교)
    * @param barcodes - 조회할 바코드 배열
    * @returns 바코드를 키로 하는 주문 정보 맵
    */
@@ -93,9 +152,40 @@ export const useLoadOrderInfo = () => {
     console.log(`📦 일괄 조회 시작: ${uniqueBarcodes.length}개 바코드`);
 
     for (const barcode of uniqueBarcodes) {
-      const info = await fetchOrderInfoByBarcode(barcode);
-      if (info) {
-        resultMap.set(barcode, info);
+      // 1. chinaorder_googlesheet 조회
+      const googlesheetInfo = await fetchOrderInfoByBarcode(barcode);
+
+      // 2. chinaorder_googlesheet_DB 조회
+      const dbInfo = await fetchOrderInfoFromDB(barcode);
+
+      // 3. 비교 로직
+      if (googlesheetInfo && dbInfo) {
+        // 두 테이블 모두 데이터가 있는 경우
+        console.log(`🔄 바코드 ${barcode} 두 테이블 비교:`, {
+          googlesheet_link: googlesheetInfo.china_link,
+          db_link: dbInfo.china_link
+        });
+
+        if (googlesheetInfo.china_link === dbInfo.china_link) {
+          // china_link가 같은 경우 -> DB의 note를 비고란에 입력
+          console.log(`✅ 바코드 ${barcode}: china_link 동일 -> DB의 note 사용`);
+          resultMap.set(barcode, {
+            ...googlesheetInfo,
+            note: dbInfo.note || ''
+          });
+        } else {
+          // china_link가 다른 경우 -> googlesheet 정보 사용
+          console.log(`⚠️ 바코드 ${barcode}: china_link 다름 -> googlesheet 정보 사용`);
+          resultMap.set(barcode, googlesheetInfo);
+        }
+      } else if (googlesheetInfo) {
+        // googlesheet만 있는 경우
+        console.log(`📝 바코드 ${barcode}: googlesheet만 존재`);
+        resultMap.set(barcode, googlesheetInfo);
+      } else if (dbInfo) {
+        // DB만 있는 경우
+        console.log(`📝 바코드 ${barcode}: DB만 존재`);
+        resultMap.set(barcode, dbInfo);
       }
     }
 
@@ -144,7 +234,7 @@ export const useLoadOrderInfo = () => {
         const info = orderInfoMap.get(barcode);
         if (!info) return order;
 
-        // 정보 병합
+        // 정보 병합 (note도 포함)
         return {
           ...order,
           china_option1: info.china_option1 || order.china_option1,
@@ -152,6 +242,7 @@ export const useLoadOrderInfo = () => {
           china_price: info.china_price || order.china_price,
           china_link: info.china_link || order.china_link,
           image_url: info.img_url || order.image_url,
+          note: info.note || order.note,  // note 추가
         };
       });
 
