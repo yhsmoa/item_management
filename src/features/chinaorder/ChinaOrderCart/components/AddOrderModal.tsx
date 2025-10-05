@@ -129,7 +129,6 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave }
   };
 
   const handleDownloadTemplate = () => {
-    // XLSX 라이브러리 import 필요
     import('xlsx').then((XLSX) => {
       const wb = XLSX.utils.book_new();
 
@@ -138,18 +137,6 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave }
       ];
 
       const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-      // 헤더 스타일 설정 (회색 배경)
-      const headerStyle = {
-        fill: { fgColor: { rgb: "D3D3D3" } }
-      };
-
-      // A1부터 L1까지 헤더 셀에 스타일 적용
-      const headers = ['A1', 'B1', 'C1', 'D1', 'E1', 'F1', 'G1', 'H1', 'I1', 'J1', 'K1', 'L1'];
-      headers.forEach(cell => {
-        if (!ws[cell]) ws[cell] = {};
-        ws[cell].s = headerStyle;
-      });
 
       // 열 너비 설정
       ws['!cols'] = [
@@ -167,8 +154,30 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave }
         { wch: 30 }   // L - 사이트 url
       ];
 
+      // 스타일 적용 (A, B열 진한 회색, 나머지 헤더 연한 회색)
+      const headerCells = ['A1', 'B1', 'C1', 'D1', 'E1', 'F1', 'G1', 'H1', 'I1', 'J1', 'K1', 'L1'];
+      headerCells.forEach(cell => {
+        if (!ws[cell]) ws[cell] = { t: 's', v: '' };
+
+        // A1, B1은 진한 회색 (A9A9A9), 나머지는 연한 회색 (D3D3D3)
+        const isDarkGray = cell === 'A1' || cell === 'B1';
+        ws[cell].s = {
+          fill: {
+            patternType: 'solid',
+            fgColor: { rgb: isDarkGray ? 'A9A9A9' : 'D3D3D3' }
+          },
+          font: {
+            bold: true
+          },
+          alignment: {
+            horizontal: 'center',
+            vertical: 'center'
+          }
+        };
+      });
+
       XLSX.utils.book_append_sheet(wb, ws, '신규');
-      XLSX.writeFile(wb, '템플릿.xlsx');
+      XLSX.writeFile(wb, '템플릿.xlsx', { cellStyles: true });
     });
   };
 
@@ -182,17 +191,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave }
 
       const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-      // 헤더 스타일 설정 (회색 배경)
-      const headerStyle = {
-        fill: { fgColor: { rgb: "D3D3D3" } }
-      };
-
-      const headers = ['A1', 'B1', 'C1', 'D1', 'E1', 'F1', 'G1', 'H1', 'I1', 'J1', 'K1', 'L1'];
-      headers.forEach(cell => {
-        if (!ws[cell]) ws[cell] = {};
-        ws[cell].s = headerStyle;
-      });
-
+      // 열 너비 설정
       ws['!cols'] = [
         { wch: 12 },
         { wch: 15 },
@@ -208,8 +207,30 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave }
         { wch: 30 }
       ];
 
+      // 스타일 적용 (A, B열 진한 회색, 나머지 헤더 연한 회색)
+      const headerCells = ['A1', 'B1', 'C1', 'D1', 'E1', 'F1', 'G1', 'H1', 'I1', 'J1', 'K1', 'L1'];
+      headerCells.forEach(cell => {
+        if (!ws[cell]) ws[cell] = { t: 's', v: '' };
+
+        // A1, B1은 진한 회색 (A9A9A9), 나머지는 연한 회색 (D3D3D3)
+        const isDarkGray = cell === 'A1' || cell === 'B1';
+        ws[cell].s = {
+          fill: {
+            patternType: 'solid',
+            fgColor: { rgb: isDarkGray ? 'A9A9A9' : 'D3D3D3' }
+          },
+          font: {
+            bold: true
+          },
+          alignment: {
+            horizontal: 'center',
+            vertical: 'center'
+          }
+        };
+      });
+
       XLSX.utils.book_append_sheet(wb, ws, '신규');
-      XLSX.writeFile(wb, '템플릿.xlsx');
+      XLSX.writeFile(wb, '템플릿.xlsx', { cellStyles: true });
     });
   };
 
