@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import ActionButton from '../../../../components/ActionButton';
+import { supabase } from '../../../../config/supabase';
 import './AddOrderModal.css';
 
 interface AddOrderModalProps {
@@ -282,10 +283,10 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
       });
 
       // 사용자 확인
-      const confirmed = window.confirm(`${dataRows.length}개 행을 구글시트에 추가하시겠습니까?`);
+      const confirmed = window.confirm(`${dataRows.length}개 행을 Supabase에 저장하시겠습니까?`);
       if (!confirmed) return;
 
-      // 백엔드로 데이터 전송
+      // 현재 사용자 정보 가져오기
       const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
       const userId = currentUser.id || currentUser.user_id;
 
@@ -294,30 +295,41 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
         return;
       }
 
-      const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001';
-      const response = await fetch(`${backendUrl}/api/googlesheets/upload-bulk-excel`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          user_id: userId,
-          excelData: dataRows
-        }),
-      });
+      // 엑셀 데이터를 Supabase 형식으로 변환
+      const supabaseData = dataRows.map((row: any) => ({
+        user_id: userId,
+        item_name: row[2] || null,        // C열
+        option_name: row[3] || null,      // D열
+        order_qty: row[4] || null,        // E열
+        barcode: row[5] || null,          // F열
+        china_option1: row[6] || null,    // G열
+        china_option2: row[7] || null,    // H열
+        china_price: row[8] || null,      // I열
+        img_url: row[10] || null,         // K열
+        china_link: row[11] || null       // L열
+      }));
 
-      const result = await response.json();
+      console.log('💾 Supabase 저장 데이터:', supabaseData);
 
-      if (result.success) {
-        alert(`구글시트에 ${result.data.rows_count}개 행이 저장되었습니다!`);
-        setSelectedFileName('');
-        onClose();
-      } else {
-        alert(`저장 실패: ${result.message}`);
+      // Supabase에 데이터 삽입
+      const { data: insertedData, error } = await supabase
+        .from('chinaorder_googlesheet_DB')
+        .insert(supabaseData)
+        .select();
+
+      if (error) {
+        console.error('❌ Supabase 저장 오류:', error);
+        alert(`저장 실패: ${error.message}`);
+        return;
       }
 
+      console.log('✅ Supabase 저장 성공:', insertedData);
+      alert(`${dataRows.length}개 행이 성공적으로 저장되었습니다!`);
+      setSelectedFileName('');
+      onClose();
+
     } catch (error) {
-      console.error('파일 처리 오류:', error);
+      console.error('❌ 파일 처리 오류:', error);
       alert('파일 처리 중 오류가 발생했습니다.');
     }
   };
@@ -416,7 +428,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
         <div className="modal-header">
           {/* mode가 'backup'이면 왼쪽에 문구 표시 */}
           {mode === 'backup' && (
-            <div style={{ fontSize: '16px', fontWeight: 500, color: '#333' }}>
+            <div style={{ fontSize: '22px', fontWeight: 600, color: '#333' }}>
               백업할 주문 엑셀 추가
             </div>
           )}
