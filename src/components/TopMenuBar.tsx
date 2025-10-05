@@ -131,13 +131,13 @@ const TopMenuBar: React.FC<TopMenuBarProps> = ({ onToggleSidebar, isSidebarVisib
         {/* 사용자 정보 및 메뉴 */}
         <UserSection data-user-section>
           <UserInfo>
-            <UserName 
+            <UserName
               onClick={(e) => {
                 e.stopPropagation();
                 toggleUserMenu();
               }}
             >
-              {currentUser.name || '사용자'} 님
+              {currentUser.coupang_name || currentUser.name || '사용자'} 님
             </UserName>
           </UserInfo>
           
