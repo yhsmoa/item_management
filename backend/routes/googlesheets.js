@@ -681,19 +681,19 @@ router.post('/import-data', async (req, res) => {
 });
 
 /**
- * 구글시트 테스트용 API - C1 셀에 텍스트 입력
- * @route POST /api/googlesheets/test-write
+ * 단건 주문 데이터를 구글시트에 저장
+ * @route POST /api/googlesheets/add-single-order
  */
-router.post('/test-write', async (req, res) => {
+router.post('/add-single-order', async (req, res) => {
   try {
-    const { user_id } = req.body;
+    const { user_id, orderItems, productName } = req.body;
 
-    console.log('🧪 [TEST_WRITE] 테스트 시작:', { user_id });
+    console.log('📝 [ADD_SINGLE_ORDER] 단건 주문 저장 시작:', { user_id, items_count: orderItems?.length });
 
-    if (!user_id) {
+    if (!user_id || !orderItems || !Array.isArray(orderItems) || orderItems.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'user_id가 필요합니다.'
+        message: 'user_id와 orderItems가 필요합니다.'
       });
     }
 
@@ -705,7 +705,7 @@ router.post('/test-write', async (req, res) => {
       .single();
 
     if (userError || !userData) {
-      console.error('❌ [TEST_WRITE] 사용자 조회 실패:', userError);
+      console.error('❌ [ADD_SINGLE_ORDER] 사용자 조회 실패:', userError);
       return res.status(404).json({
         success: false,
         message: '사용자 정보를 찾을 수 없습니다.'
@@ -713,7 +713,7 @@ router.post('/test-write', async (req, res) => {
     }
 
     const googlesheet_id = userData.googlesheet_id;
-    console.log('✅ [TEST_WRITE] 구글시트 ID:', googlesheet_id);
+    console.log('✅ [ADD_SINGLE_ORDER] 구글시트 ID:', googlesheet_id);
 
     if (!googlesheet_id) {
       return res.status(400).json({
@@ -726,30 +726,69 @@ router.post('/test-write', async (req, res) => {
     const auth = getGoogleSheetsAuth();
     const sheets = google.sheets({ version: 'v4', auth });
 
-    // C1 셀에 '입력 완료' 입력
+    // 현재 시트 데이터 확인 (다음 빈 행 찾기)
+    const range = '신규!A:L';
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: googlesheet_id,
+      range: range,
+    });
+
+    const existingData = response.data.values || [];
+    const nextRow = Math.max(2, existingData.length + 1); // 헤더 제외하고 2행부터 시작
+
+    console.log('📍 [ADD_SINGLE_ORDER] 다음 입력 행:', nextRow);
+
+    // 데이터 행 생성
+    const rows = orderItems.map(item => {
+      const quantity = Number(item.quantity) || 0;
+      const unitPrice = Number(item.unitPrice) || 0;
+      const totalPrice = quantity * unitPrice;
+
+      return [
+        '',                           // A: 빈 값
+        '',                           // B: 빈 값
+        productName || '',            // C: 등록상품명
+        item.optionName || '',        // D: 옵션명
+        quantity,                     // E: 수량
+        item.barcode || '',           // F: 바코드
+        item.chinaOption1 || '',      // G: 중국옵션 1
+        item.chinaOption2 || '',      // H: 중국옵션 2
+        unitPrice,                    // I: 단가
+        totalPrice,                   // J: 총금액 (단가 * 수량)
+        item.imageUrl || '',          // K: 이미지 URL
+        item.linkUrl || ''            // L: 사이트 URL
+      ];
+    });
+
+    // 데이터 입력
+    const updateRange = `신규!A${nextRow}:L${nextRow + rows.length - 1}`;
     await sheets.spreadsheets.values.update({
       spreadsheetId: googlesheet_id,
-      range: '신규!C1',
-      valueInputOption: 'RAW',
+      range: updateRange,
+      valueInputOption: 'USER_ENTERED',
       resource: {
-        values: [['입력 완료']]
+        values: rows
       },
     });
 
-    console.log('✅ [TEST_WRITE] C1 셀에 입력 완료');
+    console.log('✅ [ADD_SINGLE_ORDER] 데이터 입력 완료:', {
+      range: updateRange,
+      rows_count: rows.length
+    });
 
     res.json({
       success: true,
-      message: 'C1 셀에 "입력 완료" 입력 성공',
+      message: `${rows.length}개 주문이 성공적으로 저장되었습니다.`,
       data: {
         googlesheet_id,
-        range: '신규!C1',
-        value: '입력 완료'
+        range: updateRange,
+        rows_count: rows.length,
+        next_row: nextRow
       }
     });
 
   } catch (error) {
-    console.error('❌ [TEST_WRITE] 오류:', error);
+    console.error('❌ [ADD_SINGLE_ORDER] 오류:', error);
     res.status(500).json({
       success: false,
       message: '서버 오류가 발생했습니다.',

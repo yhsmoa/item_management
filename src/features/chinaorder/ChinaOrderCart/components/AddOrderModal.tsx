@@ -79,7 +79,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave }
     console.log('저장할 데이터:', { productName, orderItems, activeTab });
 
     if (activeTab === 'single') {
-      // 단건 저장 - 테스트: C1 셀에 '입력 완료' 입력
+      // 단건 저장
       try {
         const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
         const userId = currentUser.id || currentUser.user_id;
@@ -89,21 +89,29 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave }
           return;
         }
 
+        // 데이터 검증
+        if (!productName) {
+          alert('등록상품명을 입력해주세요.');
+          return;
+        }
+
         const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001';
-        const response = await fetch(`${backendUrl}/api/googlesheets/test-write`, {
+        const response = await fetch(`${backendUrl}/api/googlesheets/add-single-order`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            user_id: userId
+            user_id: userId,
+            productName: productName,
+            orderItems: orderItems
           }),
         });
 
         const result = await response.json();
 
         if (result.success) {
-          alert('구글시트에 테스트 입력 완료! (C1 셀)');
+          alert(`구글시트에 ${result.data.rows_count}개 주문이 저장되었습니다!`);
           onSave({ productName, orderItems, activeTab });
           onClose();
         } else {
