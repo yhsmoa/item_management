@@ -5,6 +5,7 @@ import { useGoogleSheetsDirectRead } from '../hooks/useGoogleSheetsDirectRead';
 import { useLoadOrderInfo } from './hooks/useLoadOrderInfo';
 import { supabase } from '../../../config/supabase';
 import AddOrderModal from './components/AddOrderModal';
+import BackupOrderModal from './components/BackupOrderModal';
 import './styles.css';
 
 // 임시 인터페이스 정의 (ChinaOrderData와 동일한 구조)
@@ -297,6 +298,7 @@ function ChinaorderCart() {
 
   // 🔧 모달 상태 관리
   const [showAddOrderModal, setShowAddOrderModal] = useState(false);
+  const [showBackupModal, setShowBackupModal] = useState(false);
 
   // 🔧 액션 버튼 핸들러들
   const handleAddOrder = () => {
@@ -469,14 +471,22 @@ function ChinaorderCart() {
       {/* 페이지 헤더 */}
       <div className="product-list-page-header">
         <h1 className="product-list-page-title">신규주문</h1>
-        <ActionButton
-          variant="success"
-          onClick={handleGoogleSheetsDirectRead}
-          loading={sheetsLoading}
-          loadingText="가져오는 중..."
-        >
-          구글 시트 불러오기
-        </ActionButton>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <ActionButton
+            variant="success"
+            onClick={handleGoogleSheetsDirectRead}
+            loading={sheetsLoading}
+            loadingText="가져오는 중..."
+          >
+            구글 시트 불러오기
+          </ActionButton>
+          <ActionButton
+            variant="default"
+            onClick={() => setShowBackupModal(true)}
+          >
+            주문 데이터베이스
+          </ActionButton>
+        </div>
       </div>
 
       {/* 통계 카드 섹션 */}
@@ -891,6 +901,16 @@ function ChinaorderCart() {
           console.log('모달에서 저장된 데이터:', data);
           // TODO: 저장 로직 구현
           loadOrderData();
+        }}
+      />
+
+      {/* 주문 데이터베이스 백업 모달 */}
+      <BackupOrderModal
+        isOpen={showBackupModal}
+        onClose={() => setShowBackupModal(false)}
+        onSave={(data) => {
+          console.log('백업 데이터:', data);
+          // TODO: 백업 로직 구현
         }}
       />
     </div>
