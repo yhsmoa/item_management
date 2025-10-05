@@ -279,7 +279,23 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
       console.log('📊 엑셀 데이터 로드:', {
         total_rows: jsonData.length,
         data_rows: dataRows.length,
-        sample: dataRows[0]
+        sample: dataRows[0],
+        '헤더(0행)': jsonData[0],
+        '첫번째 데이터(1행)': dataRows[0],
+        '각 열 값': {
+          'A(0)': dataRows[0]?.[0],
+          'B(1)': dataRows[0]?.[1],
+          'C(2)-item_name': dataRows[0]?.[2],
+          'D(3)-option_name': dataRows[0]?.[3],
+          'E(4)-order_qty': dataRows[0]?.[4],
+          'F(5)-barcode': dataRows[0]?.[5],
+          'G(6)-china_option1': dataRows[0]?.[6],
+          'H(7)-china_option2': dataRows[0]?.[7],
+          'I(8)-china_price': dataRows[0]?.[8],
+          'J(9)': dataRows[0]?.[9],
+          'K(10)-img_url': dataRows[0]?.[10],
+          'L(11)-china_link': dataRows[0]?.[11]
+        }
       });
 
       // 사용자 확인
@@ -296,30 +312,53 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
       }
 
       // 엑셀 데이터를 Supabase 형식으로 변환
-      const supabaseData = dataRows.map((row: any) => ({
-        user_id: userId,
-        item_name: row[2] || null,        // C열
-        option_name: row[3] || null,      // D열
-        order_qty: row[4] || null,        // E열
-        barcode: row[5] || null,          // F열
-        china_option1: row[6] || null,    // G열
-        china_option2: row[7] || null,    // H열
-        china_price: row[8] || null,      // I열
-        img_url: row[10] || null,         // K열
-        china_link: row[11] || null       // L열
-      }));
+      const supabaseData = dataRows.map((row: any) => {
+        const barcode = row[5] ? String(row[5]).trim() : null;
+
+        return {
+          user_id: userId,
+          item_name: row[2] || null,        // C열
+          option_name: row[3] || null,      // D열
+          order_qty: row[4] || null,        // E열
+          barcode: barcode,                 // F열 (Primary Key)
+          china_option1: row[6] || null,    // G열
+          china_option2: row[7] || null,    // H열
+          china_price: row[8] || null,      // I열
+          img_url: row[10] || null,         // K열
+          china_link: row[11] || null       // L열
+        };
+      });
+
+      // barcode가 없는 행이 있는지 확인
+      const missingBarcodes = supabaseData.filter((item: any) => !item.barcode);
+      if (missingBarcodes.length > 0) {
+        alert(`바코드가 없는 행이 ${missingBarcodes.length}개 있습니다. 모든 행에 바코드(F열)가 필요합니다.`);
+        return;
+      }
 
       console.log('💾 Supabase 저장 데이터:', supabaseData);
 
-      // Supabase에 데이터 삽입
+      // Supabase에 데이터 삽입 (upsert: 중복 barcode 시 업데이트)
       const { data: insertedData, error } = await supabase
         .from('chinaorder_googlesheet_DB')
-        .insert(supabaseData)
+        .upsert(supabaseData, { onConflict: 'barcode' })
         .select();
 
       if (error) {
         console.error('❌ Supabase 저장 오류:', error);
-        alert(`저장 실패: ${error.message}`);
+        console.error('오류 상세:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+
+        // 중복 barcode 오류 처리
+        if (error.code === '23505') {
+          alert(`저장 실패: 이미 존재하는 바코드입니다.\n\n같은 바코드가 이미 데이터베이스에 있습니다. 바코드를 확인해주세요.`);
+        } else {
+          alert(`저장 실패: ${error.message}`);
+        }
         return;
       }
 
