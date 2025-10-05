@@ -942,7 +942,7 @@ router.post('/upload-coupang-excel', async (req, res) => {
     const sheets = google.sheets({ version: 'v4', auth });
 
     // 현재 시트 데이터 확인 (다음 빈 행 찾기)
-    const range = '신규!A:L';
+    const range = '신규!A:Q';
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: googlesheet_id,
       range: range,
@@ -971,12 +971,17 @@ router.post('/upload-coupang-excel', async (req, res) => {
         '',                    // I: 빈 값
         '',                    // J: 빈 값
         '',                    // K: 빈 값
-        combinedValue          // L: C & " " & AA
+        '',                    // L: 빈 값
+        '',                    // M: 빈 값
+        '',                    // N: 빈 값
+        '',                    // O: 빈 값
+        '',                    // P: 빈 값
+        combinedValue          // Q: C & " " & AA
       ];
     });
 
     // 데이터 입력
-    const updateRange = `신규!A${nextRow}:L${nextRow + rows.length - 1}`;
+    const updateRange = `신규!A${nextRow}:Q${nextRow + rows.length - 1}`;
     await sheets.spreadsheets.values.update({
       spreadsheetId: googlesheet_id,
       range: updateRange,
