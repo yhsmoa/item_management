@@ -652,7 +652,8 @@ function ChinaorderCart() {
                 <th className="chinaorder-table-header-cell chinaorder-table-header-china-option">중국옵션</th>
                 <th className="chinaorder-table-header-cell chinaorder-table-header-quantity">수량</th>
                 <th className="chinaorder-table-header-cell chinaorder-table-header-price">위안</th>
-                <th className="chinaorder-table-header-cell chinaorder-table-header-urls">이미지url/주문url</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-image-url">이미지url</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-order-url">주문url</th>
                 <th className="chinaorder-table-header-cell chinaorder-table-header-remark">비고</th>
                 <th className="chinaorder-table-header-cell chinaorder-table-header-prev-order">이전주문</th>
               </tr>
@@ -660,7 +661,7 @@ function ChinaorderCart() {
             <tbody className="chinaorder-table-body">
               {currentTableRows.length === 0 && (
                 <tr>
-                  <td colSpan={13} className="chinaorder-empty-data">
+                  <td colSpan={10} className="chinaorder-empty-data">
                     {isLoading ? '데이터를 불러오는 중...' : '데이터가 없습니다.'}
                   </td>
                 </tr>
@@ -753,12 +754,8 @@ function ChinaorderCart() {
                         {row.china_total_price && '\n' + row.china_total_price}
                       </div>
                     </td>
-                    <td className="chinaorder-table-cell-urls">
-                      <div className="chinaorder-urls-info">
-                        {row.image_url || '-'}
-                        {row.china_link && '\n' + row.china_link}
-                      </div>
-                    </td>
+                    <td className="chinaorder-table-cell-image-url">{row.image_url || '-'}</td>
+                    <td className="chinaorder-table-cell-order-url">{row.china_link || '-'}</td>
                     <td className="chinaorder-table-cell-remark">{row.note || row.remark || ''}</td>
                     <td className="chinaorder-table-cell-prev-order">-</td>
                   </tr>

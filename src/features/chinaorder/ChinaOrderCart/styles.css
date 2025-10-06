@@ -753,11 +753,20 @@
   text-align: center;
 }
 
-.chinaorder-cart-table .chinaorder-table-header-urls,
-.chinaorder-cart-table .chinaorder-table-cell-urls {
+.chinaorder-cart-table .chinaorder-table-header-image-url,
+.chinaorder-cart-table .chinaorder-table-cell-image-url {
   width: 150px;
   text-align: left;
   font-size: 12px;
+  word-break: break-all;
+}
+
+.chinaorder-cart-table .chinaorder-table-header-order-url,
+.chinaorder-cart-table .chinaorder-table-cell-order-url {
+  width: 150px;
+  text-align: left;
+  font-size: 12px;
+  word-break: break-all;
 }
 
 .chinaorder-cart-table .chinaorder-table-header-remark,
@@ -835,13 +844,6 @@
   white-space: pre-line;
   line-height: 1.2;
   font-size: 13px;
-}
-
-.chinaorder-cart-table .chinaorder-urls-info {
-  white-space: pre-line;
-  line-height: 1.3;
-  font-size: 12px;
-  word-break: break-all;
 }
 
 /* 빈 데이터 스타일 */
