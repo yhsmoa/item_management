@@ -652,7 +652,9 @@ function ChinaorderCart() {
                 <th className="chinaorder-table-header-cell chinaorder-table-header-china-option">중국옵션</th>
                 <th className="chinaorder-table-header-cell chinaorder-table-header-quantity">수량</th>
                 <th className="chinaorder-table-header-cell chinaorder-table-header-price">위안</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-urls">이미지url/주문url</th>
                 <th className="chinaorder-table-header-cell chinaorder-table-header-remark">비고</th>
+                <th className="chinaorder-table-header-cell chinaorder-table-header-prev-order">이전주문</th>
               </tr>
             </thead>
             <tbody className="chinaorder-table-body">
@@ -751,7 +753,14 @@ function ChinaorderCart() {
                         {row.china_total_price && '\n' + row.china_total_price}
                       </div>
                     </td>
+                    <td className="chinaorder-table-cell-urls">
+                      <div className="chinaorder-urls-info">
+                        {row.image_url || '-'}
+                        {row.china_link && '\n' + row.china_link}
+                      </div>
+                    </td>
                     <td className="chinaorder-table-cell-remark">{row.note || row.remark || ''}</td>
+                    <td className="chinaorder-table-cell-prev-order">-</td>
                   </tr>
                 );
               })}
