@@ -141,14 +141,51 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
   const handleSave = async () => {
     console.log('저장할 데이터:', { productName, orderItems, activeTab });
 
-    if (activeTab === 'single' || mode === 'edit') {
-      // 데이터 검증
-      if (!productName && mode !== 'edit') {
-        alert('등록상품명을 입력해주세요.');
-        return;
-      }
+    if (activeTab === 'single') {
+      // 단건 저장 - 구글 시트에 바로 저장
+      try {
+        const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+        const userId = currentUser.id || currentUser.user_id;
 
-      // 테이블에 추가/수정할 데이터 변환
+        if (!userId) {
+          alert('사용자 정보를 찾을 수 없습니다.');
+          return;
+        }
+
+        // 데이터 검증
+        if (!productName) {
+          alert('등록상품명을 입력해주세요.');
+          return;
+        }
+
+        const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001';
+        const response = await fetch(`${backendUrl}/api/googlesheets/add-single-order`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            user_id: userId,
+            productName: productName,
+            orderItems: orderItems
+          }),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          alert(`구글시트에 ${result.data.rows_count}개 주문이 저장되었습니다!`);
+          onSave({ productName, orderItems, activeTab });
+          onClose();
+        } else {
+          alert(`저장 실패: ${result.message}`);
+        }
+      } catch (error) {
+        console.error('저장 오류:', error);
+        alert('저장 중 오류가 발생했습니다.');
+      }
+    } else if (mode === 'edit') {
+      // 수정 모드 - 테이블에만 수정
       const tableData = orderItems.map(item => ({
         item_name: productName,
         option_name: item.optionName,
@@ -162,7 +199,6 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
         remark: item.remark
       }));
 
-      // 부모 컴포넌트에 데이터 전달 (테이블에 추가/수정)
       onSave({ productName, orderItems, activeTab, mode, tableData });
       onClose();
     } else {

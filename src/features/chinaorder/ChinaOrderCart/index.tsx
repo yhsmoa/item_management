@@ -819,12 +819,8 @@ function ChinaorderCart() {
         onClose={() => setShowAddOrderModal(false)}
         onSave={(data) => {
           console.log('모달에서 저장된 데이터:', data);
-          // 테이블에 데이터 추가
-          if (data.tableData && Array.isArray(data.tableData)) {
-            setOrderData(prevData => [...prevData, ...data.tableData]);
-            setFilteredOrderData(prevData => [...prevData, ...data.tableData]);
-            alert(`${data.tableData.length}개 주문이 테이블에 추가되었습니다.`);
-          }
+          // 주문 추가 후 구글 시트에서 최신 데이터 자동 불러오기
+          handleGoogleSheetsDirectRead();
         }}
       />
 
