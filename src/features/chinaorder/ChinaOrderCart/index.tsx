@@ -394,64 +394,54 @@ function ChinaorderCart() {
     });
   };
 
-  const handleDelete = async () => {
+  /**
+   * 삭제 버튼 핸들러
+   * 체크된 항목들을 테이블 데이터에서 삭제 (메모리에서만 삭제, 저장 버튼 클릭 시 구글 시트에 반영)
+   */
+  const handleDelete = () => {
     console.log('🗑️ 삭제 버튼 클릭');
     console.log('선택된 항목들:', selectedItems);
-    
+
     if (selectedItems.length === 0) {
       alert('삭제할 항목을 선택해주세요.');
       return;
     }
 
     // 삭제 확인 다이얼로그
-    const isConfirmed = window.confirm(`선택한 ${selectedItems.length}개 항목을 삭제하시겠습니까?`);
+    const isConfirmed = window.confirm(
+      `선택한 ${selectedItems.length}개 항목을 삭제하시겠습니까?\n\n` +
+      `※ 테이블에서만 삭제되며, [저장] 버튼을 클릭해야 구글 시트에 반영됩니다.`
+    );
     if (!isConfirmed) return;
 
     try {
-      setIsLoading(true);
-      console.log('🔥 삭제 실행 시작');
+      console.log('🔥 테이블 데이터 삭제 시작');
 
-      // 선택된 항목들의 option_id 추출
-      const optionIdsToDelete = selectedItems.map(itemId => {
-        const row = currentTableRows.find(r => r.id === itemId);
-        return row?.option_id;
-      }).filter(Boolean);
-
-      console.log('삭제할 옵션ID들:', optionIdsToDelete);
-
-      // DB에서 삭제
-      const { error } = await supabase
-        .from('chinaorder_cart')
-        .delete()
-        .in('option_id', optionIdsToDelete);
-
-      if (error) {
-        throw error;
-      }
-
-      console.log('✅ DB 삭제 완료');
-
-      // 로컬 상태에서도 제거
-      setOrderData(prevData => 
-        prevData.filter(item => !optionIdsToDelete.includes(item.option_id))
+      // 선택된 항목 삭제 (메모리에서만)
+      setOrderData(prevData =>
+        prevData.filter(item => {
+          const uniqueId = `${item.china_order_number || `order-${currentPage}`}-${item.option_id}`;
+          return !selectedItems.includes(uniqueId);
+        })
       );
-      
-      setFilteredOrderData(prevData => 
-        prevData.filter(item => !optionIdsToDelete.includes(item.option_id))
+
+      setFilteredOrderData(prevData =>
+        prevData.filter(item => {
+          const uniqueId = `${item.china_order_number || `order-${currentPage}`}-${item.option_id}`;
+          return !selectedItems.includes(uniqueId);
+        })
       );
 
       // 선택 상태 초기화
       setSelectedItems([]);
       setSelectAll(false);
 
-      console.log('✅ 삭제 완료:', optionIdsToDelete.length, '개 항목');
-      alert(`${optionIdsToDelete.length}개 항목이 삭제되었습니다.`);
+      console.log('✅ 테이블 데이터 삭제 완료:', selectedItems.length, '개 항목');
+      alert(`${selectedItems.length}개 항목이 삭제되었습니다.\n[저장] 버튼을 클릭하여 구글 시트에 반영하세요.`);
 
     } catch (error) {
       console.error('❌ 삭제 실패:', error);
       alert('삭제에 실패했습니다. 다시 시도해주세요.');
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -669,7 +659,7 @@ function ChinaorderCart() {
             >
               주문 추가하기
             </ActionButton>
-            
+
             <ActionButton
               variant="info"
               onClick={handleLoadInfo}
@@ -680,20 +670,20 @@ function ChinaorderCart() {
             </ActionButton>
 
             <ActionButton
+              variant="danger"
+              onClick={handleDelete}
+              disabled={selectedItems.length === 0 || isLoading}
+            >
+              삭제
+            </ActionButton>
+
+            <ActionButton
               variant="success"
               onClick={handleSaveToGoogleSheet}
               loading={isLoading}
               loadingText="저장 중..."
             >
               저장
-            </ActionButton>
-
-            <ActionButton
-              variant="danger"
-              onClick={handleDelete}
-              disabled={selectedItems.length === 0 || isLoading}
-            >
-              삭제
             </ActionButton>
           </div>
         </div>
