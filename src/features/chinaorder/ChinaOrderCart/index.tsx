@@ -352,8 +352,36 @@ function ChinaorderCart() {
       const saveResult = await saveResponse.json();
 
       if (saveResult.success) {
-        alert(`✅ ${orderData.length}개 데이터가 구글 시트에 저장되었습니다!`);
-        console.log('✅ 구글 시트 저장 성공:', saveResult);
+        console.log('✅ 구글 시트 저장 API 성공:', saveResult);
+
+        // 저장 검증: 구글 시트에서 다시 읽어서 개수 확인
+        const verifyResponse = await fetch(`${backendUrl}/api/googlesheets/read-china-orders`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            user_id: userId
+          }),
+        });
+
+        const verifyResult = await verifyResponse.json();
+
+        if (verifyResult.success) {
+          const savedCount = orderData.length;
+          const verifiedCount = verifyResult.data?.length || 0;
+
+          if (savedCount === verifiedCount) {
+            alert(`✅ ${savedCount}개 데이터가 구글 시트에 저장되었습니다!\n(저장 확인 완료)`);
+            console.log('✅ 저장 검증 성공:', { savedCount, verifiedCount });
+          } else {
+            alert(`⚠️ 저장 중 오류가 발생했습니다.\n저장 시도: ${savedCount}개\n실제 저장: ${verifiedCount}개`);
+            console.warn('⚠️ 저장 검증 실패:', { savedCount, verifiedCount });
+          }
+        } else {
+          alert(`✅ ${orderData.length}개 데이터가 저장되었습니다.\n(검증 실패: ${verifyResult.message})`);
+          console.warn('⚠️ 저장 검증 API 실패:', verifyResult);
+        }
       } else {
         throw new Error(saveResult.message || '저장 실패');
       }
