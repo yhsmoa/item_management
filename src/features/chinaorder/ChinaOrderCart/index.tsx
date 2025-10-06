@@ -652,12 +652,7 @@ function ChinaorderCart() {
                 <th className="chinaorder-table-header-cell chinaorder-table-header-china-option">중국옵션</th>
                 <th className="chinaorder-table-header-cell chinaorder-table-header-quantity">수량</th>
                 <th className="chinaorder-table-header-cell chinaorder-table-header-price">위안</th>
-                <th className="chinaorder-table-header-cell chinaorder-table-header-status">진행</th>
-                <th className="chinaorder-table-header-cell chinaorder-table-header-status">확인</th>
-                <th className="chinaorder-table-header-cell chinaorder-table-header-status">취소</th>
-                <th className="chinaorder-table-header-cell chinaorder-table-header-status">출고</th>
                 <th className="chinaorder-table-header-cell chinaorder-table-header-remark">비고</th>
-                <th className="chinaorder-table-header-cell chinaorder-table-header-confirm">출고번호</th>
               </tr>
             </thead>
             <tbody className="chinaorder-table-body">
@@ -756,41 +751,7 @@ function ChinaorderCart() {
                         {row.china_total_price && '\n' + row.china_total_price}
                       </div>
                     </td>
-                    <td className="chinaorder-table-cell-status">
-                      {row.order_status_ordering ? (
-                        <span className="chinaorder-status-badge chinaorder-status-ordering">
-                          {row.order_status_ordering}
-                        </span>
-                      ) : '-'}
-                    </td>
-                    <td className="chinaorder-table-cell-status">
-                      {row.order_status_check ? (
-                        <span className="chinaorder-status-badge chinaorder-status-check">
-                          {row.order_status_check}
-                        </span>
-                      ) : '-'}
-                    </td>
-                    <td className="chinaorder-table-cell-status">
-                      {row.order_status_cancel ? (
-                        <span className="chinaorder-status-badge chinaorder-status-cancel">
-                          {row.order_status_cancel}
-                        </span>
-                      ) : '-'}
-                    </td>
-                    <td className="chinaorder-table-cell-status">
-                      {row.order_status_shipment ? (
-                        <span className="chinaorder-status-badge chinaorder-status-shipment">
-                          {row.order_status_shipment}
-                        </span>
-                      ) : '-'}
-                    </td>
                     <td className="chinaorder-table-cell-remark">{row.note || row.remark || ''}</td>
-                    <td className="chinaorder-table-cell-confirm">
-                      <div className="chinaorder-shipment-info">
-                        {row.confirm_order_id || '-'}<br/>
-                        {row.confirm_shipment_id || '-'}
-                      </div>
-                    </td>
                   </tr>
                 );
               })}
