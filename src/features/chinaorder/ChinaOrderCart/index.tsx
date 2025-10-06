@@ -3,7 +3,6 @@ import DashboardStatsCard from '../../products/ProductListPage/components/Dashbo
 import ActionButton from '../../../components/ActionButton';
 import { useGoogleSheetsDirectRead } from '../hooks/useGoogleSheetsDirectRead';
 import { useLoadOrderInfo } from './hooks/useLoadOrderInfo';
-import { supabase } from '../../../config/supabase';
 import AddOrderModal from './components/AddOrderModal';
 import './styles.css';
 
@@ -72,10 +71,6 @@ function ChinaorderCart() {
   // 주문 데이터 - 빈 배열로 초기화 (다른 DB와 연동 예정)
   const [orderData, setOrderData] = useState<ChinaOrderData[]>([]);
   const [filteredOrderData, setFilteredOrderData] = useState<ChinaOrderData[]>([]);
-
-  // 🆕 인라인 편집 상태 관리
-  const [editingCell, setEditingCell] = useState<{ rowId: string; field: string } | null>(null);
-  const [editValue, setEditValue] = useState<string>('');
 
   // Google Sheets 직접 읽기 훅 (Supabase 저장 안함)
   const { isLoading: sheetsLoading, handleGoogleSheetsDirectRead } = useGoogleSheetsDirectRead((data) => {
@@ -471,78 +466,6 @@ function ChinaorderCart() {
   const totalPages = Math.ceil(filteredOrderData.length / itemsPerPage);
   const currentTableRows = transformDataToTableRows(getCurrentPageData());
 
-  // 🆕 인라인 편집 관련 함수들
-  const handleCellClick = (rowId: string, field: string, currentValue: any) => {
-    if (field === 'image_url') return; // 이미지 셀은 편집 불가
-    
-    setEditingCell({ rowId, field });
-    setEditValue(String(currentValue || ''));
-  };
-
-  const handleEditKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      handleSaveEdit();
-    } else if (e.key === 'Escape') {
-      setEditingCell(null);
-      setEditValue('');
-    }
-  };
-
-  const handleEditBlur = () => {
-    handleSaveEdit();
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editingCell) return;
-
-    const { rowId, field } = editingCell;
-    
-    try {
-      // DB 필드명 매핑 (인터페이스 → DB)
-      const dbFieldMap: Record<string, string> = {
-        'order_quantity': 'quantity',
-        'remark': 'composition'
-      };
-      
-      const dbField = dbFieldMap[field] || field;
-      
-      const { error } = await supabase
-        .from('chinaorder_cart')
-        .update({ [dbField]: editValue })
-        .eq('option_id', rowId);
-
-      if (error) {
-        throw error;
-      }
-
-      // 로컬 데이터 업데이트
-      setOrderData(prevData => 
-        prevData.map(item => 
-          item.option_id === rowId 
-            ? { ...item, [field]: editValue }
-            : item
-        )
-      );
-
-      // 필터된 데이터도 업데이트
-      setFilteredOrderData(prevData => 
-        prevData.map(item => 
-          item.option_id === rowId 
-            ? { ...item, [field]: editValue }
-            : item
-        )
-      );
-
-      console.log('✅ 셀 업데이트 완료:', { rowId, field, dbField, value: editValue });
-
-    } catch (error) {
-      console.error('❌ 셀 업데이트 오류:', error);
-      alert('데이터 업데이트에 실패했습니다.');
-    } finally {
-      setEditingCell(null);
-      setEditValue('');
-    }
-  };
 
   return (
     <div className="product-list-container chinaorder-cart-container">
@@ -746,58 +669,6 @@ function ChinaorderCart() {
                 </tr>
               )}
               {currentTableRows.map((row, index) => {
-                // 편집 가능한 셀을 렌더링하는 함수
-                const renderEditableCell = (field: string, value: any, style: any, isNumeric = false) => {
-                  const isEditing = editingCell?.rowId === row.option_id && editingCell?.field === field;
-                  
-                  if (isEditing) {
-                    return (
-                      <input
-                        type={isNumeric ? "number" : "text"}
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onKeyPress={handleEditKeyPress}
-                        onBlur={handleEditBlur}
-                        autoFocus
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          padding: '2px 4px',
-                          border: 'none',
-                          outline: 'none',
-                          fontSize: style.fontSize,
-                          textAlign: 'center',
-                          backgroundColor: 'transparent',
-                          fontFamily: 'inherit'
-                        }}
-                      />
-                    );
-                  }
-                  
-                  return (
-                    <div
-                      onClick={() => handleCellClick(row.option_id!, field, value)}
-                      style={{
-                        cursor: 'pointer',
-                        minHeight: '30px',
-                        width: '100%',
-                        height: '100%',
-                        boxSizing: 'border-box',
-                        padding: '4px 6px',
-                        display: 'block',
-                        fontSize: style.fontSize,
-                        textAlign: 'center',
-                        lineHeight: '1.2',
-                        wordBreak: 'break-all',
-                        whiteSpace: 'pre-wrap'
-                      }}
-                      title="클릭하여 편집"
-                    >
-                      {value || '-'}
-                    </div>
-                  );
-                };
-
                 return (
                   <tr key={row.id} className="chinaorder-table-row">
                     <td className="chinaorder-table-cell-checkbox">
@@ -866,34 +737,10 @@ function ChinaorderCart() {
                       </div>
                     </td>
                     <td className="chinaorder-table-cell-item-name">
-                      <div className="chinaorder-item-info" 
-                           onClick={() => handleCellClick(row.option_id!, 'item_name', row.item_name)}
-                           style={{ cursor: 'pointer' }}
-                           title="클릭하여 편집">
-                        {editingCell?.rowId === row.option_id && editingCell?.field === 'item_name' ? (
-                          <input
-                            type="text"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onKeyPress={handleEditKeyPress}
-                            onBlur={handleEditBlur}
-                            autoFocus
-                            style={{
-                              width: '100%',
-                              border: 'none',
-                              outline: 'none',
-                              fontSize: '13px',
-                              backgroundColor: 'transparent',
-                              fontFamily: 'inherit'
-                            }}
-                          />
-                        ) : (
-                          <>
-                            {row.item_name || '-'}
-                            {row.option_name && '\n' + row.option_name}
-                            {row.barcode && '\n' + row.barcode}
-                          </>
-                        )}
+                      <div className="chinaorder-item-info">
+                        {row.item_name || '-'}
+                        {row.option_name && '\n' + row.option_name}
+                        {row.barcode && '\n' + row.barcode}
                       </div>
                     </td>
                     <td className="chinaorder-table-cell-china-option">
