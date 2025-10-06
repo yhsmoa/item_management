@@ -958,8 +958,8 @@ function ChinaorderCart() {
         onClose={() => setShowAddOrderModal(false)}
         onSave={(data) => {
           console.log('모달에서 저장된 데이터:', data);
-          // TODO: 저장 로직 구현
-          loadOrderData();
+          // 주문 추가 후 구글 시트에서 최신 데이터 자동 불러오기
+          handleGoogleSheetsDirectRead();
         }}
       />
 
