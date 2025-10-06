@@ -755,18 +755,24 @@
 
 .chinaorder-cart-table .chinaorder-table-header-image-url,
 .chinaorder-cart-table .chinaorder-table-cell-image-url {
-  width: 150px;
+  width: 112px;
   text-align: left;
   font-size: 12px;
-  word-break: break-all;
+  max-width: 112px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chinaorder-cart-table .chinaorder-table-header-order-url,
 .chinaorder-cart-table .chinaorder-table-cell-order-url {
-  width: 150px;
+  width: 112px;
   text-align: left;
   font-size: 12px;
-  word-break: break-all;
+  max-width: 112px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chinaorder-cart-table .chinaorder-table-header-remark,
@@ -778,9 +784,20 @@
 
 .chinaorder-cart-table .chinaorder-table-header-prev-order,
 .chinaorder-cart-table .chinaorder-table-cell-prev-order {
-  width: 100px;
+  width: 175px;
   text-align: center;
   font-size: 13px;
+}
+
+/* URL 링크 스타일 */
+.chinaorder-cart-table .chinaorder-url-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.chinaorder-cart-table .chinaorder-url-link:hover {
+  text-decoration: underline;
 }
 
 /* 상품 이미지 스타일 */

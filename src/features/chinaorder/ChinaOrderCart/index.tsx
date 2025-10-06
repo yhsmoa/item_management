@@ -615,6 +615,14 @@ function ChinaorderCart() {
             </ActionButton>
 
             <ActionButton
+              variant="primary"
+              onClick={() => {/* TODO: 수정 기능 구현 */}}
+              disabled={selectedItems.length === 0 || isLoading}
+            >
+              수정
+            </ActionButton>
+
+            <ActionButton
               variant="danger"
               onClick={handleDelete}
               disabled={selectedItems.length === 0 || isLoading}
@@ -754,8 +762,30 @@ function ChinaorderCart() {
                         {row.china_total_price && '\n' + row.china_total_price}
                       </div>
                     </td>
-                    <td className="chinaorder-table-cell-image-url">{row.image_url || '-'}</td>
-                    <td className="chinaorder-table-cell-order-url">{row.china_link || '-'}</td>
+                    <td className="chinaorder-table-cell-image-url">
+                      {row.image_url && row.image_url !== '-' ? (
+                        <a
+                          href={row.image_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="chinaorder-url-link"
+                        >
+                          {row.image_url}
+                        </a>
+                      ) : '-'}
+                    </td>
+                    <td className="chinaorder-table-cell-order-url">
+                      {row.china_link && row.china_link !== '-' ? (
+                        <a
+                          href={row.china_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="chinaorder-url-link"
+                        >
+                          {row.china_link}
+                        </a>
+                      ) : '-'}
+                    </td>
                     <td className="chinaorder-table-cell-remark">{row.note || row.remark || ''}</td>
                     <td className="chinaorder-table-cell-prev-order">-</td>
                   </tr>

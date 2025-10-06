@@ -486,7 +486,12 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
       <div className="modal-container" onClick={(e) => e.stopPropagation()}>
         {/* 상단 버튼 영역 */}
         <div className="modal-header">
-          {/* mode가 'backup'이면 왼쪽에 문구 표시 */}
+          {/* 모달 타이틀 */}
+          {mode === 'add' && (
+            <div style={{ fontSize: '22px', fontWeight: 600, color: '#333' }}>
+              주문 추가하기
+            </div>
+          )}
           {mode === 'backup' && (
             <div style={{ fontSize: '22px', fontWeight: 600, color: '#333' }}>
               백업할 주문 엑셀 추가
