@@ -307,12 +307,12 @@ function ChinaorderCart() {
 
   /**
    * 저장 버튼 핸들러
-   * 현재 테이블 데이터를 구글 시트에 전체 저장
+   * 현재 테이블의 전체 데이터를 구글 시트에 저장 (추가/수정/삭제 반영)
    */
   const handleSaveToGoogleSheet = async () => {
     console.log('💾 구글 시트 저장 버튼 클릭');
 
-    if (filteredOrderData.length === 0) {
+    if (orderData.length === 0) {
       alert('저장할 데이터가 없습니다.');
       return;
     }
@@ -320,83 +320,21 @@ function ChinaorderCart() {
     try {
       setIsLoading(true);
 
-      // 1. 현재 구글 시트 데이터 읽기 (검증용)
+      // 사용자 정보 가져오기
       const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
       const userId = currentUser.id || currentUser.user_id;
 
       if (!userId) {
         alert('사용자 정보를 찾을 수 없습니다.');
+        setIsLoading(false);
         return;
       }
 
       const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001';
 
-      // 구글 시트 데이터 읽기
-      const readResponse = await fetch(`${backendUrl}/api/googlesheets/read-china-orders`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ user_id: userId }),
-      });
-
-      const readResult = await readResponse.json();
-
-      if (!readResult.success) {
-        throw new Error('구글 시트 데이터를 읽을 수 없습니다.');
-      }
-
-      const sheetData = readResult.data || [];
-      const tableData = filteredOrderData;
-
-      console.log('📊 데이터 비교:', {
-        sheet_count: sheetData.length,
-        table_count: tableData.length,
-        sheet_last: sheetData[sheetData.length - 1],
-        table_last: tableData[tableData.length - 1]
-      });
-
-      // 2. 데이터 개수 비교
-      if (sheetData.length !== tableData.length) {
-        const confirmed = window.confirm(
-          `⚠️ 데이터 개수가 다릅니다.\n\n` +
-          `구글 시트: ${sheetData.length}개\n` +
-          `현재 테이블: ${tableData.length}개\n\n` +
-          `그래도 저장하시겠습니까?`
-        );
-        if (!confirmed) {
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      // 3. 마지막 데이터 비교 (개수가 같을 때만)
-      if (sheetData.length === tableData.length && sheetData.length > 0) {
-        const sheetLast = sheetData[sheetData.length - 1];
-        const tableLast = tableData[tableData.length - 1];
-
-        const isSame =
-          sheetLast.barcode === tableLast.barcode &&
-          sheetLast.item_name === tableLast.item_name &&
-          sheetLast.china_order_number === tableLast.china_order_number;
-
-        if (!isSame) {
-          const confirmed = window.confirm(
-            `⚠️ 마지막 데이터가 일치하지 않습니다.\n\n` +
-            `구글 시트 마지막 행: ${sheetLast.barcode} - ${sheetLast.item_name}\n` +
-            `테이블 마지막 행: ${tableLast.barcode} - ${tableLast.item_name}\n\n` +
-            `그래도 저장하시겠습니까?`
-          );
-          if (!confirmed) {
-            setIsLoading(false);
-            return;
-          }
-        }
-      }
-
-      // 4. 최종 확인
+      // 최종 확인
       const finalConfirm = window.confirm(
-        `구글 시트에 ${tableData.length}개 데이터를 저장하시겠습니까?\n\n` +
+        `구글 시트에 ${orderData.length}개 데이터를 저장하시겠습니까?\n\n` +
         `⚠️ 기존 구글 시트 데이터가 모두 덮어씌워집니다.`
       );
 
@@ -405,7 +343,7 @@ function ChinaorderCart() {
         return;
       }
 
-      // 5. 구글 시트에 전체 저장
+      // 구글 시트에 전체 저장
       const saveResponse = await fetch(`${backendUrl}/api/googlesheets/save-all-china-orders`, {
         method: 'POST',
         headers: {
@@ -413,21 +351,22 @@ function ChinaorderCart() {
         },
         body: JSON.stringify({
           user_id: userId,
-          orders: tableData
+          orders: orderData
         }),
       });
 
       const saveResult = await saveResponse.json();
 
       if (saveResult.success) {
-        alert(`✅ ${tableData.length}개 데이터가 구글 시트에 저장되었습니다!`);
+        alert(`✅ ${orderData.length}개 데이터가 구글 시트에 저장되었습니다!`);
+        console.log('✅ 구글 시트 저장 성공:', saveResult);
       } else {
-        alert(`저장 실패: ${saveResult.message}`);
+        throw new Error(saveResult.message || '저장 실패');
       }
 
     } catch (error) {
       console.error('❌ 구글 시트 저장 오류:', error);
-      alert('저장 중 오류가 발생했습니다.');
+      alert(`저장 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
     } finally {
       setIsLoading(false);
     }
