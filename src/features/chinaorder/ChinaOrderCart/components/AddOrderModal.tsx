@@ -702,15 +702,13 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
                     </div>
 
                     {/* 비고 */}
-                    <div className="order-item-row-group">
-                      <input
-                        type="text"
-                        className="order-item-input-full"
-                        placeholder="비고"
-                        value={item.remark}
-                        onChange={(e) => handleItemChange(item.id, 'remark', e.target.value)}
-                      />
-                    </div>
+                    <input
+                      type="text"
+                      className="order-item-input-full"
+                      placeholder="비고"
+                      value={item.remark}
+                      onChange={(e) => handleItemChange(item.id, 'remark', e.target.value)}
+                    />
                   </div>
                 </div>
               ))}
