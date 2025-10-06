@@ -53,7 +53,11 @@
       "Bash(if [ -f .env.local ])",
       "Bash(then echo \"File exists\")",
       "Bash(else echo \"File not found\")",
-      "Bash(fi)"
+      "Bash(fi)",
+      "Bash(findstr:*)",
+      "Bash(if [ -f nul ])",
+      "Bash(then rm nul)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "ask": [],

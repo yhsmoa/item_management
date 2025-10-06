@@ -67,7 +67,6 @@ function ChinaorderCart() {
   const [isLoading, setIsLoading] = useState(false);
   
   // 📝 중복 로딩 방지를 위한 ref
-  const loadingRef = useRef(false);
   const initialLoadRef = useRef(false);
   
   // 주문 데이터 - 빈 배열로 초기화 (다른 DB와 연동 예정)
@@ -282,19 +281,6 @@ function ChinaorderCart() {
     return filteredOrderData.slice(startIndex, endIndex);
   };
 
-  // 현재 사용자 ID 가져오기
-  const getCurrentUserId = () => {
-    try {
-      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
-      console.log('👤 localStorage에서 가져온 사용자 정보:', currentUser);
-      console.log('👤 사용자 ID:', currentUser.id);
-      return currentUser.id || null;
-    } catch (error) {
-      console.error('❌ 사용자 정보 읽기 오류:', error);
-      return null;
-    }
-  };
-
   // 🔧 모달 상태 관리
   const [showAddOrderModal, setShowAddOrderModal] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
@@ -419,15 +405,15 @@ function ChinaorderCart() {
 
       // 선택된 항목 삭제 (메모리에서만)
       setOrderData(prevData =>
-        prevData.filter(item => {
-          const uniqueId = `${item.china_order_number || `order-${currentPage}`}-${item.option_id}`;
+        prevData.filter((item, index) => {
+          const uniqueId = `${item.china_order_number || `order-${currentPage}-${index}`}-${item.option_id || index}`;
           return !selectedItems.includes(uniqueId);
         })
       );
 
       setFilteredOrderData(prevData =>
-        prevData.filter(item => {
-          const uniqueId = `${item.china_order_number || `order-${currentPage}`}-${item.option_id}`;
+        prevData.filter((item, index) => {
+          const uniqueId = `${item.china_order_number || `order-${currentPage}-${index}`}-${item.option_id || index}`;
           return !selectedItems.includes(uniqueId);
         })
       );
