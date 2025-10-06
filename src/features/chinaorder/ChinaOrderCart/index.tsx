@@ -590,17 +590,18 @@ function ChinaorderCart() {
             <ActionButton
               variant="orange"
               onClick={() => {
-                // 첫 번째 선택된 항목만 수정 (단건 수정)
+                // 선택된 모든 항목을 수정
                 if (selectedItems.length > 0) {
-                  const selectedId = selectedItems[0];
                   const currentPageData = getCurrentPageData();
-                  const selectedItem = currentPageData.find((item, index) => {
-                    const uniqueId = `${item.china_order_number || `order-${currentPage}-${index}`}-${item.option_id || index}`;
-                    return uniqueId === selectedId;
-                  });
+                  const selectedItemsData = selectedItems.map(selectedId => {
+                    return currentPageData.find((item, index) => {
+                      const uniqueId = `${item.china_order_number || `order-${currentPage}-${index}`}-${item.option_id || index}`;
+                      return uniqueId === selectedId;
+                    });
+                  }).filter(item => item !== undefined);
 
-                  if (selectedItem) {
-                    setEditData(selectedItem);
+                  if (selectedItemsData.length > 0) {
+                    setEditData(selectedItemsData);
                     setShowEditModal(true);
                   }
                 }

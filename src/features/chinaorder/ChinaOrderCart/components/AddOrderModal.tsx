@@ -41,20 +41,40 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
   // editData가 변경될 때 폼 데이터 초기화
   React.useEffect(() => {
     if (mode === 'edit' && editData) {
-      setProductName(editData.item_name || '');
-      setOrderItems([{
-        id: 1,
-        image: editData.image_url || '',
-        optionName: editData.option_name || '',
-        barcode: editData.barcode || '',
-        quantity: editData.order_quantity || 0,
-        chinaOption1: editData.china_option1 || '',
-        chinaOption2: editData.china_option2 || '',
-        unitPrice: editData.china_price || '',
-        imageUrl: editData.image_url || '',
-        linkUrl: editData.china_link || '',
-        remark: editData.remark || ''
-      }]);
+      // editData가 배열인 경우 (여러 항목 수정)
+      if (Array.isArray(editData)) {
+        // 첫 번째 항목의 상품명 사용
+        setProductName(editData[0]?.item_name || '');
+        setOrderItems(editData.map((item, index) => ({
+          id: index + 1,
+          image: item.image_url || '',
+          optionName: item.option_name || '',
+          barcode: item.barcode || '',
+          quantity: item.order_quantity || 0,
+          chinaOption1: item.china_option1 || '',
+          chinaOption2: item.china_option2 || '',
+          unitPrice: item.china_price || '',
+          imageUrl: item.image_url || '',
+          linkUrl: item.china_link || '',
+          remark: item.remark || ''
+        })));
+      } else {
+        // 단일 항목 수정
+        setProductName(editData.item_name || '');
+        setOrderItems([{
+          id: 1,
+          image: editData.image_url || '',
+          optionName: editData.option_name || '',
+          barcode: editData.barcode || '',
+          quantity: editData.order_quantity || 0,
+          chinaOption1: editData.china_option1 || '',
+          chinaOption2: editData.china_option2 || '',
+          unitPrice: editData.china_price || '',
+          imageUrl: editData.image_url || '',
+          linkUrl: editData.china_link || '',
+          remark: editData.remark || ''
+        }]);
+      }
     } else if (mode === 'add') {
       // add 모드일 때는 초기화
       setProductName('');
