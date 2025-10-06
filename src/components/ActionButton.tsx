@@ -1,7 +1,7 @@
 import React from 'react';
 
 // 🎨 버튼 타입 정의
-type ButtonVariant = 'primary' | 'success' | 'info' | 'warning' | 'danger' | 'default';
+type ButtonVariant = 'primary' | 'success' | 'info' | 'warning' | 'danger' | 'default' | 'orange';
 
 // 🛠️ ActionButton 컴포넌트 Props 인터페이스
 interface ActionButtonProps {

@@ -7,13 +7,14 @@ interface AddOrderModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: any) => void;
-  mode?: 'add' | 'backup'; // add: 주문 추가하기, backup: 주문 데이터베이스
+  mode?: 'add' | 'backup' | 'edit'; // add: 주문 추가하기, backup: 주문 데이터베이스, edit: 수정
   title?: string; // 모달 타이틀 (선택적)
+  editData?: any; // 수정할 데이터
 }
 
 type TabType = 'single' | 'bulk' | 'coupang';
 
-const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, mode = 'add', title }) => {
+const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, mode = 'add', title, editData }) => {
   // mode가 'backup'이면 'bulk' 탭으로 시작, 아니면 'single'
   const [activeTab, setActiveTab] = useState<TabType>(mode === 'backup' ? 'bulk' : 'single');
   const [productName, setProductName] = useState('');
@@ -32,9 +33,46 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
       chinaOption2: '',
       unitPrice: '',
       imageUrl: '',
-      linkUrl: ''
+      linkUrl: '',
+      remark: ''
     }
   ]);
+
+  // editData가 변경될 때 폼 데이터 초기화
+  React.useEffect(() => {
+    if (mode === 'edit' && editData) {
+      setProductName(editData.item_name || '');
+      setOrderItems([{
+        id: 1,
+        image: editData.image_url || '',
+        optionName: editData.option_name || '',
+        barcode: editData.barcode || '',
+        quantity: editData.order_quantity || 0,
+        chinaOption1: editData.china_option1 || '',
+        chinaOption2: editData.china_option2 || '',
+        unitPrice: editData.china_price || '',
+        imageUrl: editData.image_url || '',
+        linkUrl: editData.china_link || '',
+        remark: editData.remark || ''
+      }]);
+    } else if (mode === 'add') {
+      // add 모드일 때는 초기화
+      setProductName('');
+      setOrderItems([{
+        id: 1,
+        image: '',
+        optionName: '',
+        barcode: '',
+        quantity: 0,
+        chinaOption1: '',
+        chinaOption2: '',
+        unitPrice: '',
+        imageUrl: '',
+        linkUrl: '',
+        remark: ''
+      }]);
+    }
+  }, [mode, editData]);
 
   if (!isOpen) return null;
 
@@ -51,7 +89,8 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
         chinaOption2: '',
         unitPrice: '',
         imageUrl: '',
-        linkUrl: ''
+        linkUrl: '',
+        remark: ''
       }
     ]);
   };
@@ -497,6 +536,11 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
               백업할 주문 엑셀 추가
             </div>
           )}
+          {mode === 'edit' && (
+            <div style={{ fontSize: '22px', fontWeight: 600, color: '#333' }}>
+              수정
+            </div>
+          )}
           <div className="modal-header-buttons">
             <ActionButton variant="default" onClick={onClose} className="cancel-button">
               취소
@@ -507,7 +551,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
           </div>
         </div>
 
-        {/* 탭 버튼 영역 - mode가 'add'일 때만 모든 탭 표시, 'backup'이면 대량엑셀만 */}
+        {/* 탭 버튼 영역 - mode가 'add'일 때만 모든 탭 표시, 'backup'이면 대량엑셀만, 'edit'이면 탭 숨김 */}
         {mode === 'add' ? (
           <div className="modal-tabs">
             <button
@@ -529,7 +573,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
               쿠팡엑셀
             </button>
           </div>
-        ) : (
+        ) : mode === 'backup' ? (
           <div className="modal-tabs">
             <button
               className={`modal-tab active`}
@@ -538,10 +582,10 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
               대량엑셀
             </button>
           </div>
-        )}
+        ) : null}
 
-        {/* 단건 탭 내용 */}
-        {activeTab === 'single' && (
+        {/* 단건 탭 내용 - edit 모드일 때도 표시 */}
+        {(activeTab === 'single' || mode === 'edit') && (
           <div className="modal-content">
             {/* 주문 항목 리스트 */}
             <div className="order-items-list">
@@ -654,6 +698,17 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
                         placeholder="링크 URL"
                         value={item.linkUrl}
                         onChange={(e) => handleItemChange(item.id, 'linkUrl', e.target.value)}
+                      />
+                    </div>
+
+                    {/* 비고 */}
+                    <div className="order-item-row-group">
+                      <input
+                        type="text"
+                        className="order-item-input-full"
+                        placeholder="비고"
+                        value={item.remark}
+                        onChange={(e) => handleItemChange(item.id, 'remark', e.target.value)}
                       />
                     </div>
                   </div>

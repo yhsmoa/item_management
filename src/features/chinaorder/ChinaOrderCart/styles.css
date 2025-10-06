@@ -777,14 +777,14 @@
 
 .chinaorder-cart-table .chinaorder-table-header-remark,
 .chinaorder-cart-table .chinaorder-table-cell-remark {
-  width: 200px;
+  width: 150px;
   text-align: left;
   font-size: 13px;
 }
 
 .chinaorder-cart-table .chinaorder-table-header-prev-order,
 .chinaorder-cart-table .chinaorder-table-cell-prev-order {
-  width: 175px;
+  width: 225px;
   text-align: center;
   font-size: 13px;
 }

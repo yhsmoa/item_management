@@ -133,8 +133,8 @@
 .order-item-row {
   display: grid;
   grid-template-columns: 150px 1fr;
-  gap: 20px;
-  padding: 20px;
+  gap: 16px;
+  padding: 16px;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
   background-color: #f9fafb;
@@ -194,7 +194,7 @@
 .order-item-form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
 }
 
@@ -202,7 +202,7 @@
 .order-item-row-group {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  gap: 8px;
   width: 100%;
 }
 

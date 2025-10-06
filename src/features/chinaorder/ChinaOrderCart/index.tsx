@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import DashboardStatsCard from '../../products/ProductListPage/components/DashboardStatsCard';
 import ActionButton from '../../../components/ActionButton';
 import { useGoogleSheetsDirectRead } from '../hooks/useGoogleSheetsDirectRead';
 import { useLoadOrderInfo } from './hooks/useLoadOrderInfo';
@@ -35,15 +34,6 @@ interface ChinaOrderData {
 interface TableRow extends ChinaOrderData {
   type: 'order';
   id: string;
-}
-
-interface Stats {
-  total: number;
-  notItemPartner: number;
-  outOfStock: number;
-  rejected: number;
-  selling: number;
-  tempSave: number;
 }
 
 function ChinaorderCart() {
@@ -189,15 +179,6 @@ function ChinaorderCart() {
     setIsLoading(false);
   };
 
-  // 통계 계산
-  const stats: Stats = {
-    total: filteredOrderData.length,
-    notItemPartner: 0,
-    outOfStock: 0,
-    rejected: 0,
-    selling: 0,
-    tempSave: 0
-  };
 
   // 데이터를 테이블 행으로 변환
   const transformDataToTableRows = (data: ChinaOrderData[]): TableRow[] => {
@@ -279,6 +260,8 @@ function ChinaorderCart() {
   // 🔧 모달 상태 관리
   const [showAddOrderModal, setShowAddOrderModal] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editData, setEditData] = useState<any>(null);
 
   // 🔧 액션 버튼 핸들러들
   const handleAddOrder = () => {
@@ -490,16 +473,6 @@ function ChinaorderCart() {
         </div>
       </div>
 
-      {/* 통계 카드 섹션 */}
-      <div className="product-list-stats-grid">
-        <DashboardStatsCard title="전체" value={stats.total} color="default" />
-        <DashboardStatsCard title="아이템파너 아님" value={stats.notItemPartner} hasInfo={true} subtitle="쿠팡 배송 성장 20% 상품 中" color="orange" />
-        <DashboardStatsCard title="품절" value={stats.outOfStock} color="red" />
-        <DashboardStatsCard title="승인반려" value={stats.rejected} hasInfo={true} color="red" />
-        <DashboardStatsCard title="판매중" value={stats.selling} color="blue" />
-        <DashboardStatsCard title="임시저장" value={stats.tempSave} color="default" />
-      </div>
-
       {/* 검색 및 필터 섹션 */}
       <div className="product-list-filter-section">
         <div className="product-list-filter-grid-improved">
@@ -615,8 +588,23 @@ function ChinaorderCart() {
             </ActionButton>
 
             <ActionButton
-              variant="primary"
-              onClick={() => {/* TODO: 수정 기능 구현 */}}
+              variant="orange"
+              onClick={() => {
+                // 첫 번째 선택된 항목만 수정 (단건 수정)
+                if (selectedItems.length > 0) {
+                  const selectedId = selectedItems[0];
+                  const currentPageData = getCurrentPageData();
+                  const selectedItem = currentPageData.find((item, index) => {
+                    const uniqueId = `${item.china_order_number || `order-${currentPage}-${index}`}-${item.option_id || index}`;
+                    return uniqueId === selectedId;
+                  });
+
+                  if (selectedItem) {
+                    setEditData(selectedItem);
+                    setShowEditModal(true);
+                  }
+                }
+              }}
               disabled={selectedItems.length === 0 || isLoading}
             >
               수정
@@ -844,6 +832,22 @@ function ChinaorderCart() {
           // TODO: 백업 로직 구현
         }}
         mode="backup"
+      />
+
+      {/* 수정 모달 - AddOrderModal을 edit 모드로 재사용 */}
+      <AddOrderModal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setEditData(null);
+        }}
+        onSave={(data: any) => {
+          console.log('수정된 데이터:', data);
+          // TODO: 수정 로직 구현 (구글 시트 업데이트)
+          handleGoogleSheetsDirectRead(); // 수정 후 데이터 새로고침
+        }}
+        mode="edit"
+        editData={editData}
       />
     </div>
   );
