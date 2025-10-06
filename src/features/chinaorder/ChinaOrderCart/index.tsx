@@ -298,9 +298,15 @@ function ChinaorderCart() {
   const handleSaveToGoogleSheet = async () => {
     console.log('💾 구글 시트 저장 버튼 클릭');
 
+    // 데이터가 없는 경우 별도 확인
     if (orderData.length === 0) {
-      alert('저장할 데이터가 없습니다.');
-      return;
+      const emptyConfirm = window.confirm(
+        `⚠️ 테이블의 데이터가 없는 상태입니다. 신규 주문을 모두 비우시겠습니까?`
+      );
+
+      if (!emptyConfirm) {
+        return;
+      }
     }
 
     try {
@@ -318,15 +324,17 @@ function ChinaorderCart() {
 
       const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001';
 
-      // 최종 확인
-      const finalConfirm = window.confirm(
-        `구글 시트에 ${orderData.length}개 데이터를 저장하시겠습니까?\n\n` +
-        `⚠️ 기존 구글 시트 데이터가 모두 덮어씌워집니다.`
-      );
+      // 데이터가 있는 경우에만 최종 확인
+      if (orderData.length > 0) {
+        const finalConfirm = window.confirm(
+          `구글 시트에 ${orderData.length}개 데이터를 저장하시겠습니까?\n\n` +
+          `⚠️ 기존 구글 시트 데이터가 모두 덮어씌워집니다.`
+        );
 
-      if (!finalConfirm) {
-        setIsLoading(false);
-        return;
+        if (!finalConfirm) {
+          setIsLoading(false);
+          return;
+        }
       }
 
       // 구글 시트에 전체 저장
