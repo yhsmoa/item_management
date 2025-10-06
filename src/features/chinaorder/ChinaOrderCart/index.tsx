@@ -819,8 +819,12 @@ function ChinaorderCart() {
         onClose={() => setShowAddOrderModal(false)}
         onSave={(data) => {
           console.log('모달에서 저장된 데이터:', data);
-          // 주문 추가 후 구글 시트에서 최신 데이터 자동 불러오기
-          handleGoogleSheetsDirectRead();
+          // 테이블에 데이터 추가
+          if (data.tableData && Array.isArray(data.tableData)) {
+            setOrderData(prevData => [...prevData, ...data.tableData]);
+            setFilteredOrderData(prevData => [...prevData, ...data.tableData]);
+            alert(`${data.tableData.length}개 주문이 테이블에 추가되었습니다.`);
+          }
         }}
       />
 
@@ -844,8 +848,42 @@ function ChinaorderCart() {
         }}
         onSave={(data: any) => {
           console.log('수정된 데이터:', data);
-          // TODO: 수정 로직 구현 (구글 시트 업데이트)
-          handleGoogleSheetsDirectRead(); // 수정 후 데이터 새로고침
+          // 테이블 데이터 수정
+          if (data.tableData && Array.isArray(data.tableData)) {
+            // 선택된 항목들의 barcode로 찾아서 업데이트
+            setOrderData(prevData => {
+              const newData = [...prevData];
+              selectedItems.forEach((selectedId, index) => {
+                const itemIndex = newData.findIndex((item, idx) => {
+                  const uniqueId = `${item.china_order_number || `order-${currentPage}-${idx}`}-${item.option_id || idx}`;
+                  return uniqueId === selectedId;
+                });
+
+                if (itemIndex !== -1 && data.tableData[index]) {
+                  newData[itemIndex] = { ...newData[itemIndex], ...data.tableData[index] };
+                }
+              });
+              return newData;
+            });
+
+            setFilteredOrderData(prevData => {
+              const newData = [...prevData];
+              selectedItems.forEach((selectedId, index) => {
+                const itemIndex = newData.findIndex((item, idx) => {
+                  const uniqueId = `${item.china_order_number || `order-${currentPage}-${idx}`}-${item.option_id || idx}`;
+                  return uniqueId === selectedId;
+                });
+
+                if (itemIndex !== -1 && data.tableData[index]) {
+                  newData[itemIndex] = { ...newData[itemIndex], ...data.tableData[index] };
+                }
+              });
+              return newData;
+            });
+
+            alert(`${data.tableData.length}개 주문이 수정되었습니다.`);
+            setSelectedItems([]); // 선택 해제
+          }
         }}
         mode="edit"
         editData={editData}
