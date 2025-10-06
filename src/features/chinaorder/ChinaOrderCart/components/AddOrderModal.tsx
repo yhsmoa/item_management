@@ -336,12 +336,33 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
         return;
       }
 
-      console.log('💾 Supabase 저장 데이터:', supabaseData);
+      // 중복 barcode 제거 (같은 barcode는 마지막 행만 유지)
+      const barcodeMap = new Map();
+      supabaseData.forEach((item: any) => {
+        barcodeMap.set(item.barcode, item);
+      });
+      const uniqueData = Array.from(barcodeMap.values());
+
+      const duplicateCount = supabaseData.length - uniqueData.length;
+      if (duplicateCount > 0) {
+        const confirmed = window.confirm(
+          `중복된 바코드가 ${duplicateCount}개 발견되었습니다.\n` +
+          `중복 제거 후 ${uniqueData.length}개 데이터를 저장하시겠습니까?\n\n` +
+          `(같은 바코드는 마지막 행만 저장됩니다)`
+        );
+        if (!confirmed) return;
+      }
+
+      console.log('💾 Supabase 저장 데이터:', {
+        original: supabaseData.length,
+        unique: uniqueData.length,
+        duplicates: duplicateCount
+      });
 
       // Supabase에 데이터 삽입 (upsert: 중복 barcode 시 업데이트)
       const { data: insertedData, error } = await supabase
         .from('chinaorder_googlesheet_DB')
-        .upsert(supabaseData, { onConflict: 'barcode' })
+        .upsert(uniqueData, { onConflict: 'barcode' })
         .select();
 
       if (error) {
