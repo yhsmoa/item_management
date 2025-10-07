@@ -139,10 +139,30 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
   };
 
   const handleSave = async () => {
-    console.log('저장할 데이터:', { productName, orderItems, activeTab });
+    console.log('저장할 데이터:', { productName, orderItems, activeTab, mode });
 
+    // 수정 모드 - 테이블에만 수정 (구글 시트 저장 안 함)
+    if (mode === 'edit') {
+      const tableData = orderItems.map(item => ({
+        item_name: productName,
+        option_name: item.optionName,
+        barcode: item.barcode,
+        order_quantity: item.quantity,
+        china_option1: item.chinaOption1,
+        china_option2: item.chinaOption2,
+        china_price: item.unitPrice,
+        image_url: item.imageUrl,
+        china_link: item.linkUrl,
+        remark: item.remark
+      }));
+
+      onSave({ productName, orderItems, activeTab, mode, tableData });
+      onClose();
+      return;
+    }
+
+    // 주문 추가하기 - 단건 저장 (구글 시트에 바로 저장)
     if (activeTab === 'single') {
-      // 단건 저장 - 구글 시트에 바로 저장
       try {
         const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
         const userId = currentUser.id || currentUser.user_id;
@@ -184,23 +204,6 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
         console.error('저장 오류:', error);
         alert('저장 중 오류가 발생했습니다.');
       }
-    } else if (mode === 'edit') {
-      // 수정 모드 - 테이블에만 수정
-      const tableData = orderItems.map(item => ({
-        item_name: productName,
-        option_name: item.optionName,
-        barcode: item.barcode,
-        order_quantity: item.quantity,
-        china_option1: item.chinaOption1,
-        china_option2: item.chinaOption2,
-        china_price: item.unitPrice,
-        image_url: item.imageUrl,
-        china_link: item.linkUrl,
-        remark: item.remark
-      }));
-
-      onSave({ productName, orderItems, activeTab, mode, tableData });
-      onClose();
     } else {
       // 대량엑셀, 쿠팡엑셀
       onSave({ productName, orderItems, activeTab });
