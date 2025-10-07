@@ -583,7 +583,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
               취소
             </ActionButton>
             <ActionButton variant="success" onClick={handleSave}>
-              저장
+              {mode === 'edit' ? '수정' : '저장'}
             </ActionButton>
           </div>
         </div>
