@@ -34,7 +34,8 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
       unitPrice: '',
       imageUrl: '',
       linkUrl: '',
-      remark: ''
+      remark: '',
+      recipientName: ''  // 개인주문 정보 (수취인명)
     }
   ]);
 
@@ -56,7 +57,8 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
           unitPrice: item.china_price || '',
           imageUrl: item.image_url || '',
           linkUrl: item.china_link || '',
-          remark: item.remark || ''
+          remark: item.remark || '',
+          recipientName: item.recipient_name || ''
         })));
       } else {
         // 단일 항목 수정
@@ -72,7 +74,8 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
           unitPrice: editData.china_price || '',
           imageUrl: editData.image_url || '',
           linkUrl: editData.china_link || '',
-          remark: editData.remark || ''
+          remark: editData.remark || '',
+          recipientName: editData.recipient_name || ''
         }]);
       }
     } else if (mode === 'add') {
@@ -89,7 +92,8 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
         unitPrice: '',
         imageUrl: '',
         linkUrl: '',
-        remark: ''
+        remark: '',
+        recipientName: ''
       }]);
     }
   }, [mode, editData]);
