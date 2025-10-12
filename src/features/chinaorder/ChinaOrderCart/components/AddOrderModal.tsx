@@ -114,7 +114,8 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
         unitPrice: '',
         imageUrl: '',
         linkUrl: '',
-        remark: ''
+        remark: '',
+        recipientName: ''
       }
     ]);
   };
