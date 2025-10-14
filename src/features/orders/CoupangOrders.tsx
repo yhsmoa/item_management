@@ -1747,23 +1747,23 @@ const CoupangOrders: React.FC = () => {
                       <td style={{
                         textAlign: 'left',
                         fontSize: '12px',
-                        padding: '4px',
-                        whiteSpace: 'pre-line',
-                        ...(() => {
-                          try {
-                            if (!order.purchase_status) return {};
-                            const statusData = JSON.parse(order.purchase_status);
-                            return { backgroundColor: statusData.color };
-                          } catch {
-                            return {};
-                          }
-                        })()
+                        padding: '4px'
                       }}>
                         {(() => {
                           try {
                             if (!order.purchase_status) return '';
                             const statusData = JSON.parse(order.purchase_status);
-                            return statusData.text;
+                            return (
+                              <span style={{
+                                backgroundColor: statusData.color,
+                                padding: '2px 4px',
+                                borderRadius: '3px',
+                                display: 'inline-block',
+                                whiteSpace: 'pre-line'
+                              }}>
+                                {statusData.text}
+                              </span>
+                            );
                           } catch {
                             return order.purchase_status;
                           }
