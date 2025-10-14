@@ -75,6 +75,12 @@ router.post('/search-purchase-status', async (req, res) => {
     }
 
     console.log(`✅ [ORDER_SEARCH] 주문 데이터 조회 완료: ${allOrderData.length}개`);
+    if (allOrderData.length > 0) {
+      console.log(`📝 [ORDER_SEARCH] 첫 번째 주문 샘플:`, {
+        order_number: allOrderData[0].order_number,
+        recipient_name: allOrderData[0].recipient_name
+      });
+    }
 
     if (allOrderData.length === 0) {
       return res.json({
@@ -119,6 +125,12 @@ router.post('/search-purchase-status', async (req, res) => {
     }
 
     console.log(`✅ [ORDER_SEARCH] 구글 시트 데이터 조회 완료: ${allGoogleSheetData.length}개`);
+    if (allGoogleSheetData.length > 0) {
+      console.log(`📝 [ORDER_SEARCH] 첫 번째 구글시트 샘플:`, {
+        id: allGoogleSheetData[0].id,
+        shipment_info: allGoogleSheetData[0].shipment_info
+      });
+    }
 
     if (allGoogleSheetData.length === 0) {
       return res.json({
