@@ -1157,8 +1157,6 @@ const CoupangOrders: React.FC = () => {
           
           const purchaseQty = Math.max(0, totalOrdering - totalCancel);
           purchaseMap.set(barcode, purchaseQty);
-          
-          console.log(`📊 ${barcode}: 진행(${totalOrdering}) - 취소(${totalCancel}) = 사입(${purchaseQty})`);
         }
       }
 
