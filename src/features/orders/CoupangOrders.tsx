@@ -1753,16 +1753,46 @@ const CoupangOrders: React.FC = () => {
                           try {
                             if (!order.purchase_status) return '';
                             const statusData = JSON.parse(order.purchase_status);
+                            const lines = statusData.text.split('\n');
+                            const statusLine = lines[0]; // 첫 번째 줄: 상태
+                            const compositionLine = lines.slice(1).join('\n'); // 나머지: composition
+
+                            // 상태별 배경색 정의 (연한 색상)
+                            const colorMap: { [key: string]: string } = {
+                              '신규': '#E0E0E0',
+                              '진행': '#E0E0E0',
+                              '결제': '#E0E0E0',
+                              '입고': '#FFD699',
+                              '출고': '#A8D5A8'
+                            };
+
+                            // 상태 텍스트를 단어별로 분리하고 배경색 적용
+                            const renderStatusWithColors = () => {
+                              const parts = statusLine.split(' ');
+                              return parts.map((part: string, index: number) => {
+                                const bgColor = colorMap[part];
+                                if (bgColor) {
+                                  return (
+                                    <span key={index} style={{
+                                      backgroundColor: bgColor,
+                                      padding: '2px 4px',
+                                      borderRadius: '3px',
+                                      marginRight: '2px'
+                                    }}>
+                                      {part}
+                                    </span>
+                                  );
+                                }
+                                // '>' 같은 구분자는 배경 없이
+                                return <span key={index} style={{ marginRight: '2px' }}>{part}</span>;
+                              });
+                            };
+
                             return (
-                              <span style={{
-                                backgroundColor: statusData.color,
-                                padding: '2px 4px',
-                                borderRadius: '3px',
-                                display: 'inline-block',
-                                whiteSpace: 'pre-line'
-                              }}>
-                                {statusData.text}
-                              </span>
+                              <div style={{ whiteSpace: 'pre-line' }}>
+                                <div>{renderStatusWithColors()}</div>
+                                {compositionLine && <div>{compositionLine}</div>}
+                              </div>
                             );
                           } catch {
                             return order.purchase_status;
