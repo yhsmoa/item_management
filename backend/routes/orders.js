@@ -170,13 +170,14 @@ router.post('/search-purchase-status', async (req, res) => {
         }
       }
 
-      // 3-2. order_number 매칭 실패 시 recipient_name으로 매칭 (포함 검색)
+      // 3-2. order_number 매칭 실패 시 recipient_name으로 매칭 (일치 검색)
       if (!matchedGoogleSheet && recipientName) {
         matchedGoogleSheet = allGoogleSheetData.find(sheet => {
           const shipmentInfo = sheet.shipment_info || '';
-          // shipment_info에 recipient_name이 포함되어 있는지 확인
-          // 예: "P-홍유정" 또는 "P-14100146147591 홍유정"에서 "홍유정" 포함 여부
-          return shipmentInfo.includes(recipientName);
+          // "P-" 제거 후 정확히 일치하는지 확인
+          // 예: "P-김흥수"에서 "P-"를 제거하면 "김흥수"
+          const nameWithoutPrefix = shipmentInfo.replace(/^P-/, '').trim();
+          return nameWithoutPrefix === recipientName;
         });
 
         if (matchedGoogleSheet) {
