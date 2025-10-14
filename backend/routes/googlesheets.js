@@ -1137,8 +1137,9 @@ router.post('/import-data-all', async (req, res) => {
 
         const rows = response.data.values || [];
 
+        // 헤더만 있거나 데이터가 없는 경우
         if (rows.length <= 1) {
-          console.log(`⚠️ [IMPORT_DATA_ALL] ${sheetConfig.name} 시트 데이터 없음`);
+          console.log(`⚠️ [IMPORT_DATA_ALL] ${sheetConfig.name} 시트 데이터 없음 (헤더만 존재 또는 빈 시트)`);
           continue;
         }
 
@@ -1149,7 +1150,10 @@ router.post('/import-data-all', async (req, res) => {
         }
 
         // 데이터 변환 (첫 행은 헤더이므로 제외)
-        const dataRows = rows.slice(1);
+        const dataRows = rows.slice(1).filter(row => {
+          // 빈 행 필터링 (모든 셀이 비어있거나 undefined인 행 제외)
+          return row && row.some(cell => cell !== null && cell !== undefined && cell !== '');
+        });
         const transformedData = dataRows.map((row, index) => {
           const rowNumber = index + 1;
           const id = `${businessCode}-${sheetConfig.code}-${rowNumber}`;
