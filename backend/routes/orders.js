@@ -106,7 +106,7 @@ router.post('/search-purchase-status', async (req, res) => {
 
       const { data: sheetBatch, error: sheetError } = await supabase
         .from('chinaorder_googlesheet_all')
-        .select('id, shipment_info')
+        .select('id, shipment_info, order_qty, order_status_import, order_status_shipment, composition, sheet_name')
         .eq('user_id', user_id)
         .like('shipment_info', 'P-%')
         .range(from, to);

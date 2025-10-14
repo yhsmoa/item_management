@@ -1113,12 +1113,11 @@ router.post('/import-data-all', async (req, res) => {
 
     console.log('✅ [IMPORT_DATA_ALL] 기존 데이터 삭제 완료');
 
-    // 4. 시트별로 데이터 읽기 및 변환
+    // 4. 시트별로 데이터 읽기 및 변환 (출고 시트 제외)
     const sheetConfigs = [
       { name: '신규', code: 'N', range: '신규!A:V' },
       { name: '결제', code: 'P', range: '결제!A:V' },
       { name: '진행', code: 'O', range: '진행!A:V' },
-      { name: '출고', code: 'D', range: '출고!A:V' },
       { name: '취소', code: 'C', range: '취소!A:V' }
     ];
 
