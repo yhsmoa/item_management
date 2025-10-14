@@ -1049,6 +1049,212 @@ router.post('/upload-coupang-excel', async (req, res) => {
 });
 
 /**
+ * Google Sheets 5개 시트에서 데이터를 읽어와 Supabase에 저장하는 API
+ * @route POST /api/googlesheets/import-data-all
+ * @description 신규, 결제, 진행, 출고, 취소 시트의 데이터를 읽어와서 chinaorder_googlesheet_all 테이블에 저장
+ */
+router.post('/import-data-all', async (req, res) => {
+  const startTime = Date.now();
+
+  try {
+    const { user_id } = req.body;
+
+    console.log('🎯 [ENDPOINT] /api/googlesheets/import-data-all 엔드포인트 호출됨!');
+    console.log('📥 [IMPORT_DATA_ALL] 전체 시트 데이터 가져오기 시작:', {
+      user_id,
+      timestamp: new Date().toISOString()
+    });
+
+    if (!user_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'user_id가 필요합니다.',
+        error_code: 'INVALID_INPUT'
+      });
+    }
+
+    // 1. 사용자 정보 조회
+    const { data: userData, error: userError } = await supabase
+      .from('users_api')
+      .select('googlesheet_id')
+      .eq('user_id', user_id)
+      .single();
+
+    if (userError || !userData || !userData.googlesheet_id) {
+      return res.status(404).json({
+        success: false,
+        message: '사용자의 구글시트 정보를 찾을 수 없습니다.',
+        error_code: 'GOOGLESHEET_NOT_FOUND'
+      });
+    }
+
+    const googlesheet_id = userData.googlesheet_id;
+    console.log('✅ [IMPORT_DATA_ALL] 구글시트 ID:', googlesheet_id);
+
+    // 2. Google Sheets API 인증
+    const auth = getGoogleSheetsAuth();
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // 3. 기존 데이터 초기화
+    console.log('🗑️ [IMPORT_DATA_ALL] 기존 데이터 초기화 중...');
+    const { error: deleteError } = await supabase
+      .from('chinaorder_googlesheet_all')
+      .delete()
+      .eq('user_id', user_id);
+
+    if (deleteError) {
+      console.error('❌ [IMPORT_DATA_ALL] 기존 데이터 삭제 실패:', deleteError);
+      return res.status(500).json({
+        success: false,
+        message: '기존 데이터 삭제 중 오류가 발생했습니다.',
+        error_code: 'DELETE_ERROR'
+      });
+    }
+
+    console.log('✅ [IMPORT_DATA_ALL] 기존 데이터 삭제 완료');
+
+    // 4. 시트별로 데이터 읽기 및 변환
+    const sheetConfigs = [
+      { name: '신규', code: 'N', range: '신규!A:V' },
+      { name: '결제', code: 'P', range: '결제!A:V' },
+      { name: '진행', code: 'O', range: '진행!A:V' },
+      { name: '출고', code: 'D', range: '출고!A:V' },
+      { name: '취소', code: 'C', range: '취소!A:V' }
+    ];
+
+    let totalInserted = 0;
+    let businessCode = 'HI'; // 기본값
+
+    for (const sheetConfig of sheetConfigs) {
+      console.log(`📊 [IMPORT_DATA_ALL] ${sheetConfig.name} 시트 처리 중...`);
+
+      try {
+        // 시트 데이터 읽기
+        const response = await sheets.spreadsheets.values.get({
+          spreadsheetId: googlesheet_id,
+          range: sheetConfig.range,
+        });
+
+        const rows = response.data.values || [];
+
+        if (rows.length <= 1) {
+          console.log(`⚠️ [IMPORT_DATA_ALL] ${sheetConfig.name} 시트 데이터 없음`);
+          continue;
+        }
+
+        // B1 셀에서 사업자 코드 읽기 (첫 번째 시트에서만)
+        if (sheetConfig.name === '신규' && rows.length > 0 && rows[0][1]) {
+          businessCode = rows[0][1];
+          console.log(`🏢 [IMPORT_DATA_ALL] 사업자 코드: ${businessCode}`);
+        }
+
+        // 데이터 변환 (첫 행은 헤더이므로 제외)
+        const dataRows = rows.slice(1);
+        const transformedData = dataRows.map((row, index) => {
+          const rowNumber = index + 1;
+          const id = `${businessCode}-${sheetConfig.code}-${rowNumber}`;
+
+          return {
+            id,
+            user_id,
+            order_number: row[0] || '', // A열
+            option_id: row[19] || '', // T열
+            china_order_number: row[1] || '', // B열
+            date: row[0] || '', // A열
+            item_name: row[2] || '', // C열
+            option_name: row[3] || '', // D열
+            barcode: row[5] || '', // F열
+            order_qty: safeParseInt(row[4]), // E열
+            china_option1: row[6] || '', // G열
+            china_option2: row[7] || '', // H열
+            china_price: row[8] || null, // I열
+            china_total_price: row[9] || null, // J열
+            img_url: row[10] || '', // K열
+            china_link: row[11] || '', // L열
+            order_status_ordering: safeParseInt(row[12]), // M열
+            note: row[16] || '', // Q열
+            confirm_order_id: row[17] || '', // R열
+            confirm_shipment_id: row[18] || '', // S열
+            composition: row[19] || '', // T열
+            order_status_import: safeParseInt(row[13]), // N열
+            order_status_cancel: safeParseInt(row[14]), // O열
+            order_status_shipment: safeParseInt(row[15]), // P열
+            sheet_name: sheetConfig.code,
+            shipment_info: row[21] || '' // V열
+          };
+        });
+
+        // Supabase에 배치 삽입 (500개씩)
+        if (transformedData.length > 0) {
+          const BATCH_SIZE = 500;
+          for (let i = 0; i < transformedData.length; i += BATCH_SIZE) {
+            const batch = transformedData.slice(i, i + BATCH_SIZE);
+
+            const { error: insertError } = await supabase
+              .from('chinaorder_googlesheet_all')
+              .insert(batch);
+
+            if (insertError) {
+              console.error(`❌ [IMPORT_DATA_ALL] ${sheetConfig.name} 데이터 삽입 실패:`, insertError);
+              return res.status(500).json({
+                success: false,
+                message: `${sheetConfig.name} 데이터 삽입 중 오류가 발생했습니다.`,
+                error_code: 'DATABASE_INSERT_ERROR',
+                error: insertError.message
+              });
+            }
+
+            totalInserted += batch.length;
+            console.log(`✅ [IMPORT_DATA_ALL] ${sheetConfig.name} 배치 삽입 완료 (${i + batch.length}/${transformedData.length})`);
+          }
+
+          console.log(`✅ [IMPORT_DATA_ALL] ${sheetConfig.name} 시트 완료: ${transformedData.length}개 저장`);
+        }
+
+      } catch (sheetError) {
+        console.error(`❌ [IMPORT_DATA_ALL] ${sheetConfig.name} 시트 처리 실패:`, sheetError);
+        // 시트가 없거나 오류가 있어도 다음 시트 계속 처리
+        continue;
+      }
+    }
+
+    const processingTime = Date.now() - startTime;
+
+    console.log('✅ [IMPORT_DATA_ALL] 전체 데이터 가져오기 완료:', {
+      total_inserted: totalInserted,
+      processing_time_ms: processingTime
+    });
+
+    res.json({
+      success: true,
+      message: `총 ${totalInserted}개의 데이터를 성공적으로 가져왔습니다.`,
+      data: {
+        total_count: totalInserted,
+        business_code: businessCode,
+        processing_time_ms: processingTime
+      }
+    });
+
+  } catch (error) {
+    const processingTime = Date.now() - startTime;
+
+    console.error('❌ [IMPORT_DATA_ALL] 데이터 가져오기 실패:', {
+      error: error.message,
+      stack: error.stack,
+      processing_time_ms: processingTime
+    });
+
+    res.status(500).json({
+      success: false,
+      message: '서버 오류가 발생했습니다.',
+      error_code: 'INTERNAL_SERVER_ERROR',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      processing_time_ms: processingTime
+    });
+  }
+});
+
+/**
  * 구글 시트 '신규' 데이터 읽기 (검증용)
  * @route POST /api/googlesheets/read-china-orders
  */
