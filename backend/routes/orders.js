@@ -186,18 +186,67 @@ router.post('/search-purchase-status', async (req, res) => {
 
       // 3-3. 매칭 성공 시 결과 저장 및 업데이트
       if (matchedGoogleSheet) {
+        // 취소(C) 시트는 스킵
+        if (matchedGoogleSheet.sheet_name === 'C') {
+          console.log(`⊘ [ORDER_SEARCH] 취소 시트 스킵: ${orderNumber || recipientName}`);
+          continue;
+        }
+
+        // 상태 로직 계산
+        const orderQty = matchedGoogleSheet.order_qty || 0;
+        const orderStatusImport = matchedGoogleSheet.order_status_import || 0;
+        const orderStatusShipment = matchedGoogleSheet.order_status_shipment || 0;
+        const composition = matchedGoogleSheet.composition || '';
+        const sheetName = matchedGoogleSheet.sheet_name || '';
+
+        let statusText = '';
+        let backgroundColor = '';
+
+        // 상태 표시명 매핑
+        const sheetNameMap = {
+          'N': '신규',
+          'P': '결제',
+          'O': '진행'
+        };
+
+        // Case 1: 입고 미완료 (회색)
+        if (orderStatusImport !== orderQty) {
+          const displayName = sheetNameMap[sheetName] || sheetName;
+          statusText = `${displayName}\n${composition}`;
+          backgroundColor = 'gray';
+        }
+        // Case 2: 입고 완료, 출고 미완료 (주황색)
+        else if (orderStatusImport === orderQty && orderStatusShipment !== orderQty) {
+          statusText = `진행 > 입고\n${composition}`;
+          backgroundColor = 'orange';
+        }
+        // Case 3: 입고 & 출고 완료 (초록색)
+        else if (orderStatusImport === orderQty && orderStatusShipment === orderQty) {
+          statusText = `진행 > 입고 > 출고\n${composition}`;
+          backgroundColor = 'green';
+        }
+
+        // JSON 형태로 저장
+        const purchaseStatusData = JSON.stringify({
+          text: statusText,
+          color: backgroundColor,
+          sheetId: matchedGoogleSheet.id
+        });
+
         matchResults.push({
           orderId: order.id,
           orderNumber: orderNumber,
           recipientName: recipientName,
           matchedGoogleSheetId: matchedGoogleSheet.id,
-          matchType: matchType
+          matchType: matchType,
+          statusText: statusText,
+          backgroundColor: backgroundColor
         });
 
         // coupang_personal_order의 사입상태 컬럼 업데이트
         const { error: updateError } = await supabase
           .from('coupang_personal_order')
-          .update({ purchase_status: matchedGoogleSheet.id })
+          .update({ purchase_status: purchaseStatusData })
           .eq('id', order.id)
           .eq('user_id', user_id);
 
@@ -205,7 +254,7 @@ router.post('/search-purchase-status', async (req, res) => {
           console.error(`❌ [ORDER_SEARCH] 업데이트 실패 (ID: ${order.id}):`, updateError);
         } else {
           matchedCount++;
-          console.log(`✓ [ORDER_SEARCH] 매칭 성공 (${matchType}): ${orderNumber || recipientName} -> ${matchedGoogleSheet.id}`);
+          console.log(`✓ [ORDER_SEARCH] 매칭 성공 (${matchType}): ${orderNumber || recipientName} -> ${statusText.split('\n')[0]} (${backgroundColor})`);
         }
       }
     }
