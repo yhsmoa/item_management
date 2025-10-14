@@ -5,7 +5,11 @@
 
 import { OrderSearchResponse } from '../features/orders/types/orderSearch.types';
 
-const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001';
+// 백엔드 URL 설정 (프로덕션 환경 자동 감지)
+const backendUrl = process.env.REACT_APP_BACKEND_URL ||
+  (window.location.hostname === '13.125.220.142'
+    ? 'http://13.125.220.142:3001'
+    : 'http://localhost:3001');
 
 /**
  * 주문 조회 API 호출
