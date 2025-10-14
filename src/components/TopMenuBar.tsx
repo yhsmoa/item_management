@@ -132,7 +132,7 @@ const TopMenuBar: React.FC<TopMenuBarProps> = ({
           >
             {googleSheetsLoading ? (
               <>
-                <SpinnerIcon>🔄</SpinnerIcon>
+                <Spinner />
                 <span>처리 중...</span>
               </>
             ) : (
@@ -587,12 +587,17 @@ const GoogleSheetsButton = styled.button<{ disabled?: boolean }>`
 `;
 
 /**
- * 회전 애니메이션 아이콘
- * - 구글 시트 로딩 중일 때 회전
+ * CSS 원형 스피너
+ * - 구글 시트 로딩 중일 때 표시
+ * - 흰색 원형 테두리가 회전하는 애니메이션
  */
-const SpinnerIcon = styled.span`
-  display: inline-block;
-  animation: spin 1s linear infinite;
+const Spinner = styled.div`
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 
   @keyframes spin {
     from {
