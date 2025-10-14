@@ -6,9 +6,13 @@ import LeftSideBar from '../components/LeftSideBar';
 /**
  * MainLayout 컴포넌트 Props 타입 정의
  * - children: 메인 콘텐츠 영역에 렌더링할 컴포넌트들
+ * - onGoogleSheetsImport: 구글 시트 가져오기 핸들러 (선택적)
+ * - googleSheetsLoading: 구글 시트 로딩 상태 (선택적)
  */
 interface MainLayoutProps {
   children: React.ReactNode;
+  onGoogleSheetsImport?: () => void;
+  googleSheetsLoading?: boolean;
 }
 
 /**
@@ -17,7 +21,11 @@ interface MainLayoutProps {
  * - 상단 메뉴바 + 왼쪽 사이드바 + 메인 콘텐츠 영역으로 구성
  * - 사이드바 토글 기능 포함
  */
-const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
+const MainLayout: React.FC<MainLayoutProps> = ({
+  children,
+  onGoogleSheetsImport,
+  googleSheetsLoading = false
+}) => {
   // 사이드바 표시/숨김 상태 관리
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
 
@@ -32,9 +40,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   return (
     <LayoutContainer>
       {/* 상단 메뉴바 - 고정 위치 */}
-      <TopMenuBar 
+      <TopMenuBar
         onToggleSidebar={toggleSidebar}
         isSidebarVisible={isSidebarVisible}
+        onGoogleSheetsImport={onGoogleSheetsImport}
+        googleSheetsLoading={googleSheetsLoading}
       />
       
       {/* 메인 콘텐츠 영역 */}

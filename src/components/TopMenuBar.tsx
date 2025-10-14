@@ -5,10 +5,14 @@ import styled from 'styled-components';
  * TopMenuBar 컴포넌트 Props 타입 정의
  * - onToggleSidebar: 사이드바 토글 함수
  * - isSidebarVisible: 사이드바 표시 상태
+ * - onGoogleSheetsImport: 구글 시트 가져오기 핸들러 (선택적)
+ * - googleSheetsLoading: 구글 시트 로딩 상태 (선택적)
  */
 interface TopMenuBarProps {
   onToggleSidebar: () => void;
   isSidebarVisible: boolean;
+  onGoogleSheetsImport?: () => void;
+  googleSheetsLoading?: boolean;
 }
 
 /**
@@ -17,7 +21,12 @@ interface TopMenuBarProps {
  * - 햄버거 메뉴, 로고, 검색, 알림, 사용자 메뉴 포함
  * - 사이드바 토글 기능 제공
  */
-const TopMenuBar: React.FC<TopMenuBarProps> = ({ onToggleSidebar, isSidebarVisible }) => {
+const TopMenuBar: React.FC<TopMenuBarProps> = ({
+  onToggleSidebar,
+  isSidebarVisible,
+  onGoogleSheetsImport,
+  googleSheetsLoading = false
+}) => {
   // 현재 로그인한 사용자 정보 가져오기
   const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
   
@@ -113,8 +122,28 @@ const TopMenuBar: React.FC<TopMenuBarProps> = ({ onToggleSidebar, isSidebarVisib
         {/* 향후 검색 기능 추가 예정 */}
       </CenterSection>
 
-      {/* 오른쪽 영역 - 언어선택, 알림, 사용자 메뉴 */}
+      {/* 오른쪽 영역 - 구글 시트, 언어선택, 알림, 사용자 메뉴 */}
       <RightSection>
+        {/* 구글 시트 버튼 */}
+        {onGoogleSheetsImport && (
+          <GoogleSheetsButton
+            onClick={onGoogleSheetsImport}
+            disabled={googleSheetsLoading}
+          >
+            {googleSheetsLoading ? (
+              <>
+                <SpinnerIcon>🔄</SpinnerIcon>
+                <span>처리 중...</span>
+              </>
+            ) : (
+              <>
+                <span>🔄</span>
+                <span>구글 시트</span>
+              </>
+            )}
+          </GoogleSheetsButton>
+        )}
+
         {/* 언어 선택 */}
         <LanguageButton>
           <LanguageIcon>🌐</LanguageIcon>
@@ -527,6 +556,52 @@ const DropdownDivider = styled.div`
   height: 1px;
   background: #E5E7EB;
   margin: 4px 0;
+`;
+
+/**
+ * 구글 시트 버튼
+ * - 구글 시트 데이터 가져오기 버튼
+ * - 로딩 중일 때 회전 애니메이션
+ */
+const GoogleSheetsButton = styled.button<{ disabled?: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: ${props => props.disabled ? '#E5E7EB' : '#3B82F6'};
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: ${props => props.disabled ? 'not-allowed' : 'pointer'};
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: ${props => props.disabled ? '#E5E7EB' : '#2563EB'};
+  }
+
+  &:active {
+    transform: ${props => props.disabled ? 'none' : 'scale(0.98)'};
+  }
+`;
+
+/**
+ * 회전 애니메이션 아이콘
+ * - 구글 시트 로딩 중일 때 회전
+ */
+const SpinnerIcon = styled.span`
+  display: inline-block;
+  animation: spin 1s linear infinite;
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
 `;
 
 export default TopMenuBar; 

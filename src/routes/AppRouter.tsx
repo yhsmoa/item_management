@@ -15,7 +15,7 @@ import ChinaorderCart from '../features/chinaorder/ChinaOrderCart';
 import ChinaorderConfirm from '../features/chinaorder/ChinaorderConfirm';
 import ChinaorderDelivery from '../features/chinaorder/ChinaorderDelivery';
 import ChinaorderRecords from '../features/chinaorder/ChinaorderRecords';
-import CoupangOrders from '../features/orders/CoupangOrders';
+import CoupangOrdersWrapper from '../features/orders/CoupangOrdersWrapper';
 import SmartstoreOrders from '../features/orders/SmartstoreOrders';
 import ReturnItems from '../features/service/ReturnItems';
 import RocketgrowthShipment from '../features/service/RocketgrowthShipment';
@@ -191,13 +191,15 @@ const AppRouter: React.FC = () => {
         />
         
         {/* 쿠팡 주문 관리 페이지 - 로그인 필요 */}
-        <Route 
-          path="/order-management/coupang" 
+        <Route
+          path="/order-management/coupang"
           element={
-            <ProtectedRoute>
-              <CoupangOrders />
-            </ProtectedRoute>
-          } 
+            isAuthenticated() ? (
+              <CoupangOrdersWrapper />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
         />
         
         {/* 스마트스토어 주문 관리 페이지 - 로그인 필요 */}

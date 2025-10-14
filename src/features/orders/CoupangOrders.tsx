@@ -1499,8 +1499,8 @@ const CoupangOrders: React.FC = () => {
             </button>
           </div>
           <div style={{ display: 'flex', gap: '12px' }}>
-            <button 
-              className="coupang-orders-button coupang-orders-button-secondary"
+            <button
+              className="coupang-orders-button coupang-orders-button-info"
               onClick={handleBarcodeSearch}
               disabled={isLoading || isUploading}
             >
@@ -1514,11 +1514,18 @@ const CoupangOrders: React.FC = () => {
               사입 조회
             </button>
             <button
-              className="coupang-orders-button coupang-orders-button-warning"
+              className="coupang-orders-button coupang-orders-button-info"
               onClick={handleWarehouseSearch}
               disabled={isLoading || isUploading}
             >
               {isLoading ? '창고 조회 중...' : '창고 조회'}
+            </button>
+            <button
+              className="coupang-orders-button coupang-orders-button-info"
+              onClick={loadOrderData}
+              disabled={isLoading || isUploading}
+            >
+              주문 조회
             </button>
           </div>
         </div>
@@ -1644,19 +1651,20 @@ const CoupangOrders: React.FC = () => {
                 <th style={{ width: '120px', textAlign: 'center' }}>주문번호</th>
                 <th style={{ width: '100px', textAlign: 'center' }}>분리배송</th>
                 <th style={{ width: '120px', textAlign: 'center' }}>출고예정일</th>
-                <th style={{ width: '350px', textAlign: 'left' }}>등록상품명 & 옵션명</th>
-                <th style={{ width: '80px', textAlign: 'center' }}>주문개수</th>
-                <th style={{ width: '200px', textAlign: 'center' }}>수취인정보</th>
+                <th style={{ width: '262px', textAlign: 'left' }}>등록상품명 & 옵션명</th>
+                <th style={{ width: '40px', textAlign: 'center' }}>주문개수</th>
+                <th style={{ width: '100px', textAlign: 'center' }}>수취인정보</th>
                 <th style={{ width: '40px', textAlign: 'center' }}>순서</th>
                 <th style={{ width: '40px', textAlign: 'center' }}>전체</th>
                 <th style={{ width: '40px', textAlign: 'center' }}>사입</th>
                 <th style={{ width: '100px', textAlign: 'left' }}>창고</th>
+                <th style={{ width: '100px', textAlign: 'left' }}>사입상태</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={11} style={{
+                  <td colSpan={12} style={{
                     textAlign: 'center',
                     padding: '40px',
                     color: '#666',
@@ -1667,7 +1675,7 @@ const CoupangOrders: React.FC = () => {
                 </tr>
               ) : filteredOrderData.length === 0 ? (
                 <tr>
-                  <td colSpan={11} style={{
+                  <td colSpan={12} style={{
                     textAlign: 'center',
                     padding: '40px',
                     color: '#666',
@@ -1730,6 +1738,7 @@ const CoupangOrders: React.FC = () => {
                       }}>
                         {generateWarehouseText(order.barcode || '', order.qty, order.sequence || index)}
                       </td>
+                      <td style={{ textAlign: 'left' }}></td>
                     </tr>
                   ));
                 })()
