@@ -1791,7 +1791,7 @@ const CoupangOrders: React.FC = () => {
                             return (
                               <div style={{ whiteSpace: 'pre-line' }}>
                                 <div>{renderStatusWithColors()}</div>
-                                {compositionLine && <div>{compositionLine}</div>}
+                                {compositionLine && <div style={{ marginTop: '4px' }}>🚢 {compositionLine}</div>}
                               </div>
                             );
                           } catch {
