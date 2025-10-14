@@ -4,6 +4,7 @@ import { processPersonalOrderExcelUpload } from '../../services/excelUploadServi
 import { supabase } from '../../config/supabase';
 import * as XLSX from 'xlsx';
 import DashboardStatsCard from '../products/ProductListPage/components/DashboardStatsCard';
+import { useOrderSearch } from './hooks/useOrderSearch';
 
 /**
  * 쿠팡 주문 데이터 타입
@@ -25,6 +26,7 @@ interface CoupangOrderData {
   recipient_address: string;
   delivery_message: string;
   user_id: string;
+  purchase_status?: string; // 사입상태 (chinaorder_googlesheet_all의 ID)
   // 계산된 필드들
   sequence?: number;
   total_qty?: number;
@@ -110,6 +112,12 @@ const CoupangOrders: React.FC = () => {
   const [selectedRecipient, setSelectedRecipient] = useState<CoupangOrderData | null>(null);
   const [clearDataBeforeUpload, setClearDataBeforeUpload] = useState(true);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  // 주문 조회 Hook
+  const { isLoading: isOrderSearchLoading, handleOrderSearch } = useOrderSearch(() => {
+    // 조회 성공 시 데이터 새로고침
+    loadOrderData();
+  });
 
   /**
    * 실제 할당 가능한 주문 수를 계산하는 함수
@@ -1522,10 +1530,10 @@ const CoupangOrders: React.FC = () => {
             </button>
             <button
               className="coupang-orders-button coupang-orders-button-info"
-              onClick={loadOrderData}
-              disabled={isLoading || isUploading}
+              onClick={handleOrderSearch}
+              disabled={isLoading || isUploading || isOrderSearchLoading}
             >
-              주문 조회
+              {isOrderSearchLoading ? '조회 중...' : '주문 조회'}
             </button>
           </div>
         </div>
@@ -1738,7 +1746,13 @@ const CoupangOrders: React.FC = () => {
                       }}>
                         {generateWarehouseText(order.barcode || '', order.qty, order.sequence || index)}
                       </td>
-                      <td style={{ textAlign: 'left' }}></td>
+                      <td style={{
+                        textAlign: 'left',
+                        fontSize: '12px',
+                        padding: '4px'
+                      }}>
+                        {order.purchase_status || ''}
+                      </td>
                     </tr>
                   ));
                 })()

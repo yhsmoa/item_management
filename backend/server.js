@@ -286,6 +286,10 @@ app.use('/api/views', viewsRouter);
 const googlesheetsRouter = require('./routes/googlesheets');
 app.use('/api/googlesheets', googlesheetsRouter);
 
+// 주문 관리 라우터
+const ordersRouter = require('./routes/orders');
+app.use('/api/orders', ordersRouter);
+
 // 404 에러 핸들러
 app.use('*', (req, res) => {
   res.status(404).json({
