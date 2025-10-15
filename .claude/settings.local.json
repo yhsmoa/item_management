@@ -58,7 +58,10 @@
       "Bash(if [ -f nul ])",
       "Bash(then rm nul)",
       "Bash(git rm:*)",
-      "Bash(git rev-parse:*)"
+      "Bash(git rev-parse:*)",
+      "Bash(start http://13.125.220.142:3000/marketing/promotion)",
+      "Bash(if exist nul del nul)",
+      "Bash(git restore:*)"
     ],
     "deny": [],
     "ask": [],

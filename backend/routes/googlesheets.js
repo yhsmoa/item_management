@@ -1153,12 +1153,17 @@ router.post('/import-data-all', async (req, res) => {
           // 빈 행 필터링 (모든 셀이 비어있거나 undefined인 행 제외)
           return row && row.some(cell => cell !== null && cell !== undefined && cell !== '');
         });
+
+        const timestamp = Date.now(); // 현재 타임스탬프
+
         const transformedData = dataRows.map((row, index) => {
           const rowNumber = index + 1;
-          const id = `${businessCode}-${sheetConfig.code}-${rowNumber}`;
+          const orderRow = `${businessCode}-${sheetConfig.code}-${rowNumber}`;
+          const id = `${orderRow}-${timestamp}`; // 타임스탬프 추가로 중복 방지
 
           return {
             id,
+            order_row: orderRow, // 새로운 컬럼: HI-O-99 형식
             user_id,
             order_number: row[0] || '', // A열
             option_id: row[19] || '', // T열

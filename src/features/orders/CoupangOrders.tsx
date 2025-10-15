@@ -1750,53 +1750,35 @@ const CoupangOrders: React.FC = () => {
                         padding: '4px'
                       }}>
                         {(() => {
-                          try {
-                            if (!order.purchase_status) return '';
-                            const statusData = JSON.parse(order.purchase_status);
-                            const lines = statusData.text.split('\n');
-                            const statusLine = lines[0]; // 첫 번째 줄: 상태
-                            const compositionLine = lines.slice(1).join('\n'); // 나머지: composition
+                          if (!order.purchase_status) return '';
 
-                            // 상태별 배경색 정의 (연한 색상)
-                            const colorMap: { [key: string]: string } = {
-                              '신규': '#E8E8E8',
-                              '진행': '#FFEB99',
-                              '결제': '#E8E8E8',
-                              '입고': '#FFB366',
-                              '출고': '#99E699'
-                            };
+                          const lines = order.purchase_status.split('\n');
+                          const statusLine = lines[0]; // 첫 번째 줄: 상태
+                          const compositionLine = lines.slice(1).join('\n'); // 나머지: composition (출고번호)
 
-                            // 상태 텍스트를 단어별로 분리하고 배경색 적용
-                            const renderStatusWithColors = () => {
-                              const parts = statusLine.split(' ');
-                              return parts.map((part: string, index: number) => {
-                                const bgColor = colorMap[part];
-                                if (bgColor) {
-                                  return (
-                                    <span key={index} style={{
-                                      backgroundColor: bgColor,
-                                      padding: '2px 4px',
-                                      borderRadius: '3px',
-                                      marginRight: '2px'
-                                    }}>
-                                      {part}
-                                    </span>
-                                  );
-                                }
-                                // '>' 같은 구분자는 배경 없이
-                                return <span key={index} style={{ marginRight: '2px' }}>{part}</span>;
-                              });
-                            };
+                          // 상태별 배경색 정의
+                          const colorMap: { [key: string]: string } = {
+                            '신규': '#E8E8E8',
+                            '결제': '#E8E8E8',
+                            '진행': '#FFEB99',
+                            '입고': '#FFB366',
+                            '출고': '#99E699'
+                          };
 
-                            return (
-                              <div style={{ whiteSpace: 'pre-line' }}>
-                                <div>{renderStatusWithColors()}</div>
-                                {compositionLine && <div style={{ marginTop: '4px' }}>🚢 {compositionLine}</div>}
-                              </div>
-                            );
-                          } catch {
-                            return order.purchase_status;
-                          }
+                          const bgColor = colorMap[statusLine] || '#E8E8E8';
+
+                          return (
+                            <div style={{ whiteSpace: 'pre-line' }}>
+                              <span style={{
+                                backgroundColor: bgColor,
+                                padding: '2px 4px',
+                                borderRadius: '3px'
+                              }}>
+                                {statusLine}
+                              </span>
+                              {compositionLine && <div style={{ marginTop: '4px' }}>🚢 {compositionLine}</div>}
+                            </div>
+                          );
                         })()}
                       </td>
                     </tr>
