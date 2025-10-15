@@ -210,24 +210,21 @@ router.post('/search-purchase-status', async (req, res) => {
         };
 
         // 상태 결정 로직
-        // Case 1: 입고 미완료 → 신규/결제/진행
-        if (orderStatusImport !== orderQty) {
-          purchaseStatus = sheetNameMap[sheetName] || sheetName;
+        // 1. 출고 완료: shipment = order_qty (둘 다 0보다 큼)
+        if (orderStatusShipment > 0 && orderStatusShipment === orderQty) {
+          purchaseStatus = '출고';
+          // 출고번호(composition)가 있으면 추가
+          if (composition) {
+            purchaseStatus = `출고\n${composition}`;
+          }
         }
-        // Case 2: 입고 완료, 출고 미완료 → 입고
-        else if (orderStatusImport === orderQty && orderStatusShipment !== orderQty) {
+        // 2. 입고 완료: import = order_qty (둘 다 0보다 큼)
+        else if (orderStatusImport > 0 && orderStatusImport === orderQty) {
           purchaseStatus = '입고';
         }
-        // Case 3: 입고 & 출고 완료 → 출고
-        else if (orderStatusImport === orderQty && orderStatusShipment === orderQty) {
-          purchaseStatus = '출고';
-        }
-
-        // composition이 있으면 추가 (출고번호)
-        if (composition && purchaseStatus === '출고') {
-          purchaseStatus = `출고\n${composition}`;
-        } else if (composition) {
-          purchaseStatus = `${purchaseStatus}\n${composition}`;
+        // 3. 나머지: 시트명 그대로 (신규/결제/진행)
+        else {
+          purchaseStatus = sheetNameMap[sheetName] || sheetName;
         }
 
         matchResults.push({
