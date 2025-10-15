@@ -22,9 +22,9 @@
     "xlsx": "^0.18.5"
   },
   "scripts": {
-    "start": "react-scripts start",
+    "start": "PORT=3002 react-scripts start",
     "dev": "concurrently \"npm run frontend\" \"npm run backend\"",
-    "frontend": "react-scripts start",
+    "frontend": "PORT=3002 react-scripts start",
     "backend": "cd backend && npm start",
     "build": "DISABLE_ESLINT_PLUGIN=true react-scripts build",
     "build:railway": "GENERATE_SOURCEMAP=false DISABLE_ESLINT_PLUGIN=true TSC_COMPILE_ON_ERROR=true react-scripts build",

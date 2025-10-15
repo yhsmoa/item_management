@@ -14,12 +14,14 @@
 
 ### 로컬 개발 환경
 ```
-프론트엔드: http://localhost:3000
-백엔드: http://localhost:3001
-프록시: http://localhost:3002
+프론트엔드: http://localhost:3002
+백엔드: http://localhost:3003
+프록시: http://localhost:3004 (사용 안 함)
 ```
 
-**사용 파일:** `.env.local`
+**사용 파일:** `.env.local`, `backend/.env`
+
+**포트 충돌 방지:** 기존 프로젝트가 3000, 3001을 사용하므로 3002, 3003 포트 사용
 
 ### Lightsail 운영 환경
 ```
@@ -50,10 +52,12 @@ npm start
 
 ### 3. 브라우저에서 확인
 ```
-http://localhost:3000
+http://localhost:3002
 ```
 
-**✅ 로컬 개발 시에는 `.env.local`이 자동으로 사용됩니다.**
+**✅ 로컬 개발 시 환경변수:**
+- 프론트엔드: `.env.local` 사용 (PORT=3002는 package.json에서 설정)
+- 백엔드: `backend/.env` 사용 (PORT=3003)
 
 ---
 
@@ -105,8 +109,13 @@ pm2 restart all       # 모든 서비스 재시작
 - **위치**: Git에 커밋되지 않음 (.gitignore)
 
 ```bash
-REACT_APP_BACKEND_URL=http://localhost:3001
-REACT_APP_PROXY_SERVER_URL=http://localhost:3002
+REACT_APP_BACKEND_URL=http://localhost:3003
+REACT_APP_PROXY_SERVER_URL=http://localhost:3004
+```
+
+**backend/.env:**
+```bash
+PORT=3003
 ```
 
 ### `.env.production` (Lightsail 배포용)
@@ -121,8 +130,12 @@ REACT_APP_PROXY_SERVER_URL=http://13.125.220.142:3002
 
 ### `backend/.env` (백엔드 설정)
 - **목적**: 백엔드 서버 설정
-- **특징**: 로컬/서버 모두 동일하게 사용
+- **특징**:
+  - 로컬: `PORT=3003`
+  - Lightsail: `PORT=3001` (또는 환경변수 미설정 시 기본값 3001)
 - **위치**: Git에 커밋되지 않음 (.gitignore)
+
+**중요:** Lightsail에는 `backend/.env`에 PORT를 설정하지 않거나, `PORT=3001`로 설정
 
 ---
 
@@ -182,12 +195,14 @@ npm run build
 ### API 연결 안 됨
 ```bash
 # 로컬 개발 시
-→ 백엔드가 실행 중인지 확인: http://localhost:3001
-→ .env.local 파일 확인
+→ 백엔드가 실행 중인지 확인: http://localhost:3003
+→ .env.local 파일 확인 (REACT_APP_BACKEND_URL=http://localhost:3003)
+→ backend/.env 파일 확인 (PORT=3003)
 
 # Lightsail 배포 시
 → Lightsail 백엔드 확인: pm2 status
 → .env.production 파일 확인
+→ backend/.env에 PORT=3001 설정되어 있는지 확인
 → 빌드를 다시 했는지 확인 (npm run build)
 ```
 
@@ -245,14 +260,19 @@ pm2 logs frontend     # 프론트엔드 로그만
 ```
 로컬 개발:
   - .env.local 사용
-  - localhost:3001 (백엔드도 로컬 실행)
+  - 프론트엔드: localhost:3002
+  - 백엔드: localhost:3003 (backend/.env에서 PORT=3003)
   - npm start
 
 Lightsail 배포:
   - .env.production 사용
-  - 13.125.220.142:3001
+  - 프론트엔드: 13.125.220.142:3000
+  - 백엔드: 13.125.220.142:3001 (backend/.env에서 PORT=3001 또는 미설정)
   - npm run build
   - git pull 후 pm2 restart
 ```
 
-**핵심: 두 환경은 환경변수 파일만 다르고, 코드는 동일합니다!**
+**핵심:**
+- 코드는 동일하지만, 환경변수만 다름
+- 로컬은 3002, 3003 포트 사용 (포트 충돌 방지)
+- Lightsail은 3000, 3001 포트 사용 (기존 설정 유지)

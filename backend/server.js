@@ -7,7 +7,7 @@ const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3001; // Lightsail: 3001, Local: .env에서 3003 설정
 
 // Supabase 클라이언트 설정
 const supabase = createClient(
@@ -20,6 +20,7 @@ app.use(helmet()); // 보안 헤더
 app.use(cors({
   origin: [
     'http://localhost:3000',
+    'http://localhost:3002',
     'http://13.125.220.142:3000',
     process.env.FRONTEND_URL
   ],
