@@ -21,6 +21,9 @@ node_modules/
 # Environment variables (sensitive data)
 .env
 .env.*
+.env.local
+.env.production
+backend/.env
 
 *_env.txt
 supabase_env.txt
@@ -110,3 +113,8 @@ Desktop.ini
 # Temporary files
 *.tmp
 *.temp
+
+# SSH Keys (NEVER commit these!)
+*.pem
+*.key
+!*.public.key

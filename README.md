@@ -1,6 +1,18 @@
-# Getting Started with Create React App
+# Item Management System
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+
+## 🚨 중요: 배포 전 필독
+
+**로컬 개발과 Lightsail 배포는 환경변수가 다릅니다!**
+
+👉 **배포 가이드를 반드시 읽어주세요:** [DEPLOYMENT.md](./DEPLOYMENT.md)
+
+### 빠른 시작
+- **로컬 개발**: `.env.local` (localhost)
+- **Lightsail 배포**: `.env.production` (13.125.220.142)
+
+---
 
 ## Available Scripts
 
