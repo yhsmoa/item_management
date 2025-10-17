@@ -1417,7 +1417,7 @@ router.post('/save-all-china-orders', async (req, res) => {
     const auth = getGoogleSheetsAuth();
     const sheets = google.sheets({ version: 'v4', auth });
 
-    // 기존 데이터 전체 삭제 (헤더 제외, A~V열까지)
+    // 기존 데이터 전체 삭제 (헤더 제외, A~V열까지 읽기)
     const readResponse = await sheets.spreadsheets.values.get({
       spreadsheetId: userData.googlesheet_id,
       range: '신규!A:V',
@@ -1425,9 +1425,9 @@ router.post('/save-all-china-orders', async (req, res) => {
 
     const existingRows = readResponse.data.values || [];
 
-    // 2행부터 마지막 행까지 삭제 (헤더는 유지, V열까지 포함)
+    // 2행부터 마지막 행까지 삭제 (헤더는 유지, A~Z열까지 완전 삭제)
     if (existingRows.length > 1) {
-      const clearRange = `신규!A2:V${existingRows.length}`;
+      const clearRange = `신규!A2:Z${existingRows.length}`;
       await sheets.spreadsheets.values.clear({
         spreadsheetId: userData.googlesheet_id,
         range: clearRange,
