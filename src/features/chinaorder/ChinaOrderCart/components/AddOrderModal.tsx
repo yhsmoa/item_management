@@ -25,8 +25,10 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
 
   // 대량엑셀 데이터 임시 저장
   const [bulkExcelData, setBulkExcelData] = useState<any[]>([]);
+  const [bulkExcelDataCount, setBulkExcelDataCount] = useState<number>(0);
   // 쿠팡엑셀 데이터 임시 저장
   const [coupangExcelData, setCoupangExcelData] = useState<any[]>([]);
+  const [coupangExcelDataCount, setCoupangExcelDataCount] = useState<number>(0);
 
   const [orderItems, setOrderItems] = useState([
     {
@@ -254,6 +256,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
         // 저장 성공 후 초기화 및 모달 닫기
         setSelectedFileName('');
         setBulkExcelData([]);
+        setBulkExcelDataCount(0);
         onSave({ activeTab, shouldReload: true });
         onClose();
 
@@ -297,6 +300,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
           alert(`구글시트에 ${result.data.rows_count}개 쿠팡 주문이 저장되었습니다!`);
           setSelectedCoupangFileName('');
           setCoupangExcelData([]);
+          setCoupangExcelDataCount(0);
           onSave({ activeTab, shouldReload: true });
           onClose();
         } else {
@@ -506,19 +510,10 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
       const uniqueData = Array.from(barcodeMap.values());
 
       const duplicateCount = supabaseData.length - uniqueData.length;
-      if (duplicateCount > 0) {
-        alert(
-          `중복된 바코드가 ${duplicateCount}개 발견되었습니다.\n` +
-          `중복 제거 후 ${uniqueData.length}개 데이터가 준비되었습니다.\n\n` +
-          `(같은 바코드는 마지막 행만 적용됩니다)\n\n` +
-          `[저장] 버튼을 클릭하면 구글 시트에 저장됩니다.`
-        );
-      } else {
-        alert(`${dataRows.length}개 행이 준비되었습니다.\n[저장] 버튼을 클릭하면 구글 시트에 저장됩니다.`);
-      }
 
       // 데이터를 상태에 저장 (실제 저장은 handleSave에서 수행)
       setBulkExcelData(uniqueData);
+      setBulkExcelDataCount(uniqueData.length);
 
     } catch (error) {
       console.error('❌ 파일 처리 오류:', error);
@@ -587,8 +582,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
 
       // 데이터를 상태에 임시 저장 (실제 저장은 handleSave에서 수행)
       setCoupangExcelData(dataRows);
-
-      alert(`${dataRows.length}개 쿠팡 주문이 준비되었습니다.\n[저장] 버튼을 클릭하면 구글 시트에 저장됩니다.`);
+      setCoupangExcelDataCount(dataRows.length);
 
     } catch (error) {
       console.error('쿠팡 파일 처리 오류:', error);
@@ -818,6 +812,11 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
 
             <div className="bulk-excel-upload-area" onClick={handleFileSelect}>
               <div className="bulk-excel-upload-icon">📁</div>
+              {bulkExcelDataCount > 0 && (
+                <p style={{ fontSize: '16px', fontWeight: 600, color: '#2ecc71', marginBottom: '8px' }}>
+                  {bulkExcelDataCount}개의 데이터가 준비되었습니다.
+                </p>
+              )}
               <p>{selectedFileName || 'Excel 파일을 선택하세요'}</p>
               <p className="bulk-excel-upload-hint">
                 .xlsx, .xls 파일만 지원됩니다
@@ -839,6 +838,11 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
           <div className="modal-content bulk-excel-content">
             <div className="bulk-excel-upload-area" onClick={handleCoupangFileSelect}>
               <div className="bulk-excel-upload-icon">📁</div>
+              {coupangExcelDataCount > 0 && (
+                <p style={{ fontSize: '16px', fontWeight: 600, color: '#2ecc71', marginBottom: '8px' }}>
+                  {coupangExcelDataCount}개의 데이터가 준비되었습니다.
+                </p>
+              )}
               <p>{selectedCoupangFileName || 'Excel 파일을 선택하세요'}</p>
               <p className="bulk-excel-upload-hint">
                 .xlsx, .xls 파일만 지원됩니다
