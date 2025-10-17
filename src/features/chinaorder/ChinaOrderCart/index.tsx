@@ -599,15 +599,22 @@ function ChinaorderCart() {
                 if (selectedItems.length > 0) {
                   const currentPageData = getCurrentPageData();
                   const selectedItemsData = selectedItems.map(selectedId => {
-                    return currentPageData.find((item, index) => {
-                      const uniqueId = `${item.china_order_number || `order-${currentPage}-${index}`}-${item.option_id || index}`;
+                    return currentPageData.find((item) => {
+                      // _globalIndex를 사용하여 ID 생성
+                      const globalIdx = item._globalIndex !== undefined ? item._globalIndex : 0;
+                      const uniqueId = `${item.china_order_number || `order-${globalIdx}`}-${item.option_id || globalIdx}`;
                       return uniqueId === selectedId;
                     });
                   }).filter(item => item !== undefined);
 
+                  console.log('🔍 선택된 데이터:', selectedItemsData);
+
                   if (selectedItemsData.length > 0) {
                     setEditData(selectedItemsData);
                     setShowEditModal(true);
+                  } else {
+                    console.error('❌ 선택된 데이터를 찾을 수 없습니다!');
+                    alert('선택된 데이터를 찾을 수 없습니다.');
                   }
                 }
               }}
