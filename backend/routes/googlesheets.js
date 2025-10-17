@@ -1417,17 +1417,17 @@ router.post('/save-all-china-orders', async (req, res) => {
     const auth = getGoogleSheetsAuth();
     const sheets = google.sheets({ version: 'v4', auth });
 
-    // 기존 데이터 전체 삭제 (헤더 제외)
+    // 기존 데이터 전체 삭제 (헤더 제외, A~V열까지)
     const readResponse = await sheets.spreadsheets.values.get({
       spreadsheetId: userData.googlesheet_id,
-      range: '신규!A:T',
+      range: '신규!A:V',
     });
 
     const existingRows = readResponse.data.values || [];
 
-    // 2행부터 마지막 행까지 삭제 (헤더는 유지)
+    // 2행부터 마지막 행까지 삭제 (헤더는 유지, V열까지 포함)
     if (existingRows.length > 1) {
-      const clearRange = `신규!A2:T${existingRows.length}`;
+      const clearRange = `신규!A2:V${existingRows.length}`;
       await sheets.spreadsheets.values.clear({
         spreadsheetId: userData.googlesheet_id,
         range: clearRange,
@@ -1435,33 +1435,35 @@ router.post('/save-all-china-orders', async (req, res) => {
       console.log('🗑️ [SAVE_ALL_CHINA_ORDERS] 기존 데이터 삭제 완료:', clearRange);
     }
 
-    // 데이터 변환 (구글 시트 형식)
+    // 데이터 변환 (구글 시트 형식, A~V열)
     const rows = orders.map(order => [
-      order.date || '',
-      order.china_order_number || '',
-      order.item_name || '',
-      order.option_name || '',
-      order.order_quantity || '',
-      order.barcode || '',
-      order.china_option1 || '',
-      order.china_option2 || '',
-      order.china_price || '',
-      order.china_total_price || '',
-      order.image_url || '',
-      order.china_link || '',
-      order.order_status_ordering || '',
-      order.order_status_check || '',
-      order.order_status_cancel || '',
-      order.order_status_shipment || '',
-      order.remark || order.note || '',
-      order.confirm_order_id || '',
-      order.confirm_shipment_id || '',
-      order.option_id || ''
+      order.date || '',                         // A
+      order.china_order_number || '',           // B
+      order.item_name || '',                    // C
+      order.option_name || '',                  // D
+      order.order_quantity || '',               // E
+      order.barcode || '',                      // F
+      order.china_option1 || '',                // G
+      order.china_option2 || '',                // H
+      order.china_price || '',                  // I
+      order.china_total_price || '',            // J
+      order.image_url || '',                    // K
+      order.china_link || '',                   // L
+      order.order_status_ordering || '',        // M
+      order.order_status_check || '',           // N
+      order.order_status_cancel || '',          // O
+      order.order_status_shipment || '',        // P
+      order.remark || order.note || '',         // Q
+      order.confirm_order_id || '',             // R
+      order.confirm_shipment_id || '',          // S
+      order.option_id || '',                    // T
+      '',                                       // U (빈 값)
+      ''                                        // V (빈 값)
     ]);
 
-    // 데이터 저장 (2행부터)
+    // 데이터 저장 (2행부터, A~V열)
     if (rows.length > 0) {
-      const updateRange = `신규!A2:T${1 + rows.length}`;
+      const updateRange = `신규!A2:V${1 + rows.length}`;
       await sheets.spreadsheets.values.update({
         spreadsheetId: userData.googlesheet_id,
         range: updateRange,
