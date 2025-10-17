@@ -251,7 +251,6 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
         }
 
         console.log('✅ Supabase 저장 성공:', insertedData);
-        alert(`${bulkExcelData.length}개 행이 성공적으로 저장되었습니다!`);
 
         // 저장 성공 후 초기화 및 모달 닫기
         setSelectedFileName('');
@@ -297,7 +296,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
         const result = await response.json();
 
         if (result.success) {
-          alert(`구글시트에 ${result.data.rows_count}개 쿠팡 주문이 저장되었습니다!`);
+          console.log('✅ 쿠팡엑셀 구글시트 저장 성공:', result.data.rows_count, '개');
           setSelectedCoupangFileName('');
           setCoupangExcelData([]);
           setCoupangExcelDataCount(0);
