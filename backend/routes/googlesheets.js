@@ -979,11 +979,12 @@ router.post('/upload-coupang-excel', async (req, res) => {
     // 쿠팡 엑셀 데이터를 구글시트 형식으로 변환
     // 엑셀 열 인덱스: K=10, L=11, W=22, R=17, C=2, AA=26 (0-based)
     const rows = excelData.map(row => {
-      // C & " " & AA 조합 (C열 + 공백 + AA열) -> 비고란에는 C열만 저장
-      const remarkValue = row[2] || '';  // C열만 비고란에 저장
-
-      // AA열 (수취인명) -> V열에 "P-수취인명" 형식으로 저장
-      const recipientName = row[26] ? `P-${row[26]}` : '';
+      // V열에 "P-" & C열 (주문번호) & " " & AA열 (수취인명) 형식으로 저장
+      const orderNumber = row[2] || '';  // C열 (주문번호)
+      const recipientName = row[26] || '';  // AA열 (수취인명)
+      const personalOrderInfo = orderNumber && recipientName
+        ? `P-${orderNumber} ${recipientName}`
+        : '';
 
       return [
         '',                    // A: 빈 값
@@ -1002,12 +1003,12 @@ router.post('/upload-coupang-excel', async (req, res) => {
         '',                    // N: 빈 값
         '',                    // O: 빈 값
         '',                    // P: 빈 값
-        remarkValue,           // Q: C열만 (비고)
+        '',                    // Q: 비고 (빈 값)
         '',                    // R: 빈 값
         '',                    // S: 빈 값
         '',                    // T: 빈 값
         '',                    // U: 빈 값
-        recipientName          // V: P-AA열 (개인주문 정보)
+        personalOrderInfo      // V: P-C열 AA열 (개인주문 정보)
       ];
     });
 
