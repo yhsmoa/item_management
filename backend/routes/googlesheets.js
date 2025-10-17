@@ -626,7 +626,7 @@ router.post('/read-new-sheet', async (req, res) => {
 
     const newResponse = await sheets.spreadsheets.values.get({
       spreadsheetId: userData.googlesheet_id,
-      range: '신규!A:S', // A부터 S열까지
+      range: '신규!A:Z', // A부터 Z열까지
     });
 
     const newRows = newResponse.data.values || [];
@@ -667,7 +667,8 @@ router.post('/read-new-sheet', async (req, res) => {
       remark: row[16] || '', // Q열
       confirm_order_id: row[17] || '', // R열
       confirm_shipment_id: row[18] || '', // S열
-      option_id: row[19] || '' // T열
+      option_id: row[19] || '', // T열
+      shipment_info: row[21] || '' // V열
     }));
 
     const processingTime = Date.now() - startTime;
