@@ -851,17 +851,23 @@ function ChinaorderCart() {
           console.log('수정된 데이터:', data);
           // 테이블 데이터 수정
           if (data.tableData && Array.isArray(data.tableData)) {
-            // 선택된 항목들의 barcode로 찾아서 업데이트
+            // 선택된 항목들을 찾아서 업데이트
             setOrderData(prevData => {
               const newData = [...prevData];
-              selectedItems.forEach((selectedId, index) => {
+
+              // selectedItems에서 선택된 ID 목록을 가져옴
+              selectedItems.forEach((selectedId, dataIndex) => {
+                // 전체 데이터에서 해당 ID와 매칭되는 항목 찾기
                 const itemIndex = newData.findIndex((item, idx) => {
-                  const uniqueId = `${item.china_order_number || `order-${currentPage}-${idx}`}-${item.option_id || idx}`;
+                  // ID 생성 로직을 전체 데이터 인덱스 기반으로 수정
+                  const pageNumber = Math.floor(idx / itemsPerPage) + 1;
+                  const uniqueId = `${item.china_order_number || `order-${pageNumber}-${idx % itemsPerPage}`}-${item.option_id || idx}`;
                   return uniqueId === selectedId;
                 });
 
-                if (itemIndex !== -1 && data.tableData[index]) {
-                  newData[itemIndex] = { ...newData[itemIndex], ...data.tableData[index] };
+                if (itemIndex !== -1 && data.tableData[dataIndex]) {
+                  // 기존 데이터와 수정된 데이터 병합
+                  newData[itemIndex] = { ...newData[itemIndex], ...data.tableData[dataIndex] };
                 }
               });
               return newData;
@@ -869,14 +875,16 @@ function ChinaorderCart() {
 
             setFilteredOrderData(prevData => {
               const newData = [...prevData];
-              selectedItems.forEach((selectedId, index) => {
+
+              selectedItems.forEach((selectedId, dataIndex) => {
                 const itemIndex = newData.findIndex((item, idx) => {
-                  const uniqueId = `${item.china_order_number || `order-${currentPage}-${idx}`}-${item.option_id || idx}`;
+                  const pageNumber = Math.floor(idx / itemsPerPage) + 1;
+                  const uniqueId = `${item.china_order_number || `order-${pageNumber}-${idx % itemsPerPage}`}-${item.option_id || idx}`;
                   return uniqueId === selectedId;
                 });
 
-                if (itemIndex !== -1 && data.tableData[index]) {
-                  newData[itemIndex] = { ...newData[itemIndex], ...data.tableData[index] };
+                if (itemIndex !== -1 && data.tableData[dataIndex]) {
+                  newData[itemIndex] = { ...newData[itemIndex], ...data.tableData[dataIndex] };
                 }
               });
               return newData;
@@ -884,6 +892,7 @@ function ChinaorderCart() {
 
             alert(`${data.tableData.length}개 주문이 수정되었습니다.`);
             setSelectedItems([]); // 선택 해제
+            setSelectAll(false);
           }
         }}
         mode="edit"
