@@ -965,7 +965,7 @@ router.post('/upload-coupang-excel', async (req, res) => {
     const sheets = google.sheets({ version: 'v4', auth });
 
     // 현재 시트 데이터 확인 (다음 빈 행 찾기)
-    const range = '신규!A:Q';
+    const range = '신규!A:V';
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: googlesheet_id,
       range: range,
@@ -978,6 +978,7 @@ router.post('/upload-coupang-excel', async (req, res) => {
 
     // 쿠팡 엑셀 데이터를 구글시트 형식으로 변환
     // 엑셀 열 인덱스: K=10, L=11, W=22, R=17, C=2, AA=26 (0-based)
+    // 구글 시트: A부터 V까지 22개 컬럼
     const rows = excelData.map(row => {
       // V열에 "P-" & C열 (주문번호) & " " & AA열 (수취인명) 형식으로 저장
       const orderNumber = row[2] || '';  // C열 (주문번호)
@@ -987,28 +988,28 @@ router.post('/upload-coupang-excel', async (req, res) => {
         : '';
 
       return [
-        '',                    // A: 빈 값
-        '',                    // B: 빈 값
-        row[10] || '',         // C: K열 -> C열
-        row[11] || '',         // D: L열 -> D열
-        row[22] || '',         // E: W열 -> E열
-        row[17] || '',         // F: R열 -> F열
-        '',                    // G: 빈 값
-        '',                    // H: 빈 값
-        '',                    // I: 빈 값
-        '',                    // J: 빈 값
-        '',                    // K: 빈 값
-        '',                    // L: 빈 값
-        '',                    // M: 빈 값
-        '',                    // N: 빈 값
-        '',                    // O: 빈 값
-        '',                    // P: 빈 값
-        '',                    // Q: 비고 (빈 값)
-        '',                    // R: 빈 값
-        '',                    // S: 빈 값
-        '',                    // T: 빈 값
-        '',                    // U: 빈 값
-        personalOrderInfo      // V: P-C열 AA열 (개인주문 정보)
+        '',                    // A: 빈 값 (인덱스 0)
+        '',                    // B: 빈 값 (인덱스 1)
+        row[10] || '',         // C: K열 -> C열 (인덱스 2)
+        row[11] || '',         // D: L열 -> D열 (인덱스 3)
+        row[22] || '',         // E: W열 -> E열 (인덱스 4)
+        row[17] || '',         // F: R열 -> F열 (인덱스 5)
+        '',                    // G: 빈 값 (인덱스 6)
+        '',                    // H: 빈 값 (인덱스 7)
+        '',                    // I: 빈 값 (인덱스 8)
+        '',                    // J: 빈 값 (인덱스 9)
+        '',                    // K: 빈 값 (인덱스 10)
+        '',                    // L: 빈 값 (인덱스 11)
+        '',                    // M: 빈 값 (인덱스 12)
+        '',                    // N: 빈 값 (인덱스 13)
+        '',                    // O: 빈 값 (인덱스 14)
+        '',                    // P: 빈 값 (인덱스 15)
+        '',                    // Q: 비고 (빈 값) (인덱스 16)
+        '',                    // R: 빈 값 (인덱스 17)
+        '',                    // S: 빈 값 (인덱스 18)
+        '',                    // T: 빈 값 (인덱스 19)
+        '',                    // U: 빈 값 (인덱스 20)
+        personalOrderInfo      // V: P-주문번호 수취인명 (인덱스 21)
       ];
     });
 
