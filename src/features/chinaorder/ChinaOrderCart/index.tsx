@@ -181,11 +181,13 @@ function ChinaorderCart() {
 
 
   // 데이터를 테이블 행으로 변환
-  const transformDataToTableRows = (data: ChinaOrderData[]): TableRow[] => {
+  const transformDataToTableRows = (data: any[]): TableRow[] => {
     return data.map((order, index) => {
-      // 고유한 ID 생성: 주문번호를 기본으로 사용
-      const uniqueId = `${order.china_order_number || `order-${currentPage}-${index}`}-${order.option_id || index}`;
-      
+      // _globalIndex가 있으면 사용, 없으면 index 사용
+      const globalIdx = order._globalIndex !== undefined ? order._globalIndex : index;
+      // 고유한 ID 생성: 전체 인덱스 기반
+      const uniqueId = `${order.china_order_number || `order-${globalIdx}`}-${order.option_id || globalIdx}`;
+
       return {
         ...order,
         type: 'order' as const,
@@ -254,7 +256,10 @@ function ChinaorderCart() {
   const getCurrentPageData = () => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
-    return filteredOrderData.slice(startIndex, endIndex);
+    return filteredOrderData.slice(startIndex, endIndex).map((item, localIndex) => ({
+      ...item,
+      _globalIndex: startIndex + localIndex // 전체 데이터에서의 실제 인덱스
+    }));
   };
 
   // 🔧 모달 상태 관리
@@ -420,14 +425,14 @@ function ChinaorderCart() {
       // 선택된 항목 삭제 (메모리에서만)
       setOrderData(prevData =>
         prevData.filter((item, index) => {
-          const uniqueId = `${item.china_order_number || `order-${currentPage}-${index}`}-${item.option_id || index}`;
+          const uniqueId = `${item.china_order_number || `order-${index}`}-${item.option_id || index}`;
           return !selectedItems.includes(uniqueId);
         })
       );
 
       setFilteredOrderData(prevData =>
         prevData.filter((item, index) => {
-          const uniqueId = `${item.china_order_number || `order-${currentPage}-${index}`}-${item.option_id || index}`;
+          const uniqueId = `${item.china_order_number || `order-${index}`}-${item.option_id || index}`;
           return !selectedItems.includes(uniqueId);
         })
       );
@@ -859,9 +864,8 @@ function ChinaorderCart() {
               selectedItems.forEach((selectedId, dataIndex) => {
                 // 전체 데이터에서 해당 ID와 매칭되는 항목 찾기
                 const itemIndex = newData.findIndex((item, idx) => {
-                  // ID 생성 로직을 전체 데이터 인덱스 기반으로 수정
-                  const pageNumber = Math.floor(idx / itemsPerPage) + 1;
-                  const uniqueId = `${item.china_order_number || `order-${pageNumber}-${idx % itemsPerPage}`}-${item.option_id || idx}`;
+                  // 동일한 ID 생성 로직 사용
+                  const uniqueId = `${item.china_order_number || `order-${idx}`}-${item.option_id || idx}`;
                   return uniqueId === selectedId;
                 });
 
@@ -878,8 +882,8 @@ function ChinaorderCart() {
 
               selectedItems.forEach((selectedId, dataIndex) => {
                 const itemIndex = newData.findIndex((item, idx) => {
-                  const pageNumber = Math.floor(idx / itemsPerPage) + 1;
-                  const uniqueId = `${item.china_order_number || `order-${pageNumber}-${idx % itemsPerPage}`}-${item.option_id || idx}`;
+                  // 동일한 ID 생성 로직 사용
+                  const uniqueId = `${item.china_order_number || `order-${idx}`}-${item.option_id || idx}`;
                   return uniqueId === selectedId;
                 });
 
