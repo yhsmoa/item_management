@@ -819,8 +819,10 @@ function ChinaorderCart() {
         onClose={() => setShowAddOrderModal(false)}
         onSave={(data) => {
           console.log('모달에서 저장된 데이터:', data);
-          // 주문 추가 후 구글 시트에서 최신 데이터 자동 불러오기
-          handleGoogleSheetsDirectRead();
+          // shouldReload 플래그가 있으면 구글 시트 자동 불러오기
+          if (data.shouldReload) {
+            handleGoogleSheetsDirectRead();
+          }
         }}
       />
 
@@ -830,7 +832,10 @@ function ChinaorderCart() {
         onClose={() => setShowBackupModal(false)}
         onSave={(data: any) => {
           console.log('백업 데이터:', data);
-          // TODO: 백업 로직 구현
+          // shouldReload 플래그가 있으면 구글 시트 자동 불러오기
+          if (data.shouldReload) {
+            handleGoogleSheetsDirectRead();
+          }
         }}
         mode="backup"
       />

@@ -22,10 +22,17 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
   const coupangFileInputRef = React.useRef<HTMLInputElement>(null);
   const [selectedFileName, setSelectedFileName] = useState<string>('');
   const [selectedCoupangFileName, setSelectedCoupangFileName] = useState<string>('');
+
+  // 대량엑셀 데이터 임시 저장
+  const [bulkExcelData, setBulkExcelData] = useState<any[]>([]);
+  // 쿠팡엑셀 데이터 임시 저장
+  const [coupangExcelData, setCoupangExcelData] = useState<any[]>([]);
+
   const [orderItems, setOrderItems] = useState([
     {
       id: 1,
       image: '',
+      itemName: '',  // 각 항목별 상품명
       optionName: '',
       barcode: '',
       quantity: 0,
@@ -44,8 +51,8 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
     if (mode === 'edit' && editData) {
       // editData가 배열인 경우 (여러 항목 수정)
       if (Array.isArray(editData)) {
-        // 첫 번째 항목의 상품명 사용
-        setProductName(editData[0]?.item_name || '');
+        // 여러 항목일 때는 상품명을 비워둠 (각 항목마다 개별 설정)
+        setProductName('');
         setOrderItems(editData.map((item, index) => ({
           id: index + 1,
           image: item.image_url || '',
@@ -58,7 +65,8 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
           imageUrl: item.image_url || '',
           linkUrl: item.china_link || '',
           remark: item.remark || '',
-          recipientName: item.recipient_name || ''
+          recipientName: item.recipient_name || '',
+          itemName: item.item_name || '' // 각 항목별 상품명 저장
         })));
       } else {
         // 단일 항목 수정
@@ -66,6 +74,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
         setOrderItems([{
           id: 1,
           image: editData.image_url || '',
+          itemName: editData.item_name || '',
           optionName: editData.option_name || '',
           barcode: editData.barcode || '',
           quantity: editData.order_quantity || 0,
@@ -84,6 +93,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
       setOrderItems([{
         id: 1,
         image: '',
+        itemName: '',
         optionName: '',
         barcode: '',
         quantity: 0,
@@ -106,6 +116,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
       {
         id: orderItems.length + 1,
         image: '',
+        itemName: '',
         optionName: '',
         barcode: '',
         quantity: 0,
@@ -149,7 +160,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
     // 수정 모드 - 테이블에만 수정 (구글 시트 저장 안 함)
     if (mode === 'edit') {
       const tableData = orderItems.map(item => ({
-        item_name: productName,
+        item_name: item.itemName || productName,  // 각 항목의 itemName 우선 사용, 없으면 공통 productName 사용
         option_name: item.optionName,
         barcode: item.barcode,
         order_quantity: item.quantity,
@@ -200,7 +211,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
 
         if (result.success) {
           alert(`구글시트에 ${result.data.rows_count}개 주문이 저장되었습니다!`);
-          onSave({ productName, orderItems, activeTab });
+          onSave({ productName, orderItems, activeTab, shouldReload: true });
           onClose();
         } else {
           alert(`저장 실패: ${result.message}`);
@@ -209,10 +220,93 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
         console.error('저장 오류:', error);
         alert('저장 중 오류가 발생했습니다.');
       }
-    } else {
-      // 대량엑셀, 쿠팡엑셀
-      onSave({ productName, orderItems, activeTab });
-      onClose();
+    } else if (activeTab === 'bulk') {
+      // 대량엑셀 저장
+      if (bulkExcelData.length === 0) {
+        alert('엑셀 파일을 먼저 선택해주세요.');
+        return;
+      }
+
+      try {
+        console.log('💾 대량엑셀 Supabase 저장 시작:', bulkExcelData.length, '개');
+
+        // Supabase에 데이터 삽입 (upsert: 중복 barcode 시 업데이트)
+        const { data: insertedData, error } = await supabase
+          .from('chinaorder_googlesheet_DB')
+          .upsert(bulkExcelData, { onConflict: 'barcode' })
+          .select();
+
+        if (error) {
+          console.error('❌ Supabase 저장 오류:', error);
+
+          // 중복 barcode 오류 처리
+          if (error.code === '23505') {
+            alert(`저장 실패: 이미 존재하는 바코드입니다.\n\n같은 바코드가 이미 데이터베이스에 있습니다. 바코드를 확인해주세요.`);
+          } else {
+            alert(`저장 실패: ${error.message}`);
+          }
+          return;
+        }
+
+        console.log('✅ Supabase 저장 성공:', insertedData);
+        alert(`${bulkExcelData.length}개 행이 성공적으로 저장되었습니다!`);
+
+        // 저장 성공 후 초기화 및 모달 닫기
+        setSelectedFileName('');
+        setBulkExcelData([]);
+        onSave({ activeTab, shouldReload: true });
+        onClose();
+
+      } catch (error) {
+        console.error('❌ 저장 오류:', error);
+        alert('저장 중 오류가 발생했습니다.');
+      }
+    } else if (activeTab === 'coupang') {
+      // 쿠팡엑셀 저장
+      if (coupangExcelData.length === 0) {
+        alert('엑셀 파일을 먼저 선택해주세요.');
+        return;
+      }
+
+      try {
+        const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+        const userId = currentUser.id || currentUser.user_id;
+
+        if (!userId) {
+          alert('사용자 정보를 찾을 수 없습니다.');
+          return;
+        }
+
+        console.log('💾 쿠팡엑셀 구글시트 저장 시작:', coupangExcelData.length, '개');
+
+        const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001';
+        const response = await fetch(`${backendUrl}/api/googlesheets/upload-coupang-excel`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            user_id: userId,
+            excelData: coupangExcelData
+          }),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          alert(`구글시트에 ${result.data.rows_count}개 쿠팡 주문이 저장되었습니다!`);
+          setSelectedCoupangFileName('');
+          setCoupangExcelData([]);
+          onSave({ activeTab, shouldReload: true });
+          onClose();
+        } else {
+          alert(`저장 실패: ${result.message}`);
+        }
+
+      } catch (error) {
+        console.error('쿠팡 저장 오류:', error);
+        alert('저장 중 오류가 발생했습니다.');
+      }
     }
   };
 
@@ -343,6 +437,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
       const worksheet = workbook.Sheets['신규'];
       if (!worksheet) {
         alert('엑셀 파일에 "신규" 시트가 없습니다.');
+        setSelectedFileName('');
         return;
       }
 
@@ -357,34 +452,15 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
 
       if (dataRows.length === 0) {
         alert('엑셀 파일에 데이터가 없습니다.');
+        setSelectedFileName('');
         return;
       }
 
-      console.log('📊 엑셀 데이터 로드:', {
+      console.log('📊 대량엑셀 데이터 로드 완료:', {
         total_rows: jsonData.length,
         data_rows: dataRows.length,
-        sample: dataRows[0],
-        '헤더(0행)': jsonData[0],
-        '첫번째 데이터(1행)': dataRows[0],
-        '각 열 값': {
-          'A(0)': dataRows[0]?.[0],
-          'B(1)': dataRows[0]?.[1],
-          'C(2)-item_name': dataRows[0]?.[2],
-          'D(3)-option_name': dataRows[0]?.[3],
-          'E(4)-order_qty': dataRows[0]?.[4],
-          'F(5)-barcode': dataRows[0]?.[5],
-          'G(6)-china_option1': dataRows[0]?.[6],
-          'H(7)-china_option2': dataRows[0]?.[7],
-          'I(8)-china_price': dataRows[0]?.[8],
-          'J(9)': dataRows[0]?.[9],
-          'K(10)-img_url': dataRows[0]?.[10],
-          'L(11)-china_link': dataRows[0]?.[11]
-        }
+        sample: dataRows[0]
       });
-
-      // 사용자 확인
-      const confirmed = window.confirm(`${dataRows.length}개 행을 Supabase에 저장하시겠습니까?`);
-      if (!confirmed) return;
 
       // 현재 사용자 정보 가져오기
       const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
@@ -392,10 +468,11 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
 
       if (!userId) {
         alert('사용자 정보를 찾을 수 없습니다.');
+        setSelectedFileName('');
         return;
       }
 
-      // 엑셀 데이터를 Supabase 형식으로 변환
+      // 엑셀 데이터를 Supabase 형식으로 변환하여 임시 저장
       const supabaseData = dataRows.map((row: any) => {
         const barcode = row[5] ? String(row[5]).trim() : null;
 
@@ -417,6 +494,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
       const missingBarcodes = supabaseData.filter((item: any) => !item.barcode);
       if (missingBarcodes.length > 0) {
         alert(`바코드가 없는 행이 ${missingBarcodes.length}개 있습니다. 모든 행에 바코드(F열)가 필요합니다.`);
+        setSelectedFileName('');
         return;
       }
 
@@ -429,52 +507,23 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
 
       const duplicateCount = supabaseData.length - uniqueData.length;
       if (duplicateCount > 0) {
-        const confirmed = window.confirm(
+        alert(
           `중복된 바코드가 ${duplicateCount}개 발견되었습니다.\n` +
-          `중복 제거 후 ${uniqueData.length}개 데이터를 저장하시겠습니까?\n\n` +
-          `(같은 바코드는 마지막 행만 저장됩니다)`
+          `중복 제거 후 ${uniqueData.length}개 데이터가 준비되었습니다.\n\n` +
+          `(같은 바코드는 마지막 행만 적용됩니다)\n\n` +
+          `[저장] 버튼을 클릭하면 구글 시트에 저장됩니다.`
         );
-        if (!confirmed) return;
+      } else {
+        alert(`${dataRows.length}개 행이 준비되었습니다.\n[저장] 버튼을 클릭하면 구글 시트에 저장됩니다.`);
       }
 
-      console.log('💾 Supabase 저장 데이터:', {
-        original: supabaseData.length,
-        unique: uniqueData.length,
-        duplicates: duplicateCount
-      });
-
-      // Supabase에 데이터 삽입 (upsert: 중복 barcode 시 업데이트)
-      const { data: insertedData, error } = await supabase
-        .from('chinaorder_googlesheet_DB')
-        .upsert(uniqueData, { onConflict: 'barcode' })
-        .select();
-
-      if (error) {
-        console.error('❌ Supabase 저장 오류:', error);
-        console.error('오류 상세:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        });
-
-        // 중복 barcode 오류 처리
-        if (error.code === '23505') {
-          alert(`저장 실패: 이미 존재하는 바코드입니다.\n\n같은 바코드가 이미 데이터베이스에 있습니다. 바코드를 확인해주세요.`);
-        } else {
-          alert(`저장 실패: ${error.message}`);
-        }
-        return;
-      }
-
-      console.log('✅ Supabase 저장 성공:', insertedData);
-      alert(`${dataRows.length}개 행이 성공적으로 저장되었습니다!`);
-      setSelectedFileName('');
-      onClose();
+      // 데이터를 상태에 저장 (실제 저장은 handleSave에서 수행)
+      setBulkExcelData(uniqueData);
 
     } catch (error) {
       console.error('❌ 파일 처리 오류:', error);
       alert('파일 처리 중 오류가 발생했습니다.');
+      setSelectedFileName('');
     }
   };
 
@@ -501,6 +550,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
 
       if (!worksheet) {
         alert('엑셀 파일에 시트가 없습니다.');
+        setSelectedCoupangFileName('');
         return;
       }
 
@@ -515,53 +565,35 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
 
       if (dataRows.length === 0) {
         alert('엑셀 파일에 데이터가 없습니다.');
+        setSelectedCoupangFileName('');
         return;
       }
 
-      console.log('🛒 쿠팡 엑셀 데이터 로드:', {
+      console.log('🛒 쿠팡 엑셀 데이터 로드 완료:', {
         total_rows: jsonData.length,
         data_rows: dataRows.length,
         sample: dataRows[0]
       });
 
-      // 사용자 확인
-      const confirmed = window.confirm(`${dataRows.length}개 쿠팡 주문을 구글시트에 추가하시겠습니까?`);
-      if (!confirmed) return;
-
-      // 백엔드로 데이터 전송
+      // 사용자 정보 확인
       const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
       const userId = currentUser.id || currentUser.user_id;
 
       if (!userId) {
         alert('사용자 정보를 찾을 수 없습니다.');
+        setSelectedCoupangFileName('');
         return;
       }
 
-      const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001';
-      const response = await fetch(`${backendUrl}/api/googlesheets/upload-coupang-excel`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          user_id: userId,
-          excelData: dataRows
-        }),
-      });
+      // 데이터를 상태에 임시 저장 (실제 저장은 handleSave에서 수행)
+      setCoupangExcelData(dataRows);
 
-      const result = await response.json();
-
-      if (result.success) {
-        alert(`구글시트에 ${result.data.rows_count}개 쿠팡 주문이 저장되었습니다!`);
-        setSelectedCoupangFileName('');
-        onClose();
-      } else {
-        alert(`저장 실패: ${result.message}`);
-      }
+      alert(`${dataRows.length}개 쿠팡 주문이 준비되었습니다.\n[저장] 버튼을 클릭하면 구글 시트에 저장됩니다.`);
 
     } catch (error) {
       console.error('쿠팡 파일 처리 오류:', error);
       alert('파일 처리 중 오류가 발생했습니다.');
+      setSelectedCoupangFileName('');
     }
   };
 
@@ -669,13 +701,13 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
 
                   {/* 입력 폼 영역 */}
                   <div className="order-item-form">
-                    {/* 등록상품명 */}
+                    {/* 등록상품명 - 각 항목별 개별 입력 */}
                     <input
                       type="text"
                       className="order-item-input-full"
                       placeholder="등록상품명"
-                      value={productName}
-                      onChange={(e) => setProductName(e.target.value)}
+                      value={item.itemName}
+                      onChange={(e) => handleItemChange(item.id, 'itemName', e.target.value)}
                     />
 
                     {/* 옵션명, 바코드, 수량 */}
