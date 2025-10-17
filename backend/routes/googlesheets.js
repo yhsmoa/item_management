@@ -645,8 +645,12 @@ router.post('/read-new-sheet', async (req, res) => {
       });
     }
 
-    // 3. 데이터 변환 (첫 행은 헤더이므로 제외)
-    const newDataRows = newRows.slice(1);
+    // 3. 데이터 변환 (첫 행은 헤더이므로 제외, 빈 행도 필터링)
+    const newDataRows = newRows.slice(1).filter(row => {
+      // 빈 행 필터링 (모든 셀이 비어있거나 undefined인 행 제외)
+      return row && row.some(cell => cell !== null && cell !== undefined && cell !== '');
+    });
+
     const transformedData = newDataRows.map((row, index) => ({
       china_order_number: row[1] || '', // B열
       date: row[0] || '', // A열
