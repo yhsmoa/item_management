@@ -1305,7 +1305,7 @@ router.post('/read-china-orders', async (req, res) => {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: userData.googlesheet_id,
-      range: '신규!A:T',
+      range: '신규!A:Z',
     });
 
     const rows = response.data.values || [];
@@ -1340,7 +1340,8 @@ router.post('/read-china-orders', async (req, res) => {
       remark: row[16] || '',
       confirm_order_id: row[17] || '',
       confirm_shipment_id: row[18] || '',
-      option_id: row[19] || ''
+      option_id: row[19] || '',
+      shipment_info: row[21] || '' // V열
     }));
 
     const processingTime = Date.now() - startTime;
@@ -1459,7 +1460,7 @@ router.post('/save-all-china-orders', async (req, res) => {
       order.confirm_shipment_id || '',          // S
       order.option_id || '',                    // T
       '',                                       // U (빈 값)
-      ''                                        // V (빈 값)
+      order.shipment_info || ''                 // V (개인주문 정보)
     ]);
 
     // 데이터 저장 (2행부터, A~V열)
