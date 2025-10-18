@@ -120,7 +120,7 @@ const RocketgrowthShipment: React.FC = () => {
         const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
 
         const allBarcodesCount: { [key: string]: number } = {};
         const shipmentResults: ShipmentData[] = [];
@@ -210,7 +210,7 @@ const RocketgrowthShipment: React.FC = () => {
         const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
 
         if (jsonData.length === 0) {
           alert('엑셀 파일에 데이터가 없습니다.');
