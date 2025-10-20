@@ -23,6 +23,17 @@ interface ChinaOrderData {
   order_status_check?: string;
   order_status_cancel?: string;
   order_status_shipment?: string;
+  korea_remark?: string; // Q열 (한국비고)
+  china_remark?: string; // R열 (중국비고)
+  order_code?: string; // S열
+  shipment_code?: string; // T열
+  order_id?: string; // U열
+  shipment_info?: string; // V열
+  col_w?: string; // W열
+  col_x?: string; // X열
+  col_y?: string; // Y열
+  col_z?: string; // Z열
+  // 하위 호환성을 위해 유지
   remark?: string;
   note?: string;
   confirm_order_id?: string;

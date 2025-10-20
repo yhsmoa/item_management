@@ -668,11 +668,16 @@ router.post('/read-new-sheet', async (req, res) => {
       order_status_check: row[13] || '', // N열
       order_status_cancel: row[14] || '', // O열
       order_status_shipment: row[15] || '', // P열
-      remark: row[16] || '', // Q열
-      confirm_order_id: row[17] || '', // R열
-      confirm_shipment_id: row[18] || '', // S열
-      option_id: row[19] || '', // T열
-      shipment_info: row[21] || '' // V열
+      korea_remark: row[16] || '', // Q열 (한국비고)
+      china_remark: row[17] || '', // R열 (중국비고)
+      order_code: row[18] || '', // S열 (order_code)
+      shipment_code: row[19] || '', // T열 (shipment_code)
+      order_id: row[20] || '', // U열 (order_id)
+      shipment_info: row[21] || '', // V열 (shipment_info)
+      col_w: row[22] || '', // W열
+      col_x: row[23] || '', // X열
+      col_y: row[24] || '', // Y열
+      col_z: row[25] || '' // Z열
     }));
 
     const processingTime = Date.now() - startTime;
@@ -982,8 +987,8 @@ router.post('/upload-coupang-excel', async (req, res) => {
     console.log('📍 [UPLOAD_COUPANG_EXCEL] 다음 입력 행:', nextRow);
 
     // 쿠팡 엑셀 데이터를 구글시트 형식으로 변환
-    // 엑셀 열 인덱스: K=10, L=11, W=22, R=17, C=2, AA=26 (0-based)
-    // 구글 시트: A부터 V까지 22개 컬럼
+    // 엑셀 열 인덱스: K=10, L=11, W=22, R=17, C=2, AA=26, O=14 (0-based)
+    // 구글 시트: A부터 Z까지
     const rows = excelData.map(row => {
       // V열에 "P-" & C열 (주문번호) & " " & AA열 (수취인명) 형식으로 저장
       const orderNumber = row[2] || '';  // C열 (주문번호)
@@ -1009,17 +1014,21 @@ router.post('/upload-coupang-excel', async (req, res) => {
         '',                    // N: 빈 값 (인덱스 13)
         '',                    // O: 빈 값 (인덱스 14)
         '',                    // P: 빈 값 (인덱스 15)
-        '',                    // Q: 비고 (빈 값) (인덱스 16)
-        '',                    // R: 빈 값 (인덱스 17)
-        '',                    // S: 빈 값 (인덱스 18)
-        '',                    // T: 빈 값 (인덱스 19)
-        '',                    // U: 빈 값 (인덱스 20)
-        personalOrderInfo      // V: P-주문번호 수취인명 (인덱스 21)
+        '',                    // Q: 한국비고 (빈 값) (인덱스 16)
+        '',                    // R: 중국비고 (빈 값) (인덱스 17)
+        '',                    // S: order_code (빈 값) (인덱스 18)
+        '',                    // T: shipment_code (빈 값) (인덱스 19)
+        row[14] || '',         // U: O열 -> order_id (인덱스 20)
+        personalOrderInfo,     // V: P-주문번호 수취인명 (인덱스 21)
+        '',                    // W: 빈 값 (인덱스 22)
+        '',                    // X: 빈 값 (인덱스 23)
+        '',                    // Y: 빈 값 (인덱스 24)
+        ''                     // Z: 빈 값 (인덱스 25)
       ];
     });
 
     // 데이터 입력
-    const updateRange = `신규!A${nextRow}:V${nextRow + rows.length - 1}`;
+    const updateRange = `신규!A${nextRow}:Z${nextRow + rows.length - 1}`;
     await sheets.spreadsheets.values.update({
       spreadsheetId: googlesheet_id,
       range: updateRange,
@@ -1442,7 +1451,7 @@ router.post('/save-all-china-orders', async (req, res) => {
       console.log('🗑️ [SAVE_ALL_CHINA_ORDERS] 기존 데이터 삭제 완료:', clearRange);
     }
 
-    // 데이터 변환 (구글 시트 형식, A~V열)
+    // 데이터 변환 (구글 시트 형식, A~Z열)
     const rows = orders.map(order => [
       order.date || '',                         // A
       order.china_order_number || '',           // B
@@ -1460,17 +1469,21 @@ router.post('/save-all-china-orders', async (req, res) => {
       order.order_status_check || '',           // N
       order.order_status_cancel || '',          // O
       order.order_status_shipment || '',        // P
-      order.remark || order.note || '',         // Q
-      order.confirm_order_id || '',             // R
-      order.confirm_shipment_id || '',          // S
-      order.option_id || '',                    // T
-      '',                                       // U (빈 값)
-      order.shipment_info || ''                 // V (개인주문 정보)
+      order.korea_remark || '',                 // Q (한국비고)
+      order.china_remark || '',                 // R (중국비고)
+      order.order_code || '',                   // S (order_code)
+      order.shipment_code || '',                // T (shipment_code)
+      order.order_id || '',                     // U (order_id)
+      order.shipment_info || '',                // V (shipment_info)
+      order.col_w || '',                        // W
+      order.col_x || '',                        // X
+      order.col_y || '',                        // Y
+      order.col_z || ''                         // Z
     ]);
 
-    // 데이터 저장 (2행부터, A~V열)
+    // 데이터 저장 (2행부터, A~Z열)
     if (rows.length > 0) {
-      const updateRange = `신규!A2:V${1 + rows.length}`;
+      const updateRange = `신규!A2:Z${1 + rows.length}`;
       await sheets.spreadsheets.values.update({
         spreadsheetId: userData.googlesheet_id,
         range: updateRange,
