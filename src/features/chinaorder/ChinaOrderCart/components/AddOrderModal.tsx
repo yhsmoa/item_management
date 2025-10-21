@@ -581,7 +581,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
 
       // 쿠팡 엑셀 데이터를 구글시트 형식으로 변환
       // O열(option_id) 포함하여 변환
-      const transformedData = dataRows.map(row => ({
+      const transformedData = dataRows.map((row: any) => ({
         optionId: row[14] || '', // O열 (option_id) - 인덱스 14
         rawData: row // 원본 데이터 유지
       }));
