@@ -652,8 +652,8 @@ router.post('/read-new-sheet', async (req, res) => {
     });
 
     const transformedData = newDataRows.map((row, index) => ({
-      china_order_number: row[1] || '', // B열
       date: row[0] || '', // A열
+      china_order_number: row[1] || '', // B열
       item_name: row[2] || '', // C열
       option_name: row[3] || '', // D열
       order_quantity: safeParseInt(row[4]), // E열
@@ -987,9 +987,14 @@ router.post('/upload-coupang-excel', async (req, res) => {
     console.log('📍 [UPLOAD_COUPANG_EXCEL] 다음 입력 행:', nextRow);
 
     // 쿠팡 엑셀 데이터를 구글시트 형식으로 변환
+    // 프론트엔드에서 변환된 데이터 구조: { optionId, rawData }
     // 엑셀 열 인덱스: K=10, L=11, W=22, R=17, C=2, AA=26, O=14 (0-based)
     // 구글 시트: A부터 Z까지
-    const rows = excelData.map(row => {
+    const rows = excelData.map(item => {
+      // 프론트엔드에서 변환된 객체인 경우와 원본 배열인 경우 모두 처리
+      const row = item.rawData || item; // 변환된 데이터면 rawData 사용, 아니면 원본 사용
+      const optionId = item.optionId || row[14] || ''; // 변환된 optionId 우선 사용
+
       // V열에 "P-" & C열 (주문번호) & " " & AA열 (수취인명) 형식으로 저장
       const orderNumber = row[2] || '';  // C열 (주문번호)
       const recipientName = row[26] || '';  // AA열 (수취인명)
@@ -1018,13 +1023,18 @@ router.post('/upload-coupang-excel', async (req, res) => {
         '',                    // R: 중국비고 (빈 값) (인덱스 17)
         '',                    // S: order_code (빈 값) (인덱스 18)
         '',                    // T: shipment_code (빈 값) (인덱스 19)
-        row[14] || '',         // U: O열 -> order_id (인덱스 20)
+        optionId,              // U: O열(option_id) -> U열 (인덱스 20)
         personalOrderInfo,     // V: P-주문번호 수취인명 (인덱스 21)
         '',                    // W: 빈 값 (인덱스 22)
         '',                    // X: 빈 값 (인덱스 23)
         '',                    // Y: 빈 값 (인덱스 24)
         ''                     // Z: 빈 값 (인덱스 25)
       ];
+    });
+
+    console.log('🔄 [UPLOAD_COUPANG_EXCEL] 데이터 변환 완료:', {
+      sample_option_id: rows[0]?.[20], // U열 (option_id)
+      sample_row: rows[0]
     });
 
     // 데이터 입력

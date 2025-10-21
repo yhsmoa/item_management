@@ -579,9 +579,22 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
         return;
       }
 
+      // 쿠팡 엑셀 데이터를 구글시트 형식으로 변환
+      // O열(option_id) 포함하여 변환
+      const transformedData = dataRows.map(row => ({
+        optionId: row[14] || '', // O열 (option_id) - 인덱스 14
+        rawData: row // 원본 데이터 유지
+      }));
+
+      console.log('🛒 쿠팡 엑셀 변환 완료:', {
+        total_rows: transformedData.length,
+        sample_option_id: transformedData[0]?.optionId,
+        sample_raw: transformedData[0]?.rawData
+      });
+
       // 데이터를 상태에 임시 저장 (실제 저장은 handleSave에서 수행)
-      setCoupangExcelData(dataRows);
-      setCoupangExcelDataCount(dataRows.length);
+      setCoupangExcelData(transformedData);
+      setCoupangExcelDataCount(transformedData.length);
 
     } catch (error) {
       console.error('쿠팡 파일 처리 오류:', error);

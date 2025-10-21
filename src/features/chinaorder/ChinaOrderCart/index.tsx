@@ -331,7 +331,15 @@ function ChinaorderCart() {
         }
       }
 
-      // 구글 시트에 전체 저장
+      // 구글 시트에 전체 저장 (A:Z 열 모두 포함)
+      console.log('💾 구글 시트 저장 데이터 샘플:', {
+        total_count: orderData.length,
+        sample_data: orderData[0],
+        has_order_id: orderData[0]?.order_id ? 'O' : 'X',
+        has_shipment_info: orderData[0]?.shipment_info ? 'O' : 'X',
+        has_col_w: orderData[0]?.col_w ? 'O' : 'X'
+      });
+
       const saveResponse = await fetch(`${backendUrl}/api/googlesheets/save-all-china-orders`, {
         method: 'POST',
         headers: {
