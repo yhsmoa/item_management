@@ -1768,7 +1768,7 @@ const CoupangOrders: React.FC = () => {
                           const bgColor = colorMap[statusLine] || '#E8E8E8';
 
                           return (
-                            <div style={{ whiteSpace: 'pre-line' }}>
+                            <div style={{ whiteSpace: 'nowrap' }}>
                               <span style={{
                                 backgroundColor: bgColor,
                                 padding: '2px 4px',
@@ -1776,7 +1776,7 @@ const CoupangOrders: React.FC = () => {
                               }}>
                                 {statusLine}
                               </span>
-                              {compositionLine && <div style={{ marginTop: '4px' }}>🚢 {compositionLine}</div>}
+                              {compositionLine && <span style={{ marginLeft: '4px' }}>🚢 {compositionLine}</span>}
                             </div>
                           );
                         })()}

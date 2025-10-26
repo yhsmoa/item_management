@@ -61,7 +61,8 @@
       "Bash(git rev-parse:*)",
       "Bash(start http://13.125.220.142:3000/marketing/promotion)",
       "Bash(if exist nul del nul)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": [],
