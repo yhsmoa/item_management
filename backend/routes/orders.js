@@ -187,8 +187,8 @@ router.post('/search-purchase-status', async (req, res) => {
 
       // 3-3. 매칭 성공 시 결과 저장 및 업데이트
       if (matchedGoogleSheet) {
-        // 취소(C) 시트는 스킵
-        if (matchedGoogleSheet.sheet_name === 'C') {
+        // 취소(cancel) 시트는 스킵
+        if (matchedGoogleSheet.sheet_name === 'cancel') {
           console.log(`⊘ [ORDER_SEARCH] 취소 시트 스킵: ${orderNumber || recipientName}`);
           continue;
         }
@@ -204,9 +204,9 @@ router.post('/search-purchase-status', async (req, res) => {
 
         // 상태 표시명 매핑
         const sheetNameMap = {
-          'N': '신규',
-          'P': '결제',
-          'O': '진행'
+          'new': '신규',
+          'paid': '결제',
+          'ongoing': '진행'
         };
 
         // 상태 결정 로직
