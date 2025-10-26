@@ -198,7 +198,7 @@ const CoupangOrders: React.FC = () => {
 
     let overdueCount = 0;        // 출고지연
     let upcomingCount = 0;       // 출고임박 (3일 남은 것)
-    let noOrderCount = 0;        // 미주문 (사입 = 0 또는 "")
+    let noOrderCount = 0;        // 미주문 (사입상태 매칭 안됨)
     let barcodeErrorCount = 0;   // 바코드 오류 (barcode = "")
 
     orderData.forEach(order => {
@@ -209,11 +209,8 @@ const CoupangOrders: React.FC = () => {
         barcodeErrorCount++;
       }
 
-      // 실시간 사입 수량 계산
-      const purchaseQty = barcode ? (purchaseData.get(barcode) || 0) : 0;
-
-      // 미주문 체크 (사입이 0이거나 없는 경우)
-      if (purchaseQty === 0) {
+      // 미주문 체크 (사입상태가 매칭되지 않은 경우)
+      if (!order.purchase_status || order.purchase_status.trim() === '') {
         noOrderCount++;
       }
 
@@ -761,11 +758,9 @@ const CoupangOrders: React.FC = () => {
           filtered = shippableOrders;
           break;
         case 'noOrder':
-          // 미주문: 사입이 0이거나 없는 경우
+          // 미주문: 사입상태가 매칭되지 않은 경우
           filtered = orderData.filter(order => {
-            const barcode = order.barcode || '';
-            const purchaseQty = barcode ? (purchaseData.get(barcode) || 0) : 0;
-            return purchaseQty === 0;
+            return !order.purchase_status || order.purchase_status.trim() === '';
           });
           break;
         case 'barcodeError':
