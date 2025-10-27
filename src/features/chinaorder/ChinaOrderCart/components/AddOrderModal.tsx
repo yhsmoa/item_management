@@ -30,6 +30,9 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
   const [coupangExcelData, setCoupangExcelData] = useState<any[]>([]);
   const [coupangExcelDataCount, setCoupangExcelDataCount] = useState<number>(0);
 
+  // 저장 중 로딩 상태
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+
   const [orderItems, setOrderItems] = useState([
     {
       id: 1,
@@ -157,6 +160,12 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
   };
 
   const handleSave = async () => {
+    // 이미 저장 중이면 중복 실행 방지
+    if (isSaving) {
+      return;
+    }
+
+    setIsSaving(true);
     console.log('저장할 데이터:', { productName, orderItems, activeTab, mode });
 
     // 수정 모드 - 테이블에만 수정 (구글 시트 저장 안 함)
@@ -175,6 +184,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
       }));
 
       onSave({ productName, orderItems, activeTab, mode, tableData });
+      setIsSaving(false);
       onClose();
       return;
     }
@@ -187,12 +197,14 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
 
         if (!userId) {
           alert('사용자 정보를 찾을 수 없습니다.');
+          setIsSaving(false);
           return;
         }
 
         // 데이터 검증
         if (!productName) {
           alert('등록상품명을 입력해주세요.');
+          setIsSaving(false);
           return;
         }
 
@@ -214,18 +226,22 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
         if (result.success) {
           alert(`구글시트에 ${result.data.rows_count}개 주문이 저장되었습니다!`);
           onSave({ productName, orderItems, activeTab, shouldReload: true });
+          setIsSaving(false);
           onClose();
         } else {
           alert(`저장 실패: ${result.message}`);
+          setIsSaving(false);
         }
       } catch (error) {
         console.error('저장 오류:', error);
         alert('저장 중 오류가 발생했습니다.');
+        setIsSaving(false);
       }
     } else if (activeTab === 'bulk') {
       // 대량엑셀 저장
       if (bulkExcelData.length === 0) {
         alert('엑셀 파일을 먼저 선택해주세요.');
+        setIsSaving(false);
         return;
       }
 
@@ -247,6 +263,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
           } else {
             alert(`저장 실패: ${error.message}`);
           }
+          setIsSaving(false);
           return;
         }
 
@@ -257,16 +274,19 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
         setBulkExcelData([]);
         setBulkExcelDataCount(0);
         onSave({ activeTab, shouldReload: true });
+        setIsSaving(false);
         onClose();
 
       } catch (error) {
         console.error('❌ 저장 오류:', error);
         alert('저장 중 오류가 발생했습니다.');
+        setIsSaving(false);
       }
     } else if (activeTab === 'coupang') {
       // 쿠팡엑셀 저장
       if (coupangExcelData.length === 0) {
         alert('엑셀 파일을 먼저 선택해주세요.');
+        setIsSaving(false);
         return;
       }
 
@@ -276,6 +296,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
 
         if (!userId) {
           alert('사용자 정보를 찾을 수 없습니다.');
+          setIsSaving(false);
           return;
         }
 
@@ -301,14 +322,17 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
           setCoupangExcelData([]);
           setCoupangExcelDataCount(0);
           onSave({ activeTab, shouldReload: true });
+          setIsSaving(false);
           onClose();
         } else {
           alert(`저장 실패: ${result.message}`);
+          setIsSaving(false);
         }
 
       } catch (error) {
         console.error('쿠팡 저장 오류:', error);
         alert('저장 중 오류가 발생했습니다.');
+        setIsSaving(false);
       }
     }
   };
@@ -625,10 +649,15 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ isOpen, onClose, onSave, 
             </div>
           )}
           <div className="modal-header-buttons">
-            <ActionButton variant="default" onClick={onClose} className="cancel-button">
+            <ActionButton variant="default" onClick={onClose} className="cancel-button" disabled={isSaving}>
               취소
             </ActionButton>
-            <ActionButton variant="success" onClick={handleSave}>
+            <ActionButton
+              variant="success"
+              onClick={handleSave}
+              loading={isSaving}
+              loadingText="저장 중..."
+            >
               {mode === 'edit' ? '수정' : '저장'}
             </ActionButton>
           </div>
